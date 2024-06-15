@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/services.dart';
 import '../Components/EmailInputFormatter.dart';
 import '../Login/login_screen.dart';
+import '../home.dart';
+import 'Components/phone_number_dialog.dart';
 
 class RegistrationScreen extends StatelessWidget {
   final TextEditingController _firstNameController = TextEditingController();
@@ -112,7 +114,7 @@ class RegistrationScreen extends StatelessWidget {
                   onPressed: () async {
                     if (_passwordController.text == _confirmPasswordController.text) {
                       if (_isValidEmail(_emailController.text.trim())) {
-                        await _registerUser();
+                        await _registerUser(context);
                       } else {
                         print('Invalid email address');
                       }
@@ -121,7 +123,7 @@ class RegistrationScreen extends StatelessWidget {
                     }
                   },
                   child: const Text(
-                    'Register',
+                    'Continue',
                     style: TextStyle(
                       fontSize: 18.0,
                       color: Colors.white,
@@ -181,7 +183,7 @@ class RegistrationScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _registerUser() async {
+  Future<void> _registerUser(BuildContext context) async {
     try {
       UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
@@ -190,15 +192,23 @@ class RegistrationScreen extends StatelessWidget {
 
       User? user = userCredential.user;
       if (user != null) {
-        await _firestore.collection('Users').doc(user.uid).set({
-          'Fname': _firstNameController.text.trim(),
-          'Lname': _lastNameController.text.trim(),
-          'Email': user.email,
-          'User ID': user.uid,
-          'Status': true,
-        });
+        await PhoneNumberDialog.showPhoneNumberDialog(context, (phoneNumber, countryCode, region) async {
+          await _firestore.collection('Users').doc(user.uid).set({
+            'Fname': _firstNameController.text.trim(),
+            'Lname': _lastNameController.text.trim(),
+            'Email': user.email,
+            'User ID': user.uid,
+            'Mobile Number': '$countryCode $phoneNumber',
+            'Region': region,
+            'Status': true,
+          });
 
-        print('User registered successfully');
+          print('User registered successfully');
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => HomeScreen()),
+          );
+        });
       }
     } catch (e) {
       print(e);

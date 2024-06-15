@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../Registration/registration_screen.dart';
-import '../home.dart';
 
-class LoginScreen extends StatelessWidget {
+class LoginScreen1 extends StatelessWidget {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -133,10 +132,6 @@ class LoginScreen extends StatelessWidget {
       if (user != null) {
         print('User signed in successfully');
         // Navigate to home screen or other screen as required
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomeScreen()),
-        );
       }
     } catch (e) {
       print('Error signing in: $e');
