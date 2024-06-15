@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../Login/login_screen1.dart';
 import 'Widgets/custom_bottom_navbar.dart';
 import 'Widgets/search_bar.dart';
 import 'Widgets/speech_bubble.dart';
@@ -48,7 +49,10 @@ class HomePage extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Add your onPressed code here!
-        },
+          
+          Navigator.push(
+              context, 
+              MaterialPageRoute(builder: (context) => LoginScreen1())) ;    },
         child: Icon(Icons.add),
         backgroundColor: Colors.blueAccent,
       ),
