@@ -58,7 +58,7 @@ class PhoneNumberDialog {
                         ),
                       ],
                     ),
-                    SizedBox(height: 10),
+                    SizedBox(height: 4),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
@@ -90,7 +90,7 @@ class PhoneNumberDialog {
                         (context as Element).markNeedsBuild(); // Rebuild to update UI
                       },
                     ),
-                    SizedBox(height: 10),
+                    SizedBox(height: 5),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blueAccent,
@@ -102,6 +102,7 @@ class PhoneNumberDialog {
                           Navigator.of(context).pop();
                         } else {
                           print('Phone number and region are required');
+
                         }
                       },
                     ),
@@ -110,14 +111,15 @@ class PhoneNumberDialog {
               ],
             ),
           ),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancel'),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-          ],
+          // actions: <Widget>[
+          //   TextButton(
+          //     child: Text('skip'),
+          //     onPressed: () {_pageController.nextPage(
+          //       duration: Duration(milliseconds: 300),
+          //       curve: Curves.easeIn,
+          //     );},
+          //   ),
+          // ],
         );
       },
     );
