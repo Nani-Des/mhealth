@@ -80,7 +80,6 @@ class _DoctorsRowItemState extends State<DoctorsRowItem> {
                     _users[index]['Fname']!,
                     style: TextStyle(
                       fontSize: 14.0,
-                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],

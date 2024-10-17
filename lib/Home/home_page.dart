@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mhealth/Hospital/specialty_details.dart';
 import '../Login/login_screen1.dart';
 import 'Widgets/custom_bottom_navbar.dart';
 import 'Widgets/homepage_content.dart';
@@ -29,7 +30,7 @@ class HomePage extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Add your onPressed code here!
-          Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen1()));
+          Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialtyDetails()));
         },
         child: Icon(Icons.add),
         backgroundColor: Colors.blueAccent,

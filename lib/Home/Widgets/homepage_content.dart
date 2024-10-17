@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:mhealth/Home/Widgets/search_bar.dart';
 import 'package:mhealth/Home/Widgets/speech_bubble.dart';
-import 'package:mhealth/Home/Widgets/doctors_row_item.dart';
+import 'doctors_row_item.dart';
+import 'organization_list_view.dart'; // Import the new OrganizationListView
 
-class HomePageContent extends StatelessWidget {
+class HomePageContent extends StatefulWidget {
   final VoidCallback onMessagePressed;
 
   const HomePageContent({
@@ -12,74 +13,95 @@ class HomePageContent extends StatelessWidget {
   }) : super(key: key);
 
   @override
+  _HomePageContentState createState() => _HomePageContentState();
+}
+
+class _HomePageContentState extends State<HomePageContent> {
+  bool _showListView = false; // Flag to toggle between globe and list view
+
+  @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SearchBar1(),
-            SizedBox(height: 20),
-            SpeechBubble(
-              onPressed: () {
-                print("See Doctor now! tapped");
-                // Add your onPressed code here!
-              },
-              textStyle: TextStyle(
-                fontSize: 15.0, // Adjust the font size here
-                fontWeight: FontWeight.bold,
-                color: Colors.blueAccent,
-              ),
+    return Padding(
+      padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 4.0, bottom: 4.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Other widgets like SearchBar, SpeechBubble, DoctorsRowItem here
+          SearchBar1(),
+          SizedBox(height: 6),
+          SpeechBubble(
+            onPressed: () {
+              print("See Doctor now! tapped");
+              // Add your onPressed code here!
+            },
+            textStyle: TextStyle(
+              fontSize: 15.0, // Adjust the font size here
+              fontWeight: FontWeight.bold,
+              color: Colors.blueAccent,
             ),
-            SizedBox(height: 20),
-            DoctorsRowItem(),
-            SizedBox(height: 5),
-            Center(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: EdgeInsets.all(2.0), // Adjustable padding around the image
-                    child: Image.asset(
-                      'assets/Images/globe.png',
-                      width: 150,
-                      height: 150,
-                      fit: BoxFit.contain,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  GestureDetector(
-                    onTap: () {
-                      onMessagePressed();
-                      // Add your code to display hospitals near the user here
-                      print('Show Hospitals near you tapped');
-                    },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.location_city_outlined,
-                          size: 30,
-                          color: Colors.blueAccent,
-                        ),
-                        SizedBox(width: 5),
-                        Text(
-                          'Show Hospitals near you', // Your text alongside the icon
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            fontStyle: FontStyle.italic,
-                            color: Colors.blueAccent,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+          ),
+
+          DoctorsRowItem(),
+          // SizedBox(height: 2),
+          // Conditionally render the Globe or the List View
+          _showListView
+              ? Container(
+            height: 230, // Set a fixed height for the scrollable area
+            child: SingleChildScrollView(
+              child: OrganizationListView(),
             ),
-          ],
-        ),
+          )
+              : _buildGlobeAndText(context),
+        ],
+      ),
+    );
+  }
+
+  // Function to build the globe image and "Show hospitals near you" text
+  Widget _buildGlobeAndText(BuildContext context) {
+    return Center(
+      child: Column(
+        children: [
+          Padding(
+            padding: EdgeInsets.all(2.0), // Adjustable padding around the image
+            child: Image.asset(
+              'assets/Images/globe1.jpg',
+              width: 150,
+              height: 150,
+              fit: BoxFit.contain,
+            ),
+          ),
+          SizedBox(height: 2),
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _showListView = true; // Show list view when tapped
+              });
+              widget.onMessagePressed();
+              print('Show Hospitals near you tapped');
+            },
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.location_city_outlined,
+                  size: 30,
+                  color: Colors.blueAccent,
+                ),
+                SizedBox(width: 5),
+                Text(
+                  'Show Hospitals near you',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.blueAccent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
