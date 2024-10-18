@@ -30,7 +30,7 @@ class HomePage extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           // Add your onPressed code here!
-          Navigator.push(context, MaterialPageRoute(builder: (context) => SpecialtyDetails()));
+          Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen1()));
         },
         child: Icon(Icons.add),
         backgroundColor: Colors.blueAccent,

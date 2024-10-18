@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../Hospital/specialty_details.dart';
+
 class OrganizationListView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -18,16 +20,24 @@ class OrganizationListView extends StatelessWidget {
           physics: NeverScrollableScrollPhysics(), // Prevents inner scrolling
           itemCount: hospitals.length,
           itemBuilder: (context, index) {
+            final hospital = hospitals[index];
             final hospitalData = hospitals[index].data() as Map<String, dynamic>;
             final backgroundImage = hospitalData['Background Image'] ?? '';
             final city = hospitalData['City'] ?? 'Unknown City';
             final contact = hospitalData['Contact'] ?? 'No Contact Info';
+            final hospitalId = hospital.id;
 
             return GestureDetector(
               onTap: () {
                 // Add your onPress logic here, for example, navigating to a detail page
-                print('Card tapped for: $city');
+
                 // You can also use Navigator.push to route to a detailed page
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => SpecialtyDetails(hospitalId: hospitalId),
+                  ),
+                );
               },
               child: HospitalCard(
                 backgroundImage: backgroundImage,
