@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import '../Components/EmailInputFormatter.dart';
 import '../Login/login_screen.dart';
+import '../Login/login_screen1.dart';
 import 'Components/registration_service.dart';
 
 
@@ -162,7 +163,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       onPressed: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => LoginScreen()),
+                          MaterialPageRoute(builder: (context) => LoginScreen1()),
                         );
                       },
                       child: Text(

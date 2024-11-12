@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../../Hospital/doctor_profile.dart';
 
 class DoctorsRowItem extends StatefulWidget {
   @override
@@ -30,6 +31,7 @@ class _DoctorsRowItemState extends State<DoctorsRowItem> {
       doc['User Pic'] != null &&
           Uri.tryParse(doc['User Pic'])?.hasAbsolutePath == true)
           .map((doc) => {
+        'userId': doc.id, // Capture the userId
         'User Pic': doc['User Pic'] as String,
         'Fname': '${doc['Title']} ${doc['Fname']}' as String,
       })
@@ -44,10 +46,15 @@ class _DoctorsRowItemState extends State<DoctorsRowItem> {
   }
 
   void _onItemPressed(int index) {
-    // Implement your logic here when an item is pressed
-    print('Item pressed: ${_users[index]['Fname']}');
-    // Example: Navigate to a doctor's profile page
-    // Navigator.push(context, MaterialPageRoute(builder: (context) => DoctorProfileScreen(user: _users[index])));
+    final userId = _users[index]['userId'];
+    if (userId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DoctorProfileScreen(userId: userId),
+        ),
+      );
+    }
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
 import '../Registration/registration_screen.dart';
 
 class LoginScreen1 extends StatelessWidget {
@@ -130,8 +131,8 @@ class LoginScreen1 extends StatelessWidget {
 
       User? user = userCredential.user;
       if (user != null) {
-        print('User signed in successfully');
-        // Navigate to home screen or other screen as required
+        print('User signed in successfully with User ID: ${user.uid}');
+        Navigator.pop(context, user.uid); // Return the user ID to the previous screen
       }
     } catch (e) {
       print('Error signing in: $e');
