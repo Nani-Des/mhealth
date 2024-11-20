@@ -59,6 +59,30 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     }
   }
 
+  Future<void> _updateUserData() async {
+    User? currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      final userData = {
+        'Fname': _firstNameController.text,
+        'Lname': _lastNameController.text,
+        'Mobile Number': _mobileController.text,
+        'Region': _regionController.text,
+        'Email': _emailController.text,
+      };
+
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(currentUser.uid)
+          .update(userData);
+
+      // Refresh the data in the UI
+      setState(() {
+        _userDataFuture = _fetchUserData();
+        _isEditing = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!widget.showProfileDrawer) return SizedBox.shrink();
@@ -105,7 +129,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
               String? email = userData['Email'];
 
               if (_isEditing) {
-                // If editing, show input fields
                 _regionController.text = region ?? '';
                 _mobileController.text = mobileNumber ?? '';
                 _emailController.text = email ?? '';
@@ -116,14 +139,17 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
               return Column(
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
-                  // Top-right edit button
                   Align(
                     alignment: Alignment.topRight,
                     child: TextButton(
                       onPressed: () {
-                        setState(() {
-                          _isEditing = !_isEditing;
-                        });
+                        if (_isEditing) {
+                          _updateUserData();
+                        } else {
+                          setState(() {
+                            _isEditing = true;
+                          });
+                        }
                       },
                       child: Text(
                         _isEditing ? 'Save' : 'Edit',
@@ -131,7 +157,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                       ),
                     ),
                   ),
-                  // Profile Picture
                   GestureDetector(
                     onTap: _isEditing ? _pickImage : null,
                     child: CircleAvatar(
@@ -147,7 +172,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                     ),
                   ),
                   SizedBox(height: 10),
-                  // Input fields for editing
                   if (_isEditing)
                     ...[
                       TextField(
@@ -174,22 +198,20 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                       ),
                     ]
                   else
-                    ...[
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('$firstName $lastName', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          SizedBox(width: 8),
-                          Text('-', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                          SizedBox(width: 8),
-                          Text('$region region', style: TextStyle(fontSize: 10)),
-                          SizedBox(width: 1),
-                          Text('||', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                          SizedBox(width: 1),
-                          Text('$email', style: TextStyle(fontSize: 10)),
-                        ],
-                      )
-                    ],
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('$firstName $lastName', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        SizedBox(width: 8),
+                        Text('-', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        SizedBox(width: 8),
+                        Text('$region region', style: TextStyle(fontSize: 10)),
+                        SizedBox(width: 1),
+                        Text('||', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        SizedBox(width: 1),
+                        Text('$email', style: TextStyle(fontSize: 10)),
+                      ],
+                    ),
                   SizedBox(height: 10),
                   if (!_isEditing)
                     Row(
@@ -201,14 +223,9 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                       ],
                     ),
                   SizedBox(height: 10),
-                  // Close button
-
-                  // Bottom action buttons
-
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // Delete button
                       ElevatedButton(
                         onPressed: () {
                           // Handle delete logic here
@@ -218,13 +235,9 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                           backgroundColor: Colors.red,
                         ),
                       ),
-                      // Logout button
                       ElevatedButton(
                         onPressed: () async {
-                          // Sign out the user
                           await FirebaseAuth.instance.signOut();
-
-                          // Navigate back to the HomePage as an unsigned user
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(builder: (context) => HomePage()),

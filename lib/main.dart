@@ -4,6 +4,7 @@ import 'package:mhealth/Registration/registration_screen.dart';
 
 import 'Home/home_page.dart';
 import 'Login/login_screen1.dart';
+import 'Maps/map_screen.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
@@ -33,7 +34,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.white),
         useMaterial3: true,
       ),
-      home: HomePage(),
+      home: MapScreen(),
     );
   }
 }

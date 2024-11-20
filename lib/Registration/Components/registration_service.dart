@@ -38,6 +38,7 @@ class RegistrationService {
               'Mobile Number': '$countryCode $phoneNumber',
               'Region': region,
               'Status': true,
+              'User Pic' : 'https://firebasestorage.googleapis.com/v0/b/mhealth-6191e.appspot.com/o/assets%2Fplaceholder.png?alt=media&token=3350f551-d18e-44ed-939a-095b8a66a2a7',
               'CreatedAt': Timestamp.now(),
             });
 
