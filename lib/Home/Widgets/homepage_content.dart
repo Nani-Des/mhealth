@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mhealth/Home/Widgets/search_bar.dart';
 import 'package:mhealth/Home/Widgets/speech_bubble.dart';
+import '../../Maps/map_screen.dart';
 import 'doctors_row_item.dart';
 import 'organization_list_view.dart'; // Import the new OrganizationListView
 
@@ -62,13 +63,23 @@ class _HomePageContentState extends State<HomePageContent> {
     return Center(
       child: Column(
         children: [
-          Padding(
-            padding: EdgeInsets.all(2.0), // Adjustable padding around the image
-            child: Image.asset(
-              'assets/Images/globe1.jpg',
-              width: 150,
-              height: 150,
-              fit: BoxFit.contain,
+          // Wrap the Image.asset with GestureDetector to handle onTap
+          GestureDetector(
+            onTap: () {
+              // Navigate to the MapScreen when the globe image is tapped
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => MapScreen()),
+              );
+            },
+            child: Padding(
+              padding: EdgeInsets.all(2.0), // Adjustable padding around the image
+              child: Image.asset(
+                'assets/Images/globe1.jpg',
+                width: 150,
+                height: 150,
+                fit: BoxFit.contain,
+              ),
             ),
           ),
           SizedBox(height: 2),
@@ -105,4 +116,5 @@ class _HomePageContentState extends State<HomePageContent> {
       ),
     );
   }
+
 }
