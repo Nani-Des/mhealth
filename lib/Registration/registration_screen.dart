@@ -15,6 +15,8 @@ class RegistrationScreen extends StatelessWidget {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  RegistrationScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -104,7 +106,7 @@ class RegistrationScreen extends StatelessWidget {
               Center(
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 80.0, vertical: 15.0), backgroundColor: Colors.blueAccent,
+                    padding: const EdgeInsets.symmetric(horizontal: 80.0, vertical: 15.0), backgroundColor: Colors.blueAccent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30.0),
                     ),
@@ -138,7 +140,7 @@ class RegistrationScreen extends StatelessWidget {
                       MaterialPageRoute(builder: (context) => LoginScreen()),
                     );
                   },
-                  child: Text(
+                  child: const Text(
                     'Already have an account? Login',
                     style: TextStyle(
                       color: Colors.blueAccent,
@@ -173,9 +175,9 @@ class RegistrationScreen extends StatelessWidget {
         ),
         filled: true,
         fillColor: Colors.grey[200],
-        contentPadding: EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
+        contentPadding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
       ),
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 16.0,
       ),
     );

@@ -16,7 +16,7 @@ class CredentialsContainer extends StatefulWidget {
   TextInputType keyboardType;
 
   CredentialsContainer({
-    Key? key,
+    super.key,
     required this.title,
     this.isPassword = false,
     this.isPasswordVisible = false,
@@ -27,7 +27,7 @@ class CredentialsContainer extends StatefulWidget {
     required this.hintText,
     required this.controller,
     required this.inputFormatter,
-  }) : super(key: key);
+  });
 
   @override
   State<CredentialsContainer> createState() => _CredentialsContainerState();

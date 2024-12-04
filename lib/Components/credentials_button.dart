@@ -7,11 +7,11 @@ class CredentialsButton extends StatelessWidget {
   String buttonText;
   bool isConfirmLater;
   CredentialsButton({
-    Key? key,
+    super.key,
     this.buttonText = 'Login',
     required this.screen,
     this.isConfirmLater = false,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

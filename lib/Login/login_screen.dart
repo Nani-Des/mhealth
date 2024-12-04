@@ -5,6 +5,8 @@ class LoginScreen extends StatelessWidget {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
+  LoginScreen({super.key});
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -15,8 +17,8 @@ class LoginScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SizedBox(height: 50.0),
-              Text(
+              const SizedBox(height: 50.0),
+              const Text(
                 'Login',
                 style: TextStyle(
                   fontSize: 34.0,
@@ -24,7 +26,7 @@ class LoginScreen extends StatelessWidget {
                   color: Colors.blueAccent,
                 ),
               ),
-              SizedBox(height: 10.0),
+              const SizedBox(height: 10.0),
               Text(
                 'Sign in to your account',
                 style: TextStyle(
@@ -32,25 +34,25 @@ class LoginScreen extends StatelessWidget {
                   color: Colors.grey[600],
                 ),
               ),
-              SizedBox(height: 30.0),
+              const SizedBox(height: 30.0),
               _buildTextField(
                 controller: _emailController,
                 labelText: 'Email',
                 icon: Icons.email,
                 obscureText: false,
               ),
-              SizedBox(height: 20.0),
+              const SizedBox(height: 20.0),
               _buildTextField(
                 controller: _passwordController,
                 labelText: 'Password',
                 icon: Icons.lock,
                 obscureText: true,
               ),
-              SizedBox(height: 30.0),
+              const SizedBox(height: 30.0),
               Center(
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(horizontal: 80.0, vertical: 15.0), backgroundColor: Colors.blueAccent,
+                    padding: const EdgeInsets.symmetric(horizontal: 80.0, vertical: 15.0), backgroundColor: Colors.blueAccent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30.0),
                     ),
@@ -58,7 +60,7 @@ class LoginScreen extends StatelessWidget {
                   onPressed: () {
                     // Handle login logic here
                   },
-                  child: Text(
+                  child: const Text(
                     'Login',
                     style: TextStyle(
                       fontSize: 18.0,
@@ -67,7 +69,7 @@ class LoginScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              SizedBox(height: 20.0),
+              const SizedBox(height: 20.0),
               Center(
                 child: TextButton(
                   onPressed: () {
@@ -77,7 +79,7 @@ class LoginScreen extends StatelessWidget {
                       MaterialPageRoute(builder: (context) => RegistrationScreen()),
                     );
                   },
-                  child: Text(
+                  child: const Text(
                     'Don\'t have an account? Register',
                     style: TextStyle(
                       color: Colors.blueAccent,
@@ -105,9 +107,9 @@ class LoginScreen extends StatelessWidget {
         ),
         filled: true,
         fillColor: Colors.grey[200],
-        contentPadding: EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
+        contentPadding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
       ),
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 16.0,
       ),
     );

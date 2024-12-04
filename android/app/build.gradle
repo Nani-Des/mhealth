@@ -2,7 +2,7 @@ plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
-    id 'com.google.gms.google-services'
+    id 'com.google.gms.google-services' // Firebase plugin
 }
 
 def localProperties = new Properties()
@@ -42,10 +42,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId "com.example.mhealth"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://docs.flutter.dev/deployment/android#reviewing-the-gradle-build-configuration.
         minSdkVersion 23
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutterVersionCode.toInteger()
@@ -54,8 +51,6 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig signingConfigs.debug
         }
     }
@@ -66,6 +61,15 @@ flutter {
 }
 
 dependencies {
+    // Firebase BoM for managing all Firebase dependencies
     implementation platform('com.google.firebase:firebase-bom:33.0.0')
-    implementation 'com.google.firebase:firebase-analytics'
+
+    // Add the Firebase services you use
+    implementation 'com.google.firebase:firebase-analytics' // Firebase Analytics
+    implementation 'com.google.firebase:firebase-firestore' // Firestore
+    implementation 'com.google.firebase:firebase-auth' // Authentication
+    implementation 'com.google.firebase:firebase-database' // Realtime Database
+
+    // Additional dependencies (optional)
+    implementation 'androidx.core:core-ktx:1.9.0'
 }
