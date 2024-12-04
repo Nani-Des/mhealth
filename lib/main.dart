@@ -1,7 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
-import 'package:mhealth/Registration/registration_screen.dart';
-
 import 'Home/home_page.dart';
 import 'Login/login_screen1.dart';
 import 'Maps/map_screen.dart';

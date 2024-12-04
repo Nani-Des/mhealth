@@ -142,7 +142,7 @@ class _MapScreenState extends State<MapScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Google Maps with Search'),
+        title: const Text('Find Nearby Hospitals'),
         actions: [
           if (_origin != null)
             TextButton(
@@ -229,7 +229,7 @@ class _MapScreenState extends State<MapScreen> {
                       textInputAction: TextInputAction.search,
                       onSubmitted: _searchPlace,
                       decoration: const InputDecoration(
-                        hintText: 'Search for a place',
+                        hintText: 'Search for nearest Hospital',
                         border: InputBorder.none,
                         contentPadding: EdgeInsets.only(left: 8.0),
                       ),
