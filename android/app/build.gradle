@@ -5,6 +5,7 @@ plugins {
     id 'com.google.gms.google-services' // Firebase plugin
 }
 
+
 def localProperties = new Properties()
 def localPropertiesFile = rootProject.file('local.properties')
 if (localPropertiesFile.exists()) {

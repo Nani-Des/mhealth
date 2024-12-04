@@ -1,0 +1,7 @@
+<resources>
+    <string name="google_app_id">1:346868082875:android:6e61d878b9540d82c7e19e</string>
+    <string name="gcm_defaultSenderId">346868082875</string>
+    <string name="project_id">mhealth-6191e</string>
+    <string name="storage_bucket">mhealth-6191e.appspot.com</string>
+    <string name="google_api_key">AIzaSyAUt_W7sme9H31aO3dLzqI1aNSeQVMClEo</string>
+</resources>

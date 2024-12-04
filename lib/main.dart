@@ -1,18 +1,30 @@
-import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/material.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(); // Initialize Firebase
-  runApp( ChatPage());
+  await Firebase.initializeApp();
+  runApp(const MyApp());
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'My Chat App',
+      home: ChatPage(),
+    );
+  }
 }
 
 // Chat List Page
 class ChatPage extends StatelessWidget {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-   ChatPage({super.key});
+  ChatPage({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,8 +33,14 @@ class ChatPage extends StatelessWidget {
         title: const Text('Chat'),
       ),
       body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore.collection('ChatMessages').orderBy('last_time', descending: true).snapshots(),
+        stream: _firestore
+            .collection('ChatMessages')
+            .orderBy('last_time', descending: true)
+            .snapshots(),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
           if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -103,14 +121,12 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
       'status': 'sent',
     };
 
-    // Add message to the `messages` sub-collection
     await _firestore
         .collection('ChatMessages')
         .doc(widget.chatId)
         .collection('messages')
         .add(message);
 
-    // Update the main chat document with the last message details
     await _firestore.collection('ChatMessages').doc(widget.chatId).update({
       'last_msg': _messageController.text,
       'last_time': FieldValue.serverTimestamp(),
@@ -136,6 +152,9 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                   .orderBy('timestamp')
                   .snapshots(),
               builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
                 if (!snapshot.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -145,16 +164,22 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                 return ListView.builder(
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
-                    final message = messages[index].data() as Map<String, dynamic>;
+                    final message =
+                    messages[index].data() as Map<String, dynamic>;
                     final isSentByUser = message['from_uid'] == widget.fromUid;
 
                     return Align(
-                      alignment: isSentByUser ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: isSentByUser
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                        margin: const EdgeInsets.symmetric(
+                            horizontal: 8.0, vertical: 4.0),
                         padding: const EdgeInsets.all(12.0),
                         decoration: BoxDecoration(
-                          color: isSentByUser ? Colors.blue[300] : Colors.grey[300],
+                          color: isSentByUser
+                              ? Colors.blue[300]
+                              : Colors.grey[300],
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -164,9 +189,12 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                             const SizedBox(height: 5),
                             Text(
                               message['timestamp'] != null
-                                  ? (message['timestamp'] as Timestamp).toDate().toString()
+                                  ? (message['timestamp'] as Timestamp)
+                                  .toDate()
+                                  .toString()
                                   : 'Sending...',
-                              style: const TextStyle(fontSize: 10, color: Colors.grey),
+                              style: const TextStyle(
+                                  fontSize: 10, color: Colors.grey),
                             ),
                           ],
                         ),
