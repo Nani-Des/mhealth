@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../Hospital/doctor_profile.dart';
 import 'delete_post_service.dart';
 import 'full_screen.dart';
 import 'add_comment.dart';
@@ -105,6 +106,14 @@ class _PostCardState extends State<PostCard> {
     });
   }
 
+  String _truncateContent(String content, int wordLimit) {
+    List<String> words = content.split(' ');
+    if (words.length > wordLimit) {
+      return words.sublist(0, wordLimit).join(' ') + '...';
+    }
+    return content;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -127,18 +136,52 @@ class _PostCardState extends State<PostCard> {
                 }
 
                 var userDetails = snapshot.data!;
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: NetworkImage(userDetails['imageUrl'] ?? ''),
-                    radius: 20,
-                  ),
-                  title: Text(
-                    userDetails['fullName'] ?? 'Anonymous',
-                    style: TextStyle(color: Colors.white),
+                return GestureDetector(
+                  onTap: () async {
+                    // Fetch the Role of the user
+                    DocumentSnapshot userDoc = await FirebaseFirestore.instance
+                        .collection('Users')
+                        .doc(widget.postData['User ID'])
+                        .get();
+
+                    if (userDoc.exists && userDoc['Role'] == true) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => DoctorProfileScreen(userId: widget.postData['User ID']),
+                        ),
+                      );
+                    } else {
+                      // Show a message if the user doesn't have the required Role
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('This user is not a doctor.')),
+                      );
+                    }
+                  },
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: NetworkImage(userDetails['imageUrl'] ?? ''),
+                      radius: 20,
+                    ),
+                    title: Text(
+                      userDetails['fullName'] ?? 'Anonymous',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 );
               },
             ),
+
+            // Display truncated Content (Textual post data)
+            if (widget.postData['Content'] != null && widget.postData['Content'].isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 5.0),
+                child: Text(
+                  _truncateContent(widget.postData['Content'], 15), // Limit content to 15 words
+                  style: TextStyle(color: Colors.white, fontSize: _fontSize),
+                ),
+              ),
+
             // Post Image (if any)
             if (widget.postData['ImageURL'] != null)
               Padding(
@@ -212,49 +255,4 @@ class _PostCardState extends State<PostCard> {
   }
 }
 
-class PostListPage extends StatefulWidget {
-  @override
-  _PostListPageState createState() => _PostListPageState();
-}
 
-class _PostListPageState extends State<PostListPage> {
-  List<Map<String, dynamic>> _posts = []; // Store posts data
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPosts(); // Load posts when the page is first loaded
-  }
-
-  // Function to load posts from Firebase
-  void _loadPosts() async {
-    QuerySnapshot snapshot = await FirebaseFirestore.instance.collection('Posts').get();
-    setState(() {
-      _posts = snapshot.docs.map((doc) => doc.data() as Map<String, dynamic>).toList();
-    });
-  }
-
-  // Function to refresh the page contents
-  Future<void> _refreshPosts() async {
-    _loadPosts(); // Refresh the posts by re-fetching them from Firebase
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('Posts')),
-      body: RefreshIndicator(
-        onRefresh: _refreshPosts, // Trigger the refresh when the user drags the page down
-        child: ListView.builder(
-          itemCount: _posts.length,
-          itemBuilder: (context, index) {
-            return PostCard(
-              postData: _posts[index],
-              refreshCallback: _refreshPosts, // Pass the refresh callback to the PostCard widget
-            );
-          },
-        ),
-      ),
-    );
-  }
-}

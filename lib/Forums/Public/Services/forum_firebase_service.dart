@@ -3,12 +3,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ForumFirebaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  /// Creates a new post with the document ID set as the "User ID"
+  /// Creates a new post with the document ID set as the "Post ID"
   Future<void> createPost(String userId, String content, String? imageUrl) async {
     // Create a new post document with an auto-generated document ID
     DocumentReference postRef = _firestore.collection('Posts').doc(); // Auto-generated ID
+    String postId = postRef.id; // Capture the document ID
 
     await postRef.set({
+      'Post ID': postId, // Store the document ID in the "Post ID" field
       'User ID': userId,
       'Content': content,
       'ImageURL': imageUrl,

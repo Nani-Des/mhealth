@@ -85,7 +85,7 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.medical_services),
-                label: 'First Aid',
+                label: 'Forum',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.settings),
