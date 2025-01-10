@@ -40,6 +40,12 @@ dependencies:
   cloud_firestore: ^4.17.4
   firebase_storage: ^11.7.6
   firebase_database: ^10.5.6
+  intl: ^0.18.0
+  file_picker: ^5.0.2
+  flutter_sound: ^9.2.13
+  permission_handler: ^11.3.1
+  url_launcher: ^6.1.6
+  open_file: ^3.2.1
 
 
 dev_dependencies:
