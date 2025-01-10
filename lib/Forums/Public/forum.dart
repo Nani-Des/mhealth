@@ -9,7 +9,6 @@ class Forum extends StatefulWidget {
   final String userId;
 
   const Forum({required this.userId});
-
   @override
   _ForumPageState createState() => _ForumPageState();
 }
