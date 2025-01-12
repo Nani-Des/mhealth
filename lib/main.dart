@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart'; // For copying to clipboard
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_file/open_file.dart';
+import 'package:uuid/uuid.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -508,6 +509,16 @@ class PostDetailsPage extends StatelessWidget {
     );
   }
 }
+
+class AudioPlaybackState {
+  final String url;
+  bool isPlaying = false;
+  Duration currentPosition = Duration.zero;
+  Duration totalDuration = Duration.zero;
+
+  AudioPlaybackState(this.url);
+}
+
 class ChatThreadDetailsPage extends StatefulWidget {
   final String chatId;
   final String toName;
@@ -537,9 +548,10 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
   Duration _recordingDuration = Duration.zero;
   Timer? _recordingTimer;
 
-  bool _isPlaying = false;
-  Duration _playbackDuration = Duration.zero;
-  Duration _totalDuration = Duration.zero;
+  // Track playback state for each audio message
+  final Map<String, bool> _audioPlaybackStates = {};
+  final Map<String, Duration> _audioPlaybackDurations = {};
+  final Map<String, Duration> _audioTotalDurations = {};
   Timer? _playbackTimer;
 
   @override
@@ -665,36 +677,52 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
 
   Future<void> _playAudio(String url) async {
     try {
-      if (_isPlaying) {
+      if (_audioPlaybackStates[url] == true) {
+        // Stop the player if it's already playing
         await _player.stopPlayer();
         setState(() {
-          _isPlaying = false;
-          _playbackDuration = Duration.zero;
+          _audioPlaybackStates[url] = false;
+          _audioPlaybackDurations[url] = Duration.zero;
         });
         _playbackTimer?.cancel();
       } else {
+        // Stop any currently playing audio
+        for (var key in _audioPlaybackStates.keys) {
+          if (_audioPlaybackStates[key] == true) {
+            await _player.stopPlayer();
+            setState(() {
+              _audioPlaybackStates[key] = false;
+              _audioPlaybackDurations[key] = Duration.zero;
+            });
+          }
+        }
+
+        // Start the player for the selected audio
         await _player.startPlayer(
           fromURI: url,
           codec: Codec.aacADTS,
           whenFinished: () {
             setState(() {
-              _isPlaying = false;
-              _playbackDuration = Duration.zero;
+              _audioPlaybackStates[url] = false;
+              _audioPlaybackDurations[url] = Duration.zero;
             });
             _playbackTimer?.cancel();
           },
         );
 
-        setState(() {
-          _isPlaying = true;
-        });
-
+        // Start the playback timer
         _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
           final progress = await _player.getProgress();
-          setState(() {
-            _playbackDuration = progress['currentPosition'] ?? Duration.zero;
-            _totalDuration = progress['duration'] ?? Duration.zero;
-          });
+          if (progress != null) {
+            setState(() {
+              _audioPlaybackDurations[url] = progress['currentPosition'] ?? Duration.zero;
+              _audioTotalDurations[url] = progress['duration'] ?? Duration.zero;
+            });
+          }
+        });
+
+        setState(() {
+          _audioPlaybackStates[url] = true;
         });
       }
     } catch (e) {
@@ -758,12 +786,27 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
           return;
         }
 
-        final fileName = 'audio_${DateTime.now().millisecondsSinceEpoch}.aac';
-        final storagePath = 'chat_files/${widget.chatId}/audio/$fileName';
+        // Check if the file is empty
+        if (await file.length() == 0) {
+          print('Error: Audio file is empty at $_audioPath');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Audio file is empty')),
+          );
+          return;
+        }
+
+        print('Audio file exists at $_audioPath');
+        print('File size: ${await file.length()} bytes');
+
+        final fileName = 'audio_${Uuid().v4()}.aac'; // Use UUID for unique filenames
+        final storagePath = 'chat_files/audio/$fileName';
 
         try {
           // Upload the audio file to Firebase Storage
-          final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+          final storageRef = FirebaseStorage.instanceFor(
+            bucket: 'mhealth-6191e.appspot.com', // Replace with your bucket name
+          ).ref().child(storagePath);
+
           final uploadTask = storageRef.putFile(
             file,
             SettableMetadata(contentType: 'audio/aac'), // Set MIME type
@@ -771,7 +814,9 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
 
           // Monitor upload progress
           uploadTask.snapshotEvents.listen((taskSnapshot) {
-            print('Upload progress: ${taskSnapshot.bytesTransferred / taskSnapshot.totalBytes}');
+            final progress = (taskSnapshot.bytesTransferred / taskSnapshot.totalBytes) * 100;
+            print('Upload progress: $progress%');
+            // Update UI with progress if needed
           });
 
           // Wait for the upload to complete
@@ -801,10 +846,11 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
             'last_time': FieldValue.serverTimestamp(),
           });
 
-          // Clear the audio path
+          // Clear the audio path and delete the local file
           setState(() {
             _audioPath = null;
           });
+          await file.delete();
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -814,7 +860,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
         } catch (e) {
           print('Error uploading audio: $e');
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to upload audio')),
+            SnackBar(content: Text('Failed to upload audio: ${e.toString()}')),
           );
         }
       } else {
@@ -825,6 +871,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
       }
     }
   }
+
   Future<void> _attachFile() async {
     FilePickerResult? result = await FilePicker.platform.pickFiles();
     if (result != null) {
@@ -959,35 +1006,41 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                                   ),
                                 ),
                               ] else if (message['type'] == 'audio') ...[
-                                Text('🎙 Voice message'),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: Icon(_isPlaying
-                                          ? Icons.pause
-                                          : Icons.play_arrow),
-                                      onPressed: () =>
-                                          _playAudio(message['file_url']),
+                                  Container(
+                                    width: 250, // Set a fixed width for the playback bar
+                                    padding: const EdgeInsets.all(8.0),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[200], // Background color for the playback bar
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
-                                    Expanded(
-                                      child: Slider(
-                                        value: _playbackDuration.inSeconds
-                                            .toDouble(),
-                                        min: 0,
-                                        max: _totalDuration.inSeconds.toDouble(),
-                                        onChanged: (value) {
-                                          _player.seekToPlayer(
-                                              Duration(seconds: value.toInt()));
-                                        },
-                                      ),
+                                    child: Column(
+                                      children: [
+                                        Text('🎙 Voice message'),
+                                        Row(
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(_audioPlaybackStates[message['file_url']] == true ? Icons.pause : Icons.play_arrow),
+                                              onPressed: () => _playAudio(message['file_url']),
+                                            ),
+                                            Expanded(
+                                              child: Slider(
+                                                value: (_audioPlaybackDurations[message['file_url']] ?? Duration.zero).inSeconds.toDouble(),
+                                                min: 0,
+                                                max: (_audioTotalDurations[message['file_url']] ?? Duration.zero).inSeconds.toDouble(),
+                                                onChanged: (value) {
+                                                  _player.seekToPlayer(Duration(seconds: value.toInt()));
+                                                },
+                                              ),
+                                            ),
+                                            Text(
+                                              '${(_audioPlaybackDurations[message['file_url']] ?? Duration.zero).inSeconds}/${(_audioTotalDurations[message['file_url']] ?? Duration.zero).inSeconds}s',
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
-                                    Text(
-                                      '${_playbackDuration.inSeconds}/${_totalDuration.inSeconds}s',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ] else if (message['type'] == 'image') ...[
+                                  ),
+                              ]else if (message['type'] == 'image') ...[
                                 GestureDetector(
                                   onTap: () {
                                     _openFile(message['file_url']);
@@ -1025,43 +1078,63 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
             padding: const EdgeInsets.all(8.0),
             child: Row(
               children: [
-                IconButton(
-                  icon: const Icon(Icons.attach_file),
-                  onPressed: _attachFile,
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    decoration: const InputDecoration(
-                      hintText: 'Type a message...',
-                      border: OutlineInputBorder(),
+                if (_isRecording) ...[
+                  IconButton(
+                    icon: const Icon(Icons.cancel, color: Colors.red),
+                    onPressed: () {
+                      setState(() {
+                        _isRecording = false;
+                        _recordingDuration = Duration.zero;
+                      });
+                      _recordingTimer?.cancel();
+                      _recorder.stopRecorder();
+                    },
+                  ),
+                  Expanded(
+                    child: Column(
+                      children: [
+                        LinearProgressIndicator(
+                          value: _recordingDuration.inSeconds / 60, // Max 60 seconds
+                          backgroundColor: Colors.grey[300],
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                        ),
+                        Text(
+                          'Recording: ${_recordingDuration.inSeconds}s',
+                          style: const TextStyle(color: Colors.red),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                if (_isRecording)
-                  Text(
-                    '${_recordingDuration.inSeconds}s',
-                    style: const TextStyle(color: Colors.red),
+                  IconButton(
+                    icon: const Icon(Icons.send, color: Colors.blue),
+                    onPressed: _stopRecordingAndUpload,
                   ),
-                GestureDetector(
-                  onTap: _startRecording,
-                  onLongPress: () async {
-                    await _stopRecordingAndUpload();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Voice recording sent!'),
+                ] else ...[
+                  IconButton(
+                    icon: const Icon(Icons.attach_file),
+                    onPressed: _attachFile,
+                  ),
+                  Expanded(
+                    child: TextField(
+                      controller: _messageController,
+                      decoration: const InputDecoration(
+                        hintText: 'Type a message...',
+                        border: OutlineInputBorder(),
                       ),
-                    );
-                  },
-                  child: Icon(
-                    Icons.mic,
-                    color: _isRecording ? Colors.red : Colors.blue,
+                    ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send),
-                  onPressed: _sendMessage,
-                ),
+                  GestureDetector(
+                    onTap: _startRecording,
+                    child: const Icon(
+                      Icons.mic,
+                      color: Colors.blue,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.send),
+                    onPressed: _sendMessage,
+                  ),
+                ],
               ],
             ),
           ),
