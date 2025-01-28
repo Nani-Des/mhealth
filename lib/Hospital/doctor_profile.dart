@@ -30,31 +30,20 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
       // Fetch doctor's details
       Map<String, dynamic> doctorDetails = await _firebaseService.getDoctorDetails(widget.userId);
 
-      // Check if the doctor details contain all necessary fields
+      // Fetch related details
       String departmentName = await _firebaseService.getDepartmentName(doctorDetails['departmentId']);
       String hospitalName = await _firebaseService.getHospitalName(doctorDetails['hospitalId']);
-
-      // Assuming these fields are directly returned in the doctorDetails map
-      String region = doctorDetails['Region'] ?? 'Not available';
-      String experience = doctorDetails['Experience'] ?? 'Not available';
-      String email = doctorDetails['Email'] ?? 'Not available';
-      String mobile = doctorDetails['Mobile'] ?? 'Not available';
 
       setState(() {
         _doctorDetails = doctorDetails;
         _departmentName = departmentName;
         _hospitalName = hospitalName;
-        _doctorDetails['Region'] = region;
-        _doctorDetails['Experience'] = experience;
-        _doctorDetails['Email'] = email;
-        _doctorDetails['Mobile'] = mobile;
         _isLoading = false;
       });
     } catch (error) {
       print('Error fetching doctor details: $error');
     }
   }
-
 
   // Method to initiate a phone call
   Future<void> _makePhoneCall(String phoneNumber) async {
@@ -71,7 +60,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
       appBar: AppBar(
         title: Center(
           child: Text(
-            "${_doctorDetails['Title'] ?? ''}  ${_doctorDetails['Lname'] ?? ''}",
+            "${_doctorDetails['Title'] ?? ''} ${_doctorDetails['Lname'] ?? ''}",
             style: TextStyle(
               fontSize: 16,
               color: Colors.black,
@@ -82,7 +71,11 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
           : DoctorInfoWidget(
-        doctorDetails: _doctorDetails,
+        doctorDetails: {
+          ..._doctorDetails,
+          'User ID': widget.userId, // Pass User ID explicitly
+          'Hospital ID': _doctorDetails['hospitalId'], // Pass Hospital ID explicitly
+        },
         hospitalName: _hospitalName,
         departmentName: _departmentName,
         onCall: _makePhoneCall,
@@ -90,4 +83,3 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
     );
   }
 }
-

@@ -46,13 +46,33 @@ class _HomePageContentState extends State<HomePageContent> {
           // SizedBox(height: 2),
           // Conditionally render the Globe or the List View
           _showListView
-              ? Container(
-            height: 230, // Set a fixed height for the scrollable area
-            child: SingleChildScrollView(
-              child: OrganizationListView(),
-            ),
+              ? Column(
+            children: [
+              Container(
+                height: 300, // Set a fixed height for the scrollable area
+                child: SingleChildScrollView(
+                  child: OrganizationListView(),
+                ),
+              ),
+              SizedBox(height: 16), // Add some spacing between the Container and the icon
+              GestureDetector(
+                onTap: () {
+                  // Navigate to the MapScreen
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => MapScreen()),
+                  );
+                },
+                child: Icon(
+                  Icons.location_on_outlined, // Map icon
+                  size: 40, // Adjust the size as needed
+                  color: Colors.blue, // Choose a suitable color
+                ),
+              ),
+            ],
           )
               : _buildGlobeAndText(context),
+
         ],
       ),
     );
@@ -89,7 +109,6 @@ class _HomePageContentState extends State<HomePageContent> {
                 _showListView = true; // Show list view when tapped
               });
               widget.onMessagePressed();
-              print('Show Hospitals near you tapped');
             },
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,

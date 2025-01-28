@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mhealth/Hospital/specialty_details.dart';
+import '../Emergency/emergency_page.dart';
+import '../Emergency/knowledge_packs_page.dart';
 import '../Login/login_screen1.dart';
 import 'Widgets/profile_drawer.dart';
 import 'Widgets/custom_bottom_navbar.dart';
@@ -132,7 +134,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
       bottomNavigationBar: CustomBottomNavBar(),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen1()));
+          Navigator.push(context, MaterialPageRoute(builder: (context) => EmergencyPage()));
         },
         child: Icon(Icons.add),
         backgroundColor: Colors.blueAccent,

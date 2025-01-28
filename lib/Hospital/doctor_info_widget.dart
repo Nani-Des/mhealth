@@ -177,13 +177,35 @@ class DoctorInfoWidget extends StatelessWidget {
     );
   }
 
-  // Method to show the DoctorAvailabilityCalendar dialog
   void _showCalendarDialog(BuildContext context) {
+    final String? doctorId = doctorDetails['User ID'];
+    final String? hospitalId = doctorDetails['Hospital ID'];
+
+    if (doctorId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Doctor ID is missing')),
+      );
+      return;
+    }
+
+    if (hospitalId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hospital ID is missing')),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return DoctorAvailabilityCalendar();
+        return DoctorAvailabilityCalendar(
+          doctorId: doctorId,
+          hospitalId: hospitalId,
+        );
       },
     );
   }
+
+
+
 }

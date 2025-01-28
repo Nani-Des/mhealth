@@ -1,11 +1,14 @@
-import 'package:firebase_core/firebase_core.dart';
+ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:hive/hive.dart';
+import 'package:hive_flutter/adapters.dart';
 import 'Home/home_page.dart';
 import 'Login/login_screen1.dart';
 import 'Maps/map_screen.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
   await Firebase.initializeApp(
       options: FirebaseOptions(
         apiKey: 'AIzaSyAUt_W7sme9H31aO3dLzqI1aNSeQVMClEo',

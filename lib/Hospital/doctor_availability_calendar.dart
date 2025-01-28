@@ -1,40 +1,195 @@
-// doctor_availability_calendar.dart
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 
-import '../Components/booking_helper.dart';
+class DoctorAvailabilityCalendar extends StatefulWidget {
+  final String doctorId;
+  final String hospitalId;
 
-class DoctorAvailabilityCalendar extends StatelessWidget {
-  const DoctorAvailabilityCalendar({Key? key}) : super(key: key);
+  const DoctorAvailabilityCalendar({
+    Key? key,
+    required this.doctorId,
+    required this.hospitalId,
+  }) : super(key: key);
 
-  // Method to determine if the doctor is active on a given day (Monday to Friday)
-  bool _isDoctorActive(DateTime day) {
-    return day.weekday >= 1 && day.weekday <= 5; // Monday (1) to Friday (5)
+  @override
+  _DoctorAvailabilityCalendarState createState() =>
+      _DoctorAvailabilityCalendarState();
+}
+
+class _DoctorAvailabilityCalendarState
+    extends State<DoctorAvailabilityCalendar> {
+  int activeDays = 5;
+  int offDays = 2;
+  int shiftSwitch = 5;
+  DateTime shiftStart = DateTime.now();
+  Set<DateTime> holidays = {};
+  Map<String, dynamic> shiftTimings = {};
+  String doctorImage = ''; // To store the doctor's image URL.
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDoctorSchedule();
+    _fetchHospitalShiftTimings();
+    _fetchGlobalHolidays();
+    _fetchDoctorImage(); // Fetch the doctor's image on initialization.
   }
 
-  // Method to show booking dialog when a working day is tapped
-  void _showBookingDialog(BuildContext context, DateTime day) {
-    String formattedDate = DateFormat('EEEE, MMMM d').format(day); // Format date as "Day, Month d"
+  Future<void> _fetchDoctorSchedule() async {
+    DocumentSnapshot scheduleSnapshot = await FirebaseFirestore.instance
+        .collection('Users')
+        .doc(widget.doctorId)
+        .collection('Schedule')
+        .doc(widget.doctorId)
+        .get();
+
+    if (scheduleSnapshot.exists) {
+      setState(() {
+        activeDays = scheduleSnapshot['Active Days'] ?? 5;
+        offDays = scheduleSnapshot['Off Days'] ?? 2;
+        shiftSwitch = scheduleSnapshot['Shift Switch'] ?? 5;
+        shiftStart = (scheduleSnapshot['Shift Start'] as Timestamp).toDate();
+      });
+    }
+  }
+
+  Future<void> _fetchHospitalShiftTimings() async {
+    DocumentSnapshot hospitalSnapshot = await FirebaseFirestore.instance
+        .collection('Hospital')
+        .doc(widget.hospitalId)
+        .get();
+
+    if (hospitalSnapshot.exists) {
+      setState(() {
+        shiftTimings =
+        Map<String, dynamic>.from(hospitalSnapshot['Shift Timings'] ?? {});
+      });
+    }
+  }
+
+  Future<void> _fetchGlobalHolidays() async {
+    QuerySnapshot holidaySnapshot =
+    await FirebaseFirestore.instance.collection('Holidays').get();
+
+    setState(() {
+      holidays = holidaySnapshot.docs.map((doc) {
+        Timestamp timestamp = doc['Date'];
+        return timestamp.toDate();
+      }).toSet();
+    });
+  }
+
+  Future<void> _fetchDoctorImage() async {
+    DocumentSnapshot doctorSnapshot = await FirebaseFirestore.instance
+        .collection('Users')
+        .doc(widget.doctorId)
+        .get();
+
+    if (doctorSnapshot.exists) {
+      setState(() {
+        doctorImage = doctorSnapshot['User Pic'] ?? '';
+      });
+    }
+  }
+
+  bool _isDoctorActive(DateTime day) {
+    if (day.isBefore(shiftStart) ||
+        holidays.contains(DateTime(day.year, day.month, day.day))) {
+      return false;
+    }
+
+    int daysSinceStart = day.difference(shiftStart).inDays;
+    int cycleLength = activeDays + offDays;
+
+    return (daysSinceStart % cycleLength) < activeDays;
+  }
+
+  String _getDoctorShift(DateTime day) {
+    int daysSinceStart = day.difference(shiftStart).inDays;
+    int activePeriod = daysSinceStart % (activeDays + offDays);
+
+    if (activePeriod < shiftSwitch) {
+      return "Morning";
+    } else if (activePeriod < 2 * shiftSwitch) {
+      return "Afternoon";
+    } else {
+      return "Night";
+    }
+  }
+
+  void _showShiftDetails(BuildContext context, DateTime day) {
+    String shift = _getDoctorShift(day);
+    Map<String, dynamic>? timingMap = shiftTimings[shift];
+
+    String timingText;
+    if (timingMap != null && timingMap is Map<String, dynamic>) {
+      String start = timingMap['Start'] ?? "Unavailable";
+      String end = timingMap['End'] ?? "Unavailable";
+      timingText = "Start: $start\nEnd: $end";
+    } else {
+      timingText = "Timings Unavailable";
+    }
 
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Book Appointment'),
-          content: Text('Would you like to book on $formattedDate?'),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Shift Details'),
+              if (doctorImage.isNotEmpty)
+                CircleAvatar(
+                  backgroundImage: NetworkImage(doctorImage),
+                  radius: 20,
+                ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Selected Date: ${DateFormat('yyyy-MM-dd').format(day)}',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Working Period:',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                timingText,
+                style: TextStyle(fontSize: 14),
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Guide:',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              Text(
+                'Book an appointment now for convenience!',
+                style: TextStyle(fontSize: 14, color: Colors.black54),
+              ),
+            ],
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: Text('Cancel'),
+              child: Text('Close'),
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.of(context).pop();
-
-                handleBookAppointment(context);
+                // Handle booking logic here
+                Navigator.of(context).pop(); // Close dialog after booking
+                // Navigate to the booking page or execute booking action
               },
               child: Text('Book Appointment'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+              ),
             ),
           ],
         );
@@ -56,8 +211,6 @@ class DoctorAvailabilityCalendar extends StatelessWidget {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 16),
-
-            // Calendar displaying all days with working days highlighted
             TableCalendar(
               firstDay: DateTime.now(),
               lastDay: DateTime.now().add(Duration(days: 30)),
@@ -70,17 +223,29 @@ class DoctorAvailabilityCalendar extends StatelessWidget {
               ),
               calendarBuilders: CalendarBuilders(
                 defaultBuilder: (context, day, focusedDay) {
-                  // Highlight working days (Monday to Friday) with green if today, otherwise blue
-                  if (_isDoctorActive(day)) {
-                    bool isToday = DateTime(day.year, day.month, day.day) ==
-                        DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
-
+                  if (holidays.contains(day)) {
+                    return Center(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(6.0),
+                          child: Text(
+                            '${day.day}',
+                            style: TextStyle(color: Colors.white),
+                          ),
+                        ),
+                      ),
+                    );
+                  } else if (_isDoctorActive(day)) {
                     return GestureDetector(
-                      onTap: () => _showBookingDialog(context, day),
+                      onTap: () => _showShiftDetails(context, day),
                       child: Center(
                         child: Container(
                           decoration: BoxDecoration(
-                            color: isToday ? Colors.green : Colors.blueAccent,
+                            color: Colors.green,
                             shape: BoxShape.circle,
                           ),
                           child: Padding(
@@ -94,16 +259,8 @@ class DoctorAvailabilityCalendar extends StatelessWidget {
                       ),
                     );
                   }
-                  // For non-working days, display them without highlighting
-                  return GestureDetector(
-                    onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('No appointments available on weekends.')),
-                      );
-                    },
-                    child: Center(
-                      child: Text('${day.day}', style: TextStyle(color: Colors.black87)),
-                    ),
+                  return Center(
+                    child: Text('${day.day}', style: TextStyle(color: Colors.black87)),
                   );
                 },
               ),

@@ -1,0 +1,49 @@
+[
+  {
+    "category": "Health Conditions",
+    "articles": [
+      {
+        "title": "Hypertension",
+        "content": "High blood pressure is a chronic medical condition..."
+      },
+      {
+        "title": "Diabetes",
+        "content": "Diabetes is a condition in which your body cannot regulate blood sugar properly..."
+      },
+      {
+        "title": "Diabetes",
+        "content": "Diabetes is a condition in which your body cannot regulate blood sugar properly..."
+      },
+      {
+        "title": "Diabetes",
+        "content": "Diabetes is a condition in which your body cannot regulate blood sugar properly..."
+      }
+    ]
+  },
+  {
+    "category": "Injuries",
+    "articles": [
+      {
+        "title": "Fractures",
+        "content": "A fracture is a broken bone that occurs when the bone is subjected to excessive force..."
+      },
+      {
+        "title": "Burns",
+        "content": "Burns are injuries to the skin caused by heat, electricity, or chemicals..."
+      }
+    ]
+  },
+  {
+    "category": "Emergency Procedures",
+    "articles": [
+      {
+        "title": "CPR",
+        "content": "Cardiopulmonary Resuscitation (CPR) is a life-saving technique used in emergencies..."
+      },
+      {
+        "title": "Choking",
+        "content": "Choking occurs when an object blocks the airway, preventing normal breathing..."
+      }
+    ]
+  }
+]
