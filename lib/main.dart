@@ -14,6 +14,9 @@ import 'package:flutter/services.dart'; // For copying to clipboard
 import 'package:permission_handler/permission_handler.dart';
 import 'package:open_file/open_file.dart';
 import 'package:uuid/uuid.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,8 +89,183 @@ class _ChatHomePageState extends State<ChatHomePage>
           indicatorSize: TabBarIndicatorSize.tab,
         ),
       ),
+      // In _ChatHomePageState, inside the floating action button onPressed
+      floatingActionButton: Builder(
+        builder: (context) => FloatingActionButton(
+          onPressed: () async {
+            String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+            if (currentUserId != null) {
+              _showUserList(context, currentUserId); // Pass currentUserId here
+            } else {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text("User not logged in")),
+              );
+            }
+          },
+          backgroundColor: Colors.blue,
+          child: const Icon(Icons.message, color: Colors.white),
+        ),
+      ),
     );
   }
+}
+
+void _showUserList(BuildContext context, String currentUserId) {
+  showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      return FutureBuilder<QuerySnapshot>(
+        future: FirebaseFirestore.instance.collection('Users').get(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text("No users found"));
+          }
+
+          final users = snapshot.data!.docs;
+
+          return ListView.builder(
+            itemCount: users.length,
+            itemBuilder: (context, index) {
+              final user = users[index].data() as Map<String, dynamic>;
+              final userId = users[index].id;
+              final userFname = user['Fname'] ?? 'Unknown';
+              final userLname = user['Lname'] ?? '';
+              final fullName = "$userFname $userLname";
+              final userPhone = user['Mobile Number'] ?? 'No Phone';
+              final userPic = user['User Pic'] ?? '';
+              final isOnline = user['Status'] ?? false;
+
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundImage: userPic.isNotEmpty ? NetworkImage(userPic) : null,
+                  child: userPic.isEmpty ? Text(userFname[0]) : null,
+                ),
+                title: Text(fullName),
+                subtitle: Text(userPhone),
+                trailing: isOnline
+                    ? const Icon(Icons.circle, color: Colors.green, size: 12)
+                    : null,
+                  onTap: () async {
+                    Navigator.pop(context); // Close modal
+
+                    // Get the current user details
+                    String? fromUid = FirebaseAuth.instance.currentUser?.uid;
+                    if (fromUid == null) {
+                      print("Error: fromUid is null");
+                      return;
+                    }
+
+                    DocumentSnapshot fromUserSnapshot = await FirebaseFirestore.instance.collection('Users').doc(fromUid).get();
+                    String fromName = fromUserSnapshot['Fname'] ?? 'Unknown';
+                    String fromPic = fromUserSnapshot['User Pic'] ?? '';
+
+                    // Get the tapped user's details
+                    String toUid = userId;
+                    String toName = fullName;
+                    String toPic = userPic ?? '';
+
+                    String chatId = await _getOrCreateChatThread(fromUid, fromName, fromPic, toUid, toName, toPic);
+
+                    if (chatId.isEmpty) {
+                      print("Error: chatId is empty!");
+                      return;
+                    }
+
+                    if (!context.mounted) return; // Ensure the context is still active
+
+                    // Debug logs
+                    print("Navigating to ChatThreadDetailsPage with:");
+                    print("chatId: $chatId");
+                    print("toName: $toName");
+                    print("toUid: $toUid");
+                    print("fromUid: $fromUid");
+
+                    // Navigate to ChatThreadDetailsPage
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatThreadDetailsPage(
+                          chatId: chatId,
+                          toName: toName,
+                          toUid: toUid,
+                          fromUid: fromUid,
+                        ),
+                      ),
+                    );
+                  }
+              );
+            },
+          );
+        },
+      );
+    },
+  );
+}
+
+
+Future<String> _getOrCreateChatThread(
+    String fromUid, String fromName, String fromPic,
+    String toUid, String toName, String toPic) async {
+  final chatRef = FirebaseFirestore.instance.collection('ChatMessages');
+
+  // Step 1: Check if a chat already exists
+  QuerySnapshot existingChat = await chatRef
+      .where('participants', arrayContains: fromUid)
+      .get();
+
+  for (var doc in existingChat.docs) {
+    List<dynamic> participants = doc['participants'];
+    if (participants.contains(toUid)) {
+      print("Existing chat found: ${doc['chat_id']}");
+      return doc['chat_id']; // Return the chat_id field
+    }
+  }
+
+  // Step 2: If no chat exists, create a new one
+  DocumentReference newChat = await chatRef.add({
+    'participants': [fromUid, toUid],
+    'last_message': '',
+    'last_time': FieldValue.serverTimestamp(),
+
+    // Storing both users' details
+    'from_uid': fromUid,
+    'from_name': fromName,
+    'from_pic': fromPic,
+
+    'to_uid': toUid,
+    'to_name': toName,
+    'to_pic': toPic,
+
+    'chat_id': '', // Placeholder
+  });
+
+  // Step 3: Update the chat_id field
+  await newChat.update({'chat_id': newChat.id});
+
+  print("New chat created with ID: ${newChat.id}");
+
+  // Step 4: Create a first dummy message (if needed)
+  await newChat.collection('messages').add({
+    'from_uid': fromUid,
+    'to_uid': toUid,
+    'content': 'Start chatting!',
+    'timestamp': FieldValue.serverTimestamp(),
+    'status': 'sent',
+    'type': 'text', // Ensures consistency with your schema
+  });
+
+  return newChat.id; // Return the chat thread ID
+}
+
+
+String truncateMessage(String message, {int maxLength = 50}) {
+  if (message.length <= maxLength) {
+    return message;
+  }
+  return '${message.substring(0, maxLength)}...';
 }
 
 class ChatPage extends StatelessWidget {
@@ -95,6 +273,7 @@ class ChatPage extends StatelessWidget {
 
   ChatPage({super.key});
 
+  // Helper function to format timestamp
   String formatTimestamp(Timestamp? timestamp) {
     if (timestamp == null) return '';
     final messageDate = timestamp.toDate();
@@ -109,6 +288,15 @@ class ChatPage extends StatelessWidget {
       return DateFormat.yMMMd().format(messageDate);
     }
   }
+
+  // Helper function to format duration
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -138,31 +326,77 @@ class ChatPage extends StatelessWidget {
           },
           itemBuilder: (context, index) {
             final chat = chats[index].data() as Map<String, dynamic>;
+            final lastMessage = chat['last_msg'] ?? 'No messages yet';
+            final lastMessageType = chat['type'] ?? 'text';
+            final audioDuration = chat['audio_duration'] ?? 0;
 
-            return ListTile(
-              leading: CircleAvatar(
-                child: Text(chat['to_name'][0].toUpperCase()),
-              ),
-              title: Text(chat['to_name'] ?? 'Unknown'),
-              subtitle: Text(chat['last_msg'] ?? 'No messages yet'),
-              trailing: Text(
-                formatTimestamp(chat['last_time']),
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Colors.blueGrey,
-                ),
-              ),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => ChatThreadDetailsPage(
-                      chatId: chats[index].id,
-                      toName: chat['to_name'],
-                      toUid: chat['to_uid'],
-                      fromUid: chat['from_uid'],
-                    ),
+            return FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance.collection('Users').doc(chat['to_uid']).get(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircularProgressIndicator();
+                }
+
+                if (!snapshot.hasData || !snapshot.data!.exists) {
+                  return const CircleAvatar(child: Icon(Icons.person)); // Default avatar if user data is missing
+                }
+
+                final userData = snapshot.data!.data() as Map<String, dynamic>?;
+                final userPic = userData?['User Pic']; // Fetch user pic URL
+                final firstName = userData?['Fname'] ?? 'Unknown'; // Fetch first name
+                final lastName = userData?['Lname'] ?? ''; // Fetch last name
+                final fullName = '$firstName $lastName'.trim(); // Combine first and last names
+
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundImage: userPic != null ? NetworkImage(userPic) : null,
+                    child: userPic == null ? Text(firstName[0].toUpperCase()) : null,
                   ),
+                  title: Text(fullName), // ✅ Display full name
+                  subtitle: lastMessageType == 'audio'
+                      ? Row(
+                    children: [
+                      const Icon(Icons.mic, size: 16, color: Colors.blue),
+                      const SizedBox(width: 4),
+                      Text(
+                        _formatDuration(Duration(seconds: audioDuration)),
+                        style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                      ),
+                    ],
+                  )
+                      : Text(
+                    truncateMessage(lastMessage),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Text(
+                    formatTimestamp(chat['last_time']),
+                    style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                  ),
+                  onTap: () async {
+                    // Retrieve chat_id (ensure it's set correctly in your database)
+                    String chatId = chat['chat_id'] ?? await _getOrCreateChatThread(
+
+                      chat['from_uid'],   // ✅ Current User ID
+                      chat['from_name'],  // ✅ Current User Name
+                      chat['from_pic'],   // ✅ Current User Pic
+                      chat['to_uid'],     // ✅ Receiver User ID
+                      fullName,           // ✅ Receiver Name (retrieved from Firestore)
+                      userPic ?? '',      // ✅ Receiver Profile Pic (or empty string if null) // Pass user pic (or empty if not available)
+                    );
+
+                    // Now navigate to the ChatThreadDetailsPage
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ChatThreadDetailsPage(
+                          chatId: chatId,
+                          toName: fullName,
+                          toUid: chat['to_uid'],
+                          fromUid: chat['from_uid'],
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             );
@@ -182,75 +416,109 @@ class ForumPage extends StatefulWidget {
 
 class _ForumPageState extends State<ForumPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final TextEditingController _postController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        //title: const Text('Forum'),
+        title: const Text('Posts'), // Updated to only display "Posts"
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () => _showAddPostDialog(context),
+          // Add a circular container around the "Add Post" icon
+          Container(
+            margin: const EdgeInsets.all(8.0),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.blue, // Circle background color
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.add, color: Colors.white), // White plus icon
+              iconSize: 24, // Slightly larger icon
+              onPressed: () => _showAddPostDialog(context),
+            ),
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore.collection('ForumPosts').orderBy('timestamp', descending: true).snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.grey, Colors.grey], // Consistent background
+          ),
+        ),
+        child: StreamBuilder<QuerySnapshot>(
+          stream: _firestore.collection('ForumPosts').orderBy('timestamp', descending: true).snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            }
+            if (!snapshot.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-          final posts = snapshot.data!.docs;
+            final posts = snapshot.data!.docs;
 
-          return ListView.builder(
-            itemCount: posts.length,
-            itemBuilder: (context, index) {
-              final post = posts[index].data() as Map<String, dynamic>;
-              final postId = posts[index].id;
-              final username = post['username'] ?? 'Anonymous';
+            return ListView.builder(
+              itemCount: posts.length,
+              itemBuilder: (context, index) {
+                final post = posts[index].data() as Map<String, dynamic>;
+                final postId = posts[index].id;
+                final username = post['username'] ?? 'Anonymous';
+                final timestamp = post['timestamp'] as Timestamp?;
 
-              return GestureDetector(
-                onLongPress: () => _showPostMenu(context, postId),
-                child: Card(
-                  margin: const EdgeInsets.all(8.0),
-                  child: ListTile(
-                    title: Text(post['title'] ?? 'No Title'),
-                    subtitle: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(post['content'] ?? 'No Content'),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Posted by: $username',
-                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                return GestureDetector(
+                  onLongPress: () => _showPostMenu(context, postId),
+                  child: Card(
+                    margin: const EdgeInsets.all(8.0),
+                    child: ListTile(
+                      title: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            post['content'] ?? 'No Content',
+                            style: const TextStyle(
+                              fontSize: 16, // Larger font size for post content
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Posted by: $username',
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                      trailing: Text(
+                        timestamp != null
+                            ? DateFormat.yMMMd().add_jm().format(timestamp.toDate())
+                            : 'No Date',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.blueGrey,
                         ),
-                      ],
+                      ),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => PostDetailsPage(postId: postId, postTitle: post['content']),
+                          ),
+                        );
+                      },
                     ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => PostDetailsPage(postId: postId, postTitle: post['title']),
-                        ),
-                      );
-                    },
                   ),
-                ),
-              );
-            },
-          );
-        },
+                );
+              },
+            );
+          },
+        ),
       ),
     );
   }
 
   void _showAddPostDialog(BuildContext context) {
+    final TextEditingController _postController = TextEditingController();
+
     showDialog(
       context: context,
       builder: (context) {
@@ -279,8 +547,7 @@ class _ForumPageState extends State<ForumPage> {
               onPressed: () async {
                 if (_postController.text.trim().isNotEmpty) {
                   await _firestore.collection('ForumPosts').add({
-                    'title': 'New Post', // You can customize this
-                    'content': _postController.text,
+                    'content': _postController.text, // Use content as the main text
                     'username': 'CurrentUser', // Replace with actual username
                     'timestamp': FieldValue.serverTimestamp(),
                   });
@@ -355,89 +622,130 @@ class PostDetailsPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(postTitle),
+        title: Text(postTitle), // Keep the app bar title as is
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('ForumPosts')
-                  .doc(postId)
-                  .collection('comments')
-                  .orderBy('timestamp')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.grey, Colors.grey], // Gradient background
+          ),
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('ForumPosts')
+                    .doc(postId)
+                    .collection('comments')
+                    .orderBy('timestamp')
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                final comments = snapshot.data!.docs;
+                  final comments = snapshot.data!.docs;
 
-                return ListView.builder(
-                  itemCount: comments.length,
-                  itemBuilder: (context, index) {
-                    final comment = comments[index].data() as Map<String, dynamic>;
-                    final username = comment['username'] ?? 'Anonymous';
-                    final taggedUser = comment['taggedUser'];
-                    final isReply = comment['isReply'] ?? false;
+                  return ListView.builder(
+                    itemCount: comments.length,
+                    itemBuilder: (context, index) {
+                      final comment = comments[index].data() as Map<String, dynamic>;
+                      final username = comment['username'] ?? 'Anonymous';
+                      final taggedUser = comment['taggedUser'];
+                      final isReply = comment['isReply'] ?? false;
 
-                    return GestureDetector(
-                      onLongPress: () => _showCommentMenu(context, comments[index].reference),
-                      child: Container(
-                        margin: EdgeInsets.only(left: isReply ? 16.0 : 0),
-                        child: ListTile(
-                          title: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (taggedUser != null)
-                                Text(
-                                  'Replying to @$taggedUser',
-                                  style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.blue,
+                      return GestureDetector(
+                        onLongPress: () => _showCommentMenu(context, comments[index].reference),
+                        child: Container(
+                          margin: EdgeInsets.only(left: isReply ? 16.0 : 0),
+                          child: ListTile(
+                            title: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (taggedUser != null)
+                                  Text(
+                                    'Replying to @$taggedUser',
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.blue,
+                                    ),
                                   ),
-                                ),
-                              Text(comment['content'] ?? 'No Content'),
-                            ],
-                          ),
-                          subtitle: Text(
-                            'Posted by: $username • ${comment['timestamp'] != null ? DateFormat.yMMMd().add_jm().format((comment['timestamp'] as Timestamp).toDate()) : 'No Date'}',
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
-                          ),
-                          trailing: IconButton(
-                            icon: const Icon(Icons.reply),
-                            onPressed: () {
-                              _commentController.text = '@$username ';
-                              FocusScope.of(context).requestFocus(FocusNode());
-                            },
+                                Text(comment['content'] ?? 'No Content'),
+                              ],
+                            ),
+                            subtitle: Text(
+                              'Posted by: $username • ${comment['timestamp'] != null ? DateFormat.yMMMd().add_jm().format((comment['timestamp'] as Timestamp).toDate()) : 'No Date'}',
+                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.reply),
+                              onPressed: () {
+                                _commentController.text = '@$username ';
+                                FocusScope.of(context).requestFocus(FocusNode());
+                              },
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  },
-                );
-              },
+                      );
+                    },
+                  );
+                },
+              ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _commentController,
-                    decoration: const InputDecoration(
-                      hintText: 'Add a comment...',
-                      border: OutlineInputBorder(),
+            // Input bar with microphone, text box, and send button
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  // Microphone icon
+                  GestureDetector(
+                    onTap: () {
+                      // Add voice comment functionality here
+                    },
+                    child: const Icon(
+                      Icons.mic,
+                      color: Colors.blue,
                     ),
-                    onSubmitted: (value) async {
-                      if (value.trim().isNotEmpty) {
-                        final taggedUser = value.contains('@')
-                            ? value.split('@')[1].split(' ')[0]
+                  ),
+                  const SizedBox(width: 8), // Spacing between microphone and text box
+                  // Text box for typing comments
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(30), // Oval shape
+                      ),
+                      constraints: BoxConstraints(
+                        maxHeight: 120, // Maximum height for the text box
+                      ),
+                      child: SingleChildScrollView(
+                        child: TextField(
+                          controller: _commentController,
+                          decoration: const InputDecoration(
+                            hintText: 'Add a comment...',
+                            border: InputBorder.none, // Remove default border
+                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                          maxLines: null, // Allow multiple lines
+                          keyboardType: TextInputType.multiline, // Enable multi-line input
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8), // Spacing between text box and send button
+                  // Send button
+                  IconButton(
+                    icon: const Icon(Icons.send),
+                    onPressed: () async {
+                      if (_commentController.text.trim().isNotEmpty) {
+                        final taggedUser = _commentController.text.contains('@')
+                            ? _commentController.text.split('@')[1].split(' ')[0]
                             : null;
 
                         await FirebaseFirestore.instance
@@ -445,7 +753,7 @@ class PostDetailsPage extends StatelessWidget {
                             .doc(postId)
                             .collection('comments')
                             .add({
-                          'content': value,
+                          'content': _commentController.text,
                           'username': 'CurrentUser', // Replace with actual username
                           'taggedUser': taggedUser,
                           'isReply': taggedUser != null,
@@ -455,11 +763,11 @@ class PostDetailsPage extends StatelessWidget {
                       }
                     },
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -519,6 +827,7 @@ class AudioPlaybackState {
   AudioPlaybackState(this.url);
 }
 
+
 class ChatThreadDetailsPage extends StatefulWidget {
   final String chatId;
   final String toName;
@@ -554,12 +863,19 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
   final Map<String, Duration> _audioTotalDurations = {};
   Timer? _playbackTimer;
 
+  // Add ScrollController for scroll-to-bottom functionality
+  final ScrollController _scrollController = ScrollController();
+  bool _showScrollToBottomButton = false;
+
   @override
   void initState() {
     super.initState();
     _player.openPlayer();
     _recorder.openRecorder();
     Permission.microphone.request();
+
+    // Add scroll listener
+    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -568,11 +884,44 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     _player.closePlayer();
     _recordingTimer?.cancel();
     _playbackTimer?.cancel();
+    _scrollController.removeListener(_onScroll); // Remove scroll listener
+    _scrollController.dispose(); // Dispose the ScrollController
     super.dispose();
   }
 
-  void _showMessageMenu(
-      BuildContext context, QueryDocumentSnapshot<Map<String, dynamic>> message) {
+  void _onVideoCallPressed() {
+    // Placeholder for video call functionality
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Video call feature coming soon!')),
+    );
+
+    // Log the action for debugging
+    print('Video call button pressed');
+  }
+
+  void _onScroll() {
+    // Show the FAB if the user has scrolled up more than 100 pixels
+    if (_scrollController.position.pixels < _scrollController.position.maxScrollExtent - 100) {
+      setState(() {
+        _showScrollToBottomButton = true;
+      });
+    } else {
+      setState(() {
+        _showScrollToBottomButton = false;
+      });
+    }
+  }
+
+  void _scrollToBottom() {
+    // Animate the scroll to the bottom
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOut,
+    );
+  }
+
+  void _showMessageMenu(BuildContext context, QueryDocumentSnapshot<Map<String, dynamic>> message) {
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -613,68 +962,6 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     );
   }
 
-  Future<void> _openFile(String url) async {
-    try {
-      // Check if the file is an image
-      if (url.toLowerCase().endsWith('.jpg') ||
-          url.toLowerCase().endsWith('.jpeg') ||
-          url.toLowerCase().endsWith('.png') ||
-          url.toLowerCase().endsWith('.gif') ||
-          url.toLowerCase().endsWith('.bmp') ||
-          url.toLowerCase().endsWith('.webp')) {
-        // For images, open directly in a new dialog or page
-        showDialog(
-          context: context,
-          builder: (context) {
-            return Dialog(
-              child: Container(
-                padding: const EdgeInsets.all(8.0),
-                child: Image.network(url),
-              ),
-            );
-          },
-        );
-      } else {
-        // For other files, download and open them
-        final file = await _downloadFile(url);
-        if (file != null) {
-          OpenFile.open(file.path);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Failed to open file')),
-          );
-        }
-      }
-    } catch (e) {
-      print('Error opening file: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to open file')),
-      );
-    }
-  }
-
-  Future<File?> _downloadFile(String url) async {
-    try {
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/${url.split('/').last}');
-
-      // Check if the file already exists
-      if (await file.exists()) {
-        return file;
-      }
-
-      // Download the file if it doesn't exist
-      final response = await HttpClient().getUrl(Uri.parse(url));
-      final bytes = await consolidateHttpClientResponseBytes(await response.close());
-      await file.writeAsBytes(bytes);
-
-      return file;
-    } catch (e) {
-      print('Error downloading file: $e');
-      return null;
-    }
-  }
-
   Future<void> _playAudio(String url) async {
     try {
       if (_audioPlaybackStates[url] == true) {
@@ -709,6 +996,11 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
             _playbackTimer?.cancel();
           },
         );
+
+        // Reset the playback duration to 0:00
+        setState(() {
+          _audioPlaybackDurations[url] = Duration.zero;
+        });
 
         // Start the playback timer
         _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
@@ -826,6 +1118,9 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
           final fileUrl = await storageRef.getDownloadURL();
           print('Audio uploaded successfully. Download URL: $fileUrl');
 
+          // Format the duration for display
+          final formattedDuration = _formatDuration(_recordingDuration);
+
           // Add the audio message to Firestore
           await _firestore
               .collection('ChatMessages')
@@ -837,12 +1132,13 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
             'timestamp': FieldValue.serverTimestamp(),
             'type': 'audio',
             'file_url': fileUrl,
+            'audio_duration': _recordingDuration.inSeconds, // Save the audio duration
             'status': 'sent',
           });
 
           // Update the last message in the chat thread
           await _firestore.collection('ChatMessages').doc(widget.chatId).update({
-            'last_msg': 'Voice message',
+            'last_msg': '🎤 $formattedDuration', // Include microphone icon and duration
             'last_time': FieldValue.serverTimestamp(),
           });
 
@@ -868,45 +1164,6 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('No audio file to upload')),
         );
-      }
-    }
-  }
-
-  Future<void> _attachFile() async {
-    FilePickerResult? result = await FilePicker.platform.pickFiles();
-    if (result != null) {
-      final file = File(result.files.single.path!);
-      final fileName = result.files.single.name;
-
-      final mimeType = result.files.single.extension?.toLowerCase();
-      final isImage = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].contains(mimeType);
-
-      final storagePath = isImage
-          ? 'chat_files/${widget.chatId}/images/$fileName'
-          : 'chat_files/${widget.chatId}/files/$fileName';
-
-      try {
-        final storageRef = FirebaseStorage.instanceFor(bucket: 'gs://mhealth-6191e.appspot.com')
-            .ref()
-            .child(storagePath);
-        final uploadTask = await storageRef.putFile(file);
-        final fileUrl = await uploadTask.ref.getDownloadURL();
-
-        await _firestore
-            .collection('ChatMessages')
-            .doc(widget.chatId)
-            .collection('messages')
-            .add({
-          'from_uid': widget.fromUid,
-          'to_uid': widget.toUid,
-          'timestamp': FieldValue.serverTimestamp(),
-          'type': isImage ? 'image' : 'file',
-          'file_url': fileUrl,
-          'file_name': fileName,
-          'status': 'sent',
-        });
-      } catch (e) {
-        print('Error uploading file: $e');
       }
     }
   }
@@ -937,208 +1194,253 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     _messageController.clear();
   }
 
+  String _formatDuration(Duration duration) {
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.toName),
         backgroundColor: Colors.lightBlue,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: _firestore
-                  .collection('ChatMessages')
-                  .doc(widget.chatId)
-                  .collection('messages')
-                  .orderBy('timestamp')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                final messages = snapshot.data!.docs;
-
-                return ListView.builder(
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isSentByUser = message['from_uid'] == widget.fromUid;
-
-                    return GestureDetector(
-                      onLongPress: () => _showMessageMenu(context, message),
-                      child: Align(
-                        alignment: isSentByUser
-                            ? Alignment.centerRight
-                            : Alignment.centerLeft,
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(
-                              horizontal: 8.0, vertical: 4.0),
-                          padding: const EdgeInsets.all(12.0),
-                          decoration: BoxDecoration(
-                            color: isSentByUser
-                                ? Colors.blue[300]
-                                : Colors.grey[300],
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (message['type'] == 'text') ...[
-                                Text(message['content'] ?? ''),
-                              ] else if (message['type'] == 'file') ...[
-                                Text('📎 File: ${message['file_name']}'),
-                                GestureDetector(
-                                  onTap: () {
-                                    _openFile(message['file_url']);
-                                  },
-                                  child: Text(
-                                    message['file_url'],
-                                    style: const TextStyle(
-                                      color: Colors.blue,
-                                      decoration: TextDecoration.underline,
-                                    ),
-                                  ),
-                                ),
-                              ] else if (message['type'] == 'audio') ...[
-                                  Container(
-                                    width: 250, // Set a fixed width for the playback bar
-                                    padding: const EdgeInsets.all(8.0),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[200], // Background color for the playback bar
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Text('🎙 Voice message'),
-                                        Row(
-                                          children: [
-                                            IconButton(
-                                              icon: Icon(_audioPlaybackStates[message['file_url']] == true ? Icons.pause : Icons.play_arrow),
-                                              onPressed: () => _playAudio(message['file_url']),
-                                            ),
-                                            Expanded(
-                                              child: Slider(
-                                                value: (_audioPlaybackDurations[message['file_url']] ?? Duration.zero).inSeconds.toDouble(),
-                                                min: 0,
-                                                max: (_audioTotalDurations[message['file_url']] ?? Duration.zero).inSeconds.toDouble(),
-                                                onChanged: (value) {
-                                                  _player.seekToPlayer(Duration(seconds: value.toInt()));
-                                                },
-                                              ),
-                                            ),
-                                            Text(
-                                              '${(_audioPlaybackDurations[message['file_url']] ?? Duration.zero).inSeconds}/${(_audioTotalDurations[message['file_url']] ?? Duration.zero).inSeconds}s',
-                                            ),
-                                          ],
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ]else if (message['type'] == 'image') ...[
-                                GestureDetector(
-                                  onTap: () {
-                                    _openFile(message['file_url']);
-                                  },
-                                  child: Image.network(
-                                    message['file_url'],
-                                    width: 150,
-                                    height: 150,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 5),
-                              Text(
-                                message['timestamp'] != null
-                                    ? DateFormat.jm().format(
-                                  (message['timestamp'] as Timestamp)
-                                      .toDate(),
-                                )
-                                    : 'Sending...',
-                                style: const TextStyle(
-                                    fontSize: 10, color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: Row(
-              children: [
-                if (_isRecording) ...[
-                  IconButton(
-                    icon: const Icon(Icons.cancel, color: Colors.red),
-                    onPressed: () {
-                      setState(() {
-                        _isRecording = false;
-                        _recordingDuration = Duration.zero;
-                      });
-                      _recordingTimer?.cancel();
-                      _recorder.stopRecorder();
-                    },
-                  ),
-                  Expanded(
-                    child: Column(
-                      children: [
-                        LinearProgressIndicator(
-                          value: _recordingDuration.inSeconds / 60, // Max 60 seconds
-                          backgroundColor: Colors.grey[300],
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                        ),
-                        Text(
-                          'Recording: ${_recordingDuration.inSeconds}s',
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.send, color: Colors.blue),
-                    onPressed: _stopRecordingAndUpload,
-                  ),
-                ] else ...[
-                  IconButton(
-                    icon: const Icon(Icons.attach_file),
-                    onPressed: _attachFile,
-                  ),
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      decoration: const InputDecoration(
-                        hintText: 'Type a message...',
-                        border: OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: _startRecording,
-                    child: const Icon(
-                      Icons.mic,
-                      color: Colors.blue,
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.send),
-                    onPressed: _sendMessage,
-                  ),
-                ],
-              ],
-            ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.video_call, color: Colors.white), // Video call icon
+            onPressed: _onVideoCallPressed, // Placeholder function for video call
           ),
         ],
+      ),
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.grey, Colors.grey], // Consistent background
+          ),
+        ),
+        child: Column(
+          children: [
+            Expanded(
+              child: Stack(
+                children: [
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: _firestore
+                        .collection('ChatMessages')
+                        .doc(widget.chatId)
+                        .collection('messages')
+                        .orderBy('timestamp')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Center(child: Text('Error: ${snapshot.error}'));
+                      }
+                      if (!snapshot.hasData) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      final messages = snapshot.data!.docs;
+
+                      return ListView.builder(
+                        controller: _scrollController, // Attach the ScrollController
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final message = messages[index];
+                          final isSentByUser = message['from_uid'] == widget.fromUid;
+
+                          return GestureDetector(
+                            onLongPress: () => _showMessageMenu(context, message),
+                            child: Align(
+                              alignment: isSentByUser
+                                  ? Alignment.centerRight
+                                  : Alignment.centerLeft,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  maxWidth: MediaQuery.of(context).size.width * 0.7, // Max width for text bubbles
+                                ),
+                                child: Container(
+                                  margin: const EdgeInsets.symmetric(
+                                      horizontal: 8.0, vertical: 4.0),
+                                  padding: const EdgeInsets.all(12.0),
+                                  decoration: BoxDecoration(
+                                    color: isSentByUser
+                                        ? Colors.blue[300]
+                                        : Colors.grey[300],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (message['type'] == 'text') ...[
+                                        Text(
+                                          message['content'] ?? '',
+                                          softWrap: true, // Allow text to wrap to the next line
+                                        ),
+                                      ] else if (message['type'] == 'audio') ...[
+                                        Container(
+                                          padding: const EdgeInsets.all(8.0),
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey[200], // Background color for the playback bar
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              IconButton(
+                                                icon: Icon(_audioPlaybackStates[message['file_url']] == true
+                                                    ? Icons.pause
+                                                    : Icons.play_arrow),
+                                                onPressed: () => _playAudio(message['file_url']),
+                                              ),
+                                              Expanded(
+                                                child: Slider(
+                                                  value: (_audioPlaybackDurations[message['file_url']] ?? Duration.zero)
+                                                      .inSeconds
+                                                      .toDouble(),
+                                                  min: 0,
+                                                  max: (_audioTotalDurations[message['file_url']] ?? Duration.zero)
+                                                      .inSeconds
+                                                      .toDouble(),
+                                                  onChanged: (value) {
+                                                    _player.seekToPlayer(Duration(seconds: value.toInt()));
+                                                  },
+                                                  activeColor: Colors.blue, // Color of the progress bar
+                                                  inactiveColor: Colors.grey[400], // Color of the remaining bar
+                                                  thumbColor: Colors.blue, // Color of the moving circle
+                                                ),
+                                              ),
+                                              // Show the current playback time or total duration
+                                              Text(
+                                                _audioPlaybackStates[message['file_url']] == true
+                                                    ? _formatDuration(_audioPlaybackDurations[message['file_url']] ?? Duration.zero)
+                                                    : _formatDuration(_audioTotalDurations[message['file_url']] ?? Duration.zero),
+                                                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                      const SizedBox(height: 5),
+                                      // Align the timestamp to the bottom-right
+                                      Align(
+                                        alignment: Alignment.bottomRight,
+                                        child: Text(
+                                          message['timestamp'] != null
+                                              ? DateFormat.jm().format(
+                                            (message['timestamp'] as Timestamp).toDate(),
+                                          )
+                                              : 'Sending...',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: Colors.grey[800], // Deep grey color to match the send icon
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                  // Show the FAB if the user has scrolled up
+                  if (_showScrollToBottomButton)
+                    Positioned(
+                      bottom: 16,
+                      right: 16,
+                      child: FloatingActionButton(
+                        onPressed: _scrollToBottom,
+                        child: const Icon(Icons.arrow_downward),
+                        mini: true,
+                        backgroundColor: Colors.blue,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: Row(
+                children: [
+                  if (_isRecording) ...[
+                    IconButton(
+                      icon: const Icon(Icons.cancel, color: Colors.red),
+                      onPressed: () {
+                        setState(() {
+                          _isRecording = false;
+                          _recordingDuration = Duration.zero;
+                        });
+                        _recordingTimer?.cancel();
+                        _recorder.stopRecorder();
+                      },
+                    ),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          LinearProgressIndicator(
+                            value: _recordingDuration.inSeconds / 60, // Max 60 seconds
+                            backgroundColor: Colors.grey[300],
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                          ),
+                          Text(
+                            'Recording: ${_recordingDuration.inSeconds}s',
+                            style: const TextStyle(color: Colors.red),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.send, color: Colors.blue),
+                      onPressed: _stopRecordingAndUpload,
+                    ),
+                  ] else ...[
+                    GestureDetector(
+                      onTap: _startRecording,
+                      child: const Icon(
+                        Icons.mic,
+                        color: Colors.blue,
+                      ),
+                    ),
+                    const SizedBox(width: 8), // Add space between microphone and text box
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(30), // Oval shape
+                        ),
+                        constraints: BoxConstraints(
+                          maxHeight: 120, // Maximum height for the text box
+                        ),
+                        child: SingleChildScrollView(
+                          // Enable scrolling for multi-line text
+                          child: TextField(
+                            controller: _messageController,
+                            decoration: const InputDecoration(
+                              hintText: 'Type a message...',
+                              border: InputBorder.none, // Remove default border
+                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
+                            maxLines: null, // Allow multiple lines
+                            keyboardType: TextInputType.multiline, // Enable multi-line input
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8), // Add space between text box and send button
+                    IconButton(
+                      icon: const Icon(Icons.send),
+                      onPressed: _sendMessage,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
