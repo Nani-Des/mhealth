@@ -50,6 +50,7 @@ dependencies:
   flutter_webrtc: ^0.9.0
 
 
+  path_provider: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

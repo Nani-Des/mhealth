@@ -3,25 +3,69 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/services.dart'; // For copying to clipboard
 import 'package:permission_handler/permission_handler.dart';
-import 'package:open_file/open_file.dart';
 import 'package:uuid/uuid.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'experts_community_page.dart';
 
 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  await ensureTestUserExists();
   runApp(const MyApp());
+}
+
+Future<void> ensureTestUserExists() async {
+  const String testEmail = "akotomichael255@gmail.com";
+  const String testPassword = "Test1234!";
+
+  try {
+    UserCredential userCredential;
+
+    // Check if a user with this email exists by attempting to log in
+    try {
+      userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: testEmail,
+        password: testPassword,
+      );
+    } catch (e) {
+      // If sign-in fails, create the test user
+      userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
+        email: testEmail,
+        password: testPassword,
+      );
+
+      // Store user details in Firestore
+      final user = userCredential.user;
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('Users').doc(user.uid).set({
+          'CreatedAt': FieldValue.serverTimestamp(),
+          'Email': 'akotomichael255@gmail.com',
+          'Fname': 'Michael',
+          'Lname': 'Akoto',
+          'Mobile Number': '0243472977',
+          'Region': 'Ashanti',
+          'Role': true,  // Set to true if you want the user to be an expert
+          'Status': true,
+          'User ID': user.uid,
+          'User Pic': '', // Add a profile picture URL if available
+        });
+      }
+    }
+
+    print("Test user is logged in as: ${userCredential.user?.email}");
+  } catch (error) {
+    print("Error ensuring test user exists: $error");
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -29,9 +73,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return const MaterialApp(
       title: 'My Chat App',
-      home: const ChatHomePage(),
+      home: ChatHomePage(),
     );
   }
 }
@@ -53,8 +97,8 @@ class _ChatHomePageState extends State<ChatHomePage>
     _tabController = TabController(length: 2, vsync: this);
 
     _tabController.addListener(() {
-      if (_tabController.indexIsChanging) {
-        setState(() {});
+      if (mounted) {
+        setState(() {}); // ✅ Ensures FAB updates correctly when switching tabs
       }
     });
   }
@@ -64,7 +108,7 @@ class _ChatHomePageState extends State<ChatHomePage>
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _tabController.index == 0 ? 'Private Chats' : 'Forum',
+          _tabController.index == 0 ? 'Private Chats' : 'Open Forum',
         ),
         backgroundColor: Colors.lightBlue,
       ),
@@ -89,33 +133,36 @@ class _ChatHomePageState extends State<ChatHomePage>
           indicatorSize: TabBarIndicatorSize.tab,
         ),
       ),
-      // In _ChatHomePageState, inside the floating action button onPressed
-      floatingActionButton: Builder(
-        builder: (context) => FloatingActionButton(
-          onPressed: () async {
-            String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
-            if (currentUserId != null) {
-              _showUserList(context, currentUserId); // Pass currentUserId here
-            } else {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("User not logged in")),
-              );
-            }
-          },
-          backgroundColor: Colors.blue,
-          child: const Icon(Icons.message, color: Colors.white),
-        ),
-      ),
+      floatingActionButton: _tabController.index == 0 // ✅ FAB updates correctly now
+          ? FloatingActionButton(
+        onPressed: () async {
+          String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+          if (currentUserId != null) {
+            _showUserList(context, currentUserId);
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text("User not logged in")),
+            );
+          }
+        },
+        backgroundColor: Colors.blue,
+        child: const Icon(Icons.message, color: Colors.white),
+      )
+          : null, // Hide FAB when on Forum tab
     );
   }
 }
+
 
 void _showUserList(BuildContext context, String currentUserId) {
   showModalBottomSheet(
     context: context,
     builder: (context) {
       return FutureBuilder<QuerySnapshot>(
-        future: FirebaseFirestore.instance.collection('Users').get(),
+        future: FirebaseFirestore.instance
+            .collection('Users')
+            .where(FieldPath.documentId, isNotEqualTo: currentUserId) // Exclude current user
+            .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -126,8 +173,13 @@ void _showUserList(BuildContext context, String currentUserId) {
 
           final users = snapshot.data!.docs;
 
-          return ListView.builder(
+          return ListView.separated(
             itemCount: users.length,
+            separatorBuilder: (context, index) => const Divider(
+              color: Colors.grey, // Thin grey divider
+              thickness: 0.5,
+              height: 1,
+            ),
             itemBuilder: (context, index) {
               final user = users[index].data() as Map<String, dynamic>;
               final userId = users[index].id;
@@ -148,54 +200,56 @@ void _showUserList(BuildContext context, String currentUserId) {
                 trailing: isOnline
                     ? const Icon(Icons.circle, color: Colors.green, size: 12)
                     : null,
-                  onTap: () async {
-                    Navigator.pop(context); // Close modal
+                onTap: () async {
+                  Navigator.pop(context); // Close modal
 
-                    // Get the current user details
-                    String? fromUid = FirebaseAuth.instance.currentUser?.uid;
-                    if (fromUid == null) {
-                      print("Error: fromUid is null");
-                      return;
-                    }
-
-                    DocumentSnapshot fromUserSnapshot = await FirebaseFirestore.instance.collection('Users').doc(fromUid).get();
-                    String fromName = fromUserSnapshot['Fname'] ?? 'Unknown';
-                    String fromPic = fromUserSnapshot['User Pic'] ?? '';
-
-                    // Get the tapped user's details
-                    String toUid = userId;
-                    String toName = fullName;
-                    String toPic = userPic ?? '';
-
-                    String chatId = await _getOrCreateChatThread(fromUid, fromName, fromPic, toUid, toName, toPic);
-
-                    if (chatId.isEmpty) {
-                      print("Error: chatId is empty!");
-                      return;
-                    }
-
-                    if (!context.mounted) return; // Ensure the context is still active
-
-                    // Debug logs
-                    print("Navigating to ChatThreadDetailsPage with:");
-                    print("chatId: $chatId");
-                    print("toName: $toName");
-                    print("toUid: $toUid");
-                    print("fromUid: $fromUid");
-
-                    // Navigate to ChatThreadDetailsPage
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatThreadDetailsPage(
-                          chatId: chatId,
-                          toName: toName,
-                          toUid: toUid,
-                          fromUid: fromUid,
-                        ),
-                      ),
-                    );
+                  // Get the current user details
+                  String? fromUid = FirebaseAuth.instance.currentUser?.uid;
+                  if (fromUid == null) {
+                    print("Error: fromUid is null");
+                    return;
                   }
+
+                  DocumentSnapshot fromUserSnapshot = await FirebaseFirestore.instance.collection('Users').doc(fromUid).get();
+                  String fromName = fromUserSnapshot['Fname'] ?? 'Unknown';
+                  String fromPic = fromUserSnapshot['User Pic'] ?? '';
+
+                  // Get the tapped user's details
+                  String toUid = userId;
+                  String toName = fullName;
+                  String toPic = userPic ?? '';
+
+                  String chatId = await _getOrCreateChatThread(fromUid, fromName, fromPic, toUid, toName, toPic);
+
+                  if (chatId.isEmpty) {
+                    print("Error: chatId is empty!");
+                    return;
+                  }
+
+                  print("chatId retrieved: $chatId");
+
+                  if (!context.mounted) return; // Ensure the context is still active
+
+                  // Debug logs
+                  print("Navigating to ChatThreadDetailsPage with:");
+                  print("chatId: $chatId");
+                  print("toName: $toName");
+                  print("toUid: $toUid");
+                  print("fromUid: $fromUid");
+
+                  // Navigate to ChatThreadDetailsPage
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ChatThreadDetailsPage(
+                        chatId: chatId,
+                        toName: toName,
+                        toUid: toUid,
+                        fromUid: fromUid,
+                      ),
+                    ),
+                  );
+                },
               );
             },
           );
@@ -213,12 +267,12 @@ Future<String> _getOrCreateChatThread(
 
   // Step 1: Check if a chat already exists
   QuerySnapshot existingChat = await chatRef
-      .where('participants', arrayContains: fromUid)
+      .where('participants', arrayContainsAny: [fromUid, toUid])
       .get();
 
   for (var doc in existingChat.docs) {
     List<dynamic> participants = doc['participants'];
-    if (participants.contains(toUid)) {
+    if (participants.contains(fromUid) && participants.contains(toUid)) {
       print("Existing chat found: ${doc['chat_id']}");
       return doc['chat_id']; // Return the chat_id field
     }
@@ -353,38 +407,34 @@ class ChatPage extends StatelessWidget {
                     child: userPic == null ? Text(firstName[0].toUpperCase()) : null,
                   ),
                   title: Text(fullName), // ✅ Display full name
-                  subtitle: lastMessageType == 'audio'
-                      ? Row(
+                  subtitle: Row(
                     children: [
-                      const Icon(Icons.mic, size: 16, color: Colors.blue),
-                      const SizedBox(width: 4),
-                      Text(
-                        _formatDuration(Duration(seconds: audioDuration)),
-                        style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                      Expanded( // ✅ Prevents stretching by containing text inside ListTile
+                        child: Text(
+                          lastMessageType == 'audio'
+                              ? '🎤 Voice message (${_formatDuration(Duration(seconds: audioDuration))})'
+                              : truncateMessage(lastMessage),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1, // ✅ Ensures message stays in one line
+                          softWrap: false,
+                        ),
                       ),
                     ],
-                  )
-                      : Text(
-                    truncateMessage(lastMessage),
-                    overflow: TextOverflow.ellipsis,
                   ),
                   trailing: Text(
                     formatTimestamp(chat['last_time']),
                     style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
                   ),
                   onTap: () async {
-                    // Retrieve chat_id (ensure it's set correctly in your database)
                     String chatId = chat['chat_id'] ?? await _getOrCreateChatThread(
-
                       chat['from_uid'],   // ✅ Current User ID
                       chat['from_name'],  // ✅ Current User Name
                       chat['from_pic'],   // ✅ Current User Pic
                       chat['to_uid'],     // ✅ Receiver User ID
                       fullName,           // ✅ Receiver Name (retrieved from Firestore)
-                      userPic ?? '',      // ✅ Receiver Profile Pic (or empty string if null) // Pass user pic (or empty if not available)
+                      userPic ?? '',      // ✅ Receiver Profile Pic (or empty string if null)
                     );
 
-                    // Now navigate to the ChatThreadDetailsPage
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -416,24 +466,71 @@ class ForumPage extends StatefulWidget {
 
 class _ForumPageState extends State<ForumPage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  bool? isExpert; // Store user's role
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchUserRole();
+  }
+
+  Future<void> _fetchUserRole() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final userDoc = await _firestore.collection('Users').doc(user.uid).get();
+      if (userDoc.exists) {
+        setState(() {
+          isExpert = userDoc['Role'] ?? false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Posts'), // Updated to only display "Posts"
+        // Remove the title
+        title: const SizedBox.shrink(), // No title
         actions: [
-          // Add a circular container around the "Add Post" icon
-          Container(
-            margin: const EdgeInsets.all(8.0),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.blue, // Circle background color
-            ),
-            child: IconButton(
-              icon: const Icon(Icons.add, color: Colors.white), // White plus icon
-              iconSize: 24, // Slightly larger icon
-              onPressed: () => _showAddPostDialog(context),
+          // Use Expanded to make the Row take up the full width of the AppBar
+          Expanded(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween, // Space between buttons
+              children: [
+                // Add Post Button (left)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8.0),
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showAddPostDialog(context),
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: const Text("Add Post"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                // Experts Community Button (right)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: ElevatedButton(
+                    onPressed: (isExpert == true)
+                        ? () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ExpertsCommunityPage(),
+                      ),
+                    )
+                        : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isExpert == true ? Colors.blue : Colors.grey,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Experts Community'),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -443,7 +540,7 @@ class _ForumPageState extends State<ForumPage> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Colors.grey, Colors.grey], // Consistent background
+            colors: [Colors.grey, Colors.grey],
           ),
         ),
         child: StreamBuilder<QuerySnapshot>(
@@ -477,7 +574,7 @@ class _ForumPageState extends State<ForumPage> {
                           Text(
                             post['content'] ?? 'No Content',
                             style: const TextStyle(
-                              fontSize: 16, // Larger font size for post content
+                              fontSize: 16,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -515,130 +612,230 @@ class _ForumPageState extends State<ForumPage> {
       ),
     );
   }
-
-  void _showAddPostDialog(BuildContext context) {
-    final TextEditingController _postController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Create a New Post'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: _postController,
-                decoration: const InputDecoration(
-                  hintText: 'Enter your post content...',
-                ),
-                maxLines: 3,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                if (_postController.text.trim().isNotEmpty) {
-                  await _firestore.collection('ForumPosts').add({
-                    'content': _postController.text, // Use content as the main text
-                    'username': 'CurrentUser', // Replace with actual username
-                    'timestamp': FieldValue.serverTimestamp(),
-                  });
-                  _postController.clear();
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Post'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _showPostMenu(BuildContext context, String postId) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('Delete Post'),
-              onTap: () async {
-                Navigator.pop(context); // Close the menu
-                await _firestore.collection('ForumPosts').doc(postId).delete();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('Copy Post'),
-              onTap: () {
-                final post = _firestore.collection('ForumPosts').doc(postId).get();
-                post.then((value) {
-                  if (value.exists) {
-                    Clipboard.setData(ClipboardData(text: value['content']));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Post copied to clipboard!')),
-                    );
-                  }
-                });
-                Navigator.pop(context); // Close the menu
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.translate),
-              title: const Text('Translate Post'),
-              onTap: () {
-                Navigator.pop(context); // Placeholder for translation logic
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Translate feature coming soon!')),
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
 }
 
-class PostDetailsPage extends StatelessWidget {
+
+void _showAddPostDialog(BuildContext context) {
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  final TextEditingController postController = TextEditingController();
+  final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+  if (currentUserId == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("User not logged in")),
+    );
+    return;
+  }
+
+  showDialog(
+    context: context,
+    builder: (context) {
+      return AlertDialog(
+        title: const Text('Create a New Post'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: postController,
+              decoration: const InputDecoration(
+                hintText: 'Enter your post content...',
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+            },
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (postController.text.trim().isNotEmpty) {
+                // Fetch user details from Firestore
+                DocumentSnapshot userSnapshot = await firestore.collection('Users').doc(currentUserId).get();
+                if (!userSnapshot.exists) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("User data not found")),
+                  );
+                  return;
+                }
+
+                final userData = userSnapshot.data() as Map<String, dynamic>;
+                final String fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
+
+                await firestore.collection('ForumPosts').add({
+                  'content': postController.text.trim(),
+                  'username': fullName, // Store full name instead of generic "CurrentUser"
+                  'userId': currentUserId, // Store userId for reference
+                  'timestamp': FieldValue.serverTimestamp(),
+                });
+
+                postController.clear();
+                Navigator.pop(context);
+              }
+            },
+            child: const Text('Post'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+
+
+void _showPostMenu(BuildContext context, String postId) {
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;  // ✅ Declare Firestore
+
+  showModalBottomSheet(
+    context: context,
+    builder: (context) {
+      return Wrap(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.delete),
+            title: const Text('Delete Post'),
+            onTap: () async {
+              Navigator.pop(context);
+              await firestore.collection('ForumPosts').doc(postId).delete();  // ✅ Use `firestore`
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.copy),
+            title: const Text('Copy Post'),
+            onTap: () {
+              firestore.collection('ForumPosts').doc(postId).get().then((value) {  // ✅ Use `firestore`
+                if (value.exists) {
+                  Clipboard.setData(ClipboardData(text: value['content']));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Post copied to clipboard!')),
+                  );
+                }
+              });
+              Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.translate),
+            title: const Text('Translate Post'),
+            onTap: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Translate feature coming soon!')),
+              );
+            },
+          ),
+        ],
+      );
+    },
+  );
+}
+
+class PostDetailsPage extends StatefulWidget {
   final String postId;
   final String postTitle;
 
   const PostDetailsPage({super.key, required this.postId, required this.postTitle});
 
   @override
-  Widget build(BuildContext context) {
-    final TextEditingController _commentController = TextEditingController();
+  _PostDetailsPageState createState() => _PostDetailsPageState();
+}
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(postTitle), // Keep the app bar title as is
-      ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Colors.grey, Colors.grey], // Gradient background
-          ),
+  class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProviderStateMixin {
+    final ScrollController _scrollController = ScrollController();
+    final TextEditingController commentController = TextEditingController();
+    final FocusNode _focusNode = FocusNode(); // FocusNode to manage focus
+    String? _replyingToUserId; // To track the user being replied to
+    String? _repliedContent; // To store the original message content being replied to
+    String? _replyingToCommentId; // To track the comment being replied to
+    String? _replyingToUserName; // To store the name of the user being replied to
+
+    // Animation controller for the reply button
+    late AnimationController _animationController;
+    late Animation<double> _scaleAnimation;
+
+    @override
+    void initState() {
+      super.initState();
+
+      // Initialize animation controller and animation
+      _animationController = AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 100),
+      );
+      _scaleAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
+        CurvedAnimation(
+          parent: _animationController,
+          curve: Curves.easeInOut,
         ),
-        child: Column(
+      );
+    }
+
+    @override
+    void dispose() {
+      _animationController.dispose(); // Dispose the animation controller
+      super.dispose();
+    }
+
+    void _replyToMessage(BuildContext context, String shortUserName, String content, String replyUserId, String commentId) {
+      // Focus the reply TextField to activate the keyboard
+      _focusNode.requestFocus();
+
+      setState(() {
+        // Set the user and comment details for reply tracking
+        _replyingToUserId = replyUserId;
+        _repliedContent = content;
+        _replyingToCommentId = commentId;
+        _replyingToUserName = shortUserName; // Store the name of the user being replied to
+      });
+    }
+
+    void _cancelReply() {
+      // Clear the reply state and hide the reply bar
+      setState(() {
+        _replyingToUserId = null;
+        _repliedContent = null;
+        _replyingToCommentId = null;
+        _replyingToUserName = null;
+      });
+      commentController.clear(); // Clear the text input
+      _focusNode.unfocus(); // Remove focus from the text input
+    }
+
+    void _animateReplyButton() {
+      // Play the animation when the reply button is tapped
+      _animationController.forward().then((_) {
+        _animationController.reverse();
+      });
+    }
+
+    @override
+    Widget build(BuildContext context) {
+      final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+      return Scaffold(
+        appBar: AppBar(title: Text('Discussion'),
+        backgroundColor: Colors.lightBlue),
+        body: Column(
           children: [
+            // Post topic at the top (full-width background)
+            Container(
+              width: double.infinity, // Ensure the background covers the entire line
+              padding: const EdgeInsets.all(16.0),
+              color: Colors.grey[200], // Background color
+              child: Text(
+                widget.postTitle,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('ForumPosts')
-                    .doc(postId)
+                    .doc(widget.postId)
                     .collection('comments')
                     .orderBy('timestamp')
                     .snapshots(),
@@ -653,113 +850,203 @@ class PostDetailsPage extends StatelessWidget {
                   final comments = snapshot.data!.docs;
 
                   return ListView.builder(
+                    controller: _scrollController,
                     itemCount: comments.length,
                     itemBuilder: (context, index) {
                       final comment = comments[index].data() as Map<String, dynamic>;
-                      final username = comment['username'] ?? 'Anonymous';
-                      final taggedUser = comment['taggedUser'];
-                      final isReply = comment['isReply'] ?? false;
+                      final userId = comment['userId'];
+                      final commentId = comments[index].id;
+                      final repliedTo = comment['repliedTo'] ?? ''; // User ID of the replied-to user
+                      final repliedContent = comment['repliedContent'] ?? ''; // Content of the replied-to message
+                      final timestamp = comment['timestamp'] != null
+                          ? (comment['timestamp'] as Timestamp).toDate()
+                          : DateTime.now();
 
-                      return GestureDetector(
-                        onLongPress: () => _showCommentMenu(context, comments[index].reference),
-                        child: Container(
-                          margin: EdgeInsets.only(left: isReply ? 16.0 : 0),
-                          child: ListTile(
-                            title: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                if (taggedUser != null)
-                                  Text(
-                                    'Replying to @$taggedUser',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.blue,
-                                    ),
+                      return FutureBuilder<DocumentSnapshot>(
+                        future: FirebaseFirestore.instance.collection('Users').doc(userId).get(),
+                        builder: (context, userSnapshot) {
+                          if (userSnapshot.connectionState == ConnectionState.waiting) {
+                            return const ListTile(title: Text('Loading...'));
+                          }
+                          if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
+                            return ListTile(
+                              title: Text(comment['content'] ?? 'No Content'),
+                              subtitle: const Text('Posted by: Unknown User'),
+                            );
+                          }
+
+                          final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+
+                          final fname = userData?['Fname'] ?? 'Unknown';
+                          final lname = userData?['Lname'] ?? 'User';
+                          final fullName = '$fname $lname';
+
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Show reply box only for the comment that is a reply
+                              if (repliedTo.isNotEmpty)
+                                FutureBuilder<DocumentSnapshot>(
+                                  future: FirebaseFirestore.instance.collection('Users').doc(repliedTo).get(),
+                                  builder: (context, repliedUserSnapshot) {
+                                    if (repliedUserSnapshot.connectionState == ConnectionState.waiting) {
+                                      return const ListTile(title: Text('Loading...'));
+                                    }
+                                    if (repliedUserSnapshot.hasError || !repliedUserSnapshot.hasData || !repliedUserSnapshot.data!.exists) {
+                                      return const SizedBox.shrink();
+                                    }
+
+                                    final repliedUserData = repliedUserSnapshot.data!.data() as Map<String, dynamic>?;
+                                    final repliedFname = repliedUserData?['Fname'] ?? 'Unknown';
+                                    final repliedLname = repliedUserData?['Lname'] ?? 'User';
+                                    final repliedToName = '$repliedFname $repliedLname';
+
+                                    return Container(
+                                      padding: const EdgeInsets.all(8.0),
+                                      margin: const EdgeInsets.only(bottom: 4.0),
+                                      decoration: BoxDecoration(
+                                        color: Colors.grey[300],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          InkWell(
+                                            onTap: () {
+                                              // Scroll to the original message if user ID is clicked
+                                              _scrollToMessage(comment['repliedToCommentId'], comments);
+                                            },
+                                            child: Text(
+                                              'Replying to $repliedToName: ${repliedContent.length > 10 ? repliedContent.substring(0, 15) + '...' : repliedContent}',
+                                              style: TextStyle(
+                                                color: Colors.blue,
+                                                fontWeight: FontWeight.bold, // Bolden the reply message
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ListTile(
+                                title: Text(comment['content'] ?? 'No Content'),
+                                subtitle: Text('Posted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}'),
+                                trailing: ScaleTransition(
+                                  scale: _scaleAnimation,
+                                  child: IconButton(
+                                    icon: const Icon(Icons.reply),
+                                    onPressed: () {
+                                      // Animate the reply button
+                                      _animateReplyButton();
+                                      // Focus on the reply field and bring up the keyboard
+                                      _focusNode.requestFocus(); // Activate the keyboard
+                                      _replyToMessage(context, '$fname $lname', comment['content'], comment['userId'], commentId);
+                                    },
                                   ),
-                                Text(comment['content'] ?? 'No Content'),
-                              ],
-                            ),
-                            subtitle: Text(
-                              'Posted by: $username • ${comment['timestamp'] != null ? DateFormat.yMMMd().add_jm().format((comment['timestamp'] as Timestamp).toDate()) : 'No Date'}',
-                              style: const TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.reply),
-                              onPressed: () {
-                                _commentController.text = '@$username ';
-                                FocusScope.of(context).requestFocus(FocusNode());
-                              },
-                            ),
-                          ),
-                        ),
+                                ),
+                                onLongPress: () => _showCommentMenu(context, comments[index].reference),
+                              ),
+                              const Divider(),
+                            ],
+                          );
+                        },
                       );
                     },
                   );
                 },
               ),
             ),
-            // Input bar with microphone, text box, and send button
-            Padding(
+            // Reply bar (appears when replying to a comment)
+            if (_replyingToUserName != null)
+              Container(
+                color: Colors.grey[300],
+                padding: const EdgeInsets.all(8.0),
+                child: Row(
+                  children: [
+                    Text(
+                      'Replying to $_replyingToUserName: ${_repliedContent!.length > 10 ? _repliedContent!.substring(0, 15) + '...' : _repliedContent}',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: _cancelReply, // Cancel the reply process
+                    ),
+                  ],
+                ),
+              ),
+            // Input bar for typing comments
+            Container(
+              color: Colors.grey[300],
               padding: const EdgeInsets.all(8.0),
               child: Row(
                 children: [
-                  // Microphone icon
-                  GestureDetector(
-                    onTap: () {
-                      // Add voice comment functionality here
-                    },
-                    child: const Icon(
-                      Icons.mic,
-                      color: Colors.blue,
-                    ),
-                  ),
-                  const SizedBox(width: 8), // Spacing between microphone and text box
-                  // Text box for typing comments
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
-                        borderRadius: BorderRadius.circular(30), // Oval shape
+                        borderRadius: BorderRadius.circular(30),
                       ),
-                      constraints: BoxConstraints(
-                        maxHeight: 120, // Maximum height for the text box
-                      ),
-                      child: SingleChildScrollView(
-                        child: TextField(
-                          controller: _commentController,
-                          decoration: const InputDecoration(
-                            hintText: 'Add a comment...',
-                            border: InputBorder.none, // Remove default border
-                            contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          ),
-                          maxLines: null, // Allow multiple lines
-                          keyboardType: TextInputType.multiline, // Enable multi-line input
+                      constraints: const BoxConstraints(maxHeight: 120),
+                      child: TextField(
+                        controller: commentController,
+                        focusNode: _focusNode, // Attach the focusNode
+                        decoration: const InputDecoration(
+                          hintText: 'Type comment here...',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         ),
+                        maxLines: null,
+                        keyboardType: TextInputType.multiline,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8), // Spacing between text box and send button
-                  // Send button
+                  const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.send),
                     onPressed: () async {
-                      if (_commentController.text.trim().isNotEmpty) {
-                        final taggedUser = _commentController.text.contains('@')
-                            ? _commentController.text.split('@')[1].split(' ')[0]
-                            : null;
+                      if (commentController.text.trim().isNotEmpty) {
+                        if (currentUserId == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("User not logged in")),
+                          );
+                          return;
+                        }
+
+                        DocumentSnapshot userSnapshot = await FirebaseFirestore.instance.collection('Users').doc(currentUserId).get();
+                        if (!userSnapshot.exists) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text("User data not found")),
+                          );
+                          return;
+                        }
+
+                        final userData = userSnapshot.data() as Map<String, dynamic>;
+                        final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
 
                         await FirebaseFirestore.instance
                             .collection('ForumPosts')
-                            .doc(postId)
+                            .doc(widget.postId)
                             .collection('comments')
                             .add({
-                          'content': _commentController.text,
-                          'username': 'CurrentUser', // Replace with actual username
-                          'taggedUser': taggedUser,
-                          'isReply': taggedUser != null,
+                          'content': commentController.text,
+                          'userId': currentUserId,
+                          'username': fullName,
                           'timestamp': FieldValue.serverTimestamp(),
+                          'repliedTo': _replyingToUserId, // Add the replied-to comment's userId
+                          'repliedContent': _repliedContent, // Add the content of the original message
+                          'repliedToCommentId': _replyingToCommentId, // Add the ID of the comment being replied to
                         });
-                        _commentController.clear();
+
+                        // After posting, reset the reply target
+                        commentController.clear();
+                        setState(() {
+                          _replyingToUserId = null; // Reset the replied-to state
+                          _repliedContent = null; // Clear the content of the message
+                          _replyingToCommentId = null; // Reset the comment being replied to
+                          _replyingToUserName = null; // Clear the name of the user being replied to
+                        });
                       }
                     },
                   ),
@@ -768,9 +1055,32 @@ class PostDetailsPage extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
+      );
+    }
+
+    // Scroll to the message when user clicks on the user ID
+    void _scrollToMessage(String commentId, List<QueryDocumentSnapshot> comments) {
+      final index = _getCommentIndexById(commentId, comments);
+      if (index != -1) {
+        _scrollController.animateTo(
+          index * 100.0, // Adjust based on your item height
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
+    }
+
+    int _getCommentIndexById(String commentId, List<QueryDocumentSnapshot> comments) {
+      // Find the index of the comment by ID (this will be used to scroll to that specific comment)
+      return comments.indexWhere((comment) => comment.id == commentId);
+    }
   }
+
+
+
+
+
+
 
   void _showCommentMenu(BuildContext context, DocumentReference commentRef) {
     showModalBottomSheet(
@@ -816,7 +1126,7 @@ class PostDetailsPage extends StatelessWidget {
       },
     );
   }
-}
+
 
 class AudioPlaybackState {
   final String url;
@@ -1005,13 +1315,11 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
         // Start the playback timer
         _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
           final progress = await _player.getProgress();
-          if (progress != null) {
-            setState(() {
-              _audioPlaybackDurations[url] = progress['currentPosition'] ?? Duration.zero;
-              _audioTotalDurations[url] = progress['duration'] ?? Duration.zero;
-            });
-          }
-        });
+          setState(() {
+            _audioPlaybackDurations[url] = progress['currentPosition'] ?? Duration.zero;
+            _audioTotalDurations[url] = progress['duration'] ?? Duration.zero;
+          });
+                });
 
         setState(() {
           _audioPlaybackStates[url] = true;
@@ -1090,7 +1398,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
         print('Audio file exists at $_audioPath');
         print('File size: ${await file.length()} bytes');
 
-        final fileName = 'audio_${Uuid().v4()}.aac'; // Use UUID for unique filenames
+        final fileName = 'audio_${const Uuid().v4()}.aac'; // Use UUID for unique filenames
         final storagePath = 'chat_files/audio/$fileName';
 
         try {
@@ -1354,9 +1662,9 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                       right: 16,
                       child: FloatingActionButton(
                         onPressed: _scrollToBottom,
-                        child: const Icon(Icons.arrow_downward),
                         mini: true,
                         backgroundColor: Colors.blue,
+                        child: const Icon(Icons.arrow_downward),
                       ),
                     ),
                 ],
@@ -1384,7 +1692,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                           LinearProgressIndicator(
                             value: _recordingDuration.inSeconds / 60, // Max 60 seconds
                             backgroundColor: Colors.grey[300],
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                            valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
                           ),
                           Text(
                             'Recording: ${_recordingDuration.inSeconds}s',
@@ -1412,7 +1720,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(30), // Oval shape
                         ),
-                        constraints: BoxConstraints(
+                        constraints: const BoxConstraints(
                           maxHeight: 120, // Maximum height for the text box
                         ),
                         child: SingleChildScrollView(
