@@ -130,10 +130,7 @@ class DoctorInfoWidget extends StatelessWidget {
                     padding: EdgeInsets.symmetric(vertical: 12),
                     textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                   ),
-                  onPressed: () {
-                    // Handle booking action here, e.g., open booking dialog or navigate to booking screen
-                    handleBookAppointment(context);
-                  },
+                  onPressed: () => _showCalendarDialog(context),
                 ),
               ),
             ],

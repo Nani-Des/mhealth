@@ -3,6 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:intl/intl.dart';
 
+import '../Components/booking_helper.dart';
+
 class DoctorAvailabilityCalendar extends StatefulWidget {
   final String doctorId;
   final String hospitalId;
@@ -124,9 +126,30 @@ class _DoctorAvailabilityCalendarState
     Map<String, dynamic>? timingMap = shiftTimings[shift];
 
     String timingText;
+    DateTime? bookingDateTime;
     if (timingMap != null && timingMap is Map<String, dynamic>) {
       String start = timingMap['Start'] ?? "Unavailable";
       String end = timingMap['End'] ?? "Unavailable";
+
+      // Combine selected date and shift time into a DateTime object
+      if (start != "Unavailable") {
+        // Parse the time using a DateFormat
+        DateFormat dateFormat = DateFormat("hh:mm a");  // Format for "00:00 AM"
+        try {
+          // Convert the start time to DateTime object
+          DateTime parsedStartTime = dateFormat.parse(start);
+          bookingDateTime = DateTime(
+            day.year,
+            day.month,
+            day.day,
+            parsedStartTime.hour,
+            parsedStartTime.minute,
+          );
+        } catch (e) {
+          print("Error parsing time: $e");
+        }
+      }
+
       timingText = "Start: $start\nEnd: $end";
     } else {
       timingText = "Timings Unavailable";
@@ -182,9 +205,15 @@ class _DoctorAvailabilityCalendarState
             ),
             ElevatedButton(
               onPressed: () {
-                // Handle booking logic here
-                Navigator.of(context).pop(); // Close dialog after booking
-                // Navigate to the booking page or execute booking action
+                if (bookingDateTime != null) {
+                  // Pass the combined DateTime as a Timestamp
+                  handleBookAppointment(
+                    context,
+                    doctorId: widget.doctorId,
+                    hospitalId: widget.hospitalId,
+                    selectedDate: bookingDateTime, // Use the combined timestamp
+                  );
+                }
               },
               child: Text('Book Appointment'),
               style: ElevatedButton.styleFrom(

@@ -49,7 +49,7 @@ class _HomePageContentState extends State<HomePageContent> {
               ? Column(
             children: [
               Container(
-                height: 300, // Set a fixed height for the scrollable area
+                height: 395, // Set a fixed height for the scrollable area
                 child: SingleChildScrollView(
                   child: OrganizationListView(),
                 ),

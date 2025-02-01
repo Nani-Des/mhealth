@@ -50,21 +50,18 @@ class _MapScreen1State extends State<MapScreen1> {
     // Check if location services are enabled
     serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
-      // Location services are not enabled, show a message to the user and return
       setState(() {
-        _selectedPlaceName = 'Location services are disabled. Please enable them in your device settings.';
+        _selectedPlaceName = 'Location services are disabled. Please enable them in your settings.';
       });
       return;
     }
 
-    // Check location permission
+    // Check and request location permission
     permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
-      // If permission is denied, request it
       permission = await Geolocator.requestPermission();
       if (permission != LocationPermission.whileInUse &&
           permission != LocationPermission.always) {
-        // Permission still denied, inform the user
         setState(() {
           _selectedPlaceName = 'Location permission denied. Please allow location access in your settings.';
         });
@@ -72,14 +69,29 @@ class _MapScreen1State extends State<MapScreen1> {
       }
     }
 
-    // Get current position
+    // Get the user's current location
     Position position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high);
+      desiredAccuracy: LocationAccuracy.high,
+    );
 
+    // Update state with current position
     setState(() {
       _currentPosition = position;
       _selectedPlaceName = 'Current Location: ${position.latitude}, ${position.longitude}';
+
+      // **Set the origin marker by default**
+      _origin = Marker(
+        markerId: const MarkerId('origin'),
+        position: LatLng(position.latitude, position.longitude),
+        infoWindow: const InfoWindow(title: 'You are here'),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      );
     });
+
+    // Move the camera to the user's location
+    _googleMapController.animateCamera(
+      CameraUpdate.newLatLngZoom(LatLng(position.latitude, position.longitude), 14.0),
+    );
   }
 
 

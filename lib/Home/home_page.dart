@@ -137,7 +137,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           Navigator.push(context, MaterialPageRoute(builder: (context) => EmergencyPage()));
         },
         child: Icon(Icons.add),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Colors.redAccent,
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );

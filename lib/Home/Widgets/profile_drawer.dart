@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../Appointments/AppointmentScreen.dart';
 import '../home_page.dart';
 
 class ProfileDrawer extends StatefulWidget {
@@ -217,11 +218,37 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _buildInfoBox(Icons.message_outlined, 'Bookings', mobileNumber),
+                        _buildInfoBox(
+                            Icons.message_outlined,
+                            'Bookings',
+                            mobileNumber,
+                                () {
+                                  // Navigate to AppointmentScreen with the correct userId
+                                  User? currentUser = FirebaseAuth.instance.currentUser;
+                                  if (currentUser != null) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => AppointmentScreen(userId: currentUser.uid),
+                                      ),
+                                    );
+                                  }
+                                }
+                        ),
                         SizedBox(width: 16),
-                        _buildInfoBox(Icons.location_pin, 'Region', region),
+                        _buildInfoBox(
+                            Icons.location_pin,
+                            'Region',
+                            region,
+                                () {
+                              // Define the action for tapping the Region info box
+                              print("Region tapped");
+                              // You can show region details or any other action here
+                            }
+                        ),
                       ],
                     ),
+
                   SizedBox(height: 10),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -259,36 +286,40 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     );
   }
 
-  Widget _buildInfoBox(IconData icon, String label, String? value) {
-    return Container(
-      padding: EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(6),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200,
-            offset: Offset(1, 1),
-            blurRadius: 4,
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: Colors.blueAccent, size: 24),
-          SizedBox(height: 8),
-          Text(
-            label,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87),
-          ),
-          SizedBox(height: 4),
-          Text(
-            value ?? 'Not available',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
-            textAlign: TextAlign.center,
-          ),
-        ],
+  Widget _buildInfoBox(IconData icon, String label, String? value, VoidCallback? onTap) {
+    return GestureDetector(
+      onTap: onTap,  // This calls the onTap callback when tapped
+      child: Container(
+        padding: EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.shade200,
+              offset: Offset(1, 1),
+              blurRadius: 4,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.blueAccent, size: 24),
+            SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87),
+            ),
+            SizedBox(height: 4),
+            Text(
+              value ?? 'Not available',
+              style: TextStyle(fontSize: 12, color: Colors.black54),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
+
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../Services/firebase_service.dart';
 import 'doctor_profile.dart';
+import 'hospital_service_screen.dart';
 
 class SpecialtyDetails extends StatefulWidget {
   final String hospitalId;
@@ -23,6 +24,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
 
   bool _isLoading = true;
   bool _isDoctorsLoading = false;
+  String? _selectedDepartmentId; // Tracks selected department
 
   @override
   void initState() {
@@ -43,8 +45,16 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
 
   Future<void> _loadHospitalData() async {
     try {
-      Map<String, String> hospitalDetails = await _firebaseService.getHospitalDetails(widget.hospitalId);
-      List<Map<String, dynamic>> departments = await _firebaseService.getDepartmentsForHospital(widget.hospitalId);
+      Map<String, String> hospitalDetails =
+      await _firebaseService.getHospitalDetails(widget.hospitalId);
+      List<Map<String, dynamic>> departments =
+      await _firebaseService.getDepartmentsForHospital(widget.hospitalId);
+
+      if (departments.isNotEmpty) {
+        _selectedDepartmentId = departments.first['Department ID'];
+        _loadDoctorsForDepartment(_selectedDepartmentId!); // Load first department's doctors
+      }
+
       setState(() {
         _hospitalDetails = hospitalDetails;
         _departments = departments;
@@ -58,9 +68,11 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
   Future<void> _loadDoctorsForDepartment(String departmentId) async {
     setState(() {
       _isDoctorsLoading = true;
+      _selectedDepartmentId = departmentId;
     });
     try {
-      List<Map<String, dynamic>> doctors = await _firebaseService.getDoctorsForDepartment(widget.hospitalId, departmentId);
+      List<Map<String, dynamic>> doctors =
+      await _firebaseService.getDoctorsForDepartment(widget.hospitalId, departmentId);
       setState(() {
         _doctors = doctors;
         _isDoctorsLoading = false;
@@ -82,7 +94,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
       appBar: AppBar(
         title: Text(
           _hospitalDetails['hospitalName'] ?? 'Unknown Hospital',
-          style: TextStyle(fontSize: 12), // Adjust the font size as needed
+          style: TextStyle(fontSize: 12),
         ),
       ),
       body: _isLoading
@@ -106,29 +118,46 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                 AnimatedBuilder(
                   animation: _controller,
                   builder: (context, child) {
-                    return Container(
-                      padding: const EdgeInsets.all(5.0),
-                      decoration: BoxDecoration(
-                        color: _animation.value,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(Icons.chat_bubble_outline, color: Colors.white),
-                          SizedBox(width: 5),
-                          Text(
-                            'Professionals',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 8,
+                    return GestureDetector(
+                      onTap: () {
+                        if (_selectedDepartmentId != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => HospitalServiceScreen(hospitalId: widget.hospitalId),
                             ),
-                          ),
-                        ],
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text("Please select a department first")),
+                          );
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(5.0),
+                        decoration: BoxDecoration(
+                          color: _animation.value,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.chat_bubble_outline, color: Colors.white),
+                            SizedBox(width: 5),
+                            Text(
+                              'Services',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 8,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     );
                   },
                 ),
+
               ],
             ),
           ),
@@ -141,11 +170,15 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                   child: ListView.builder(
                     itemCount: _departments.length,
                     itemBuilder: (context, index) {
+                      String departmentId = _departments[index]['Department ID'];
                       return Column(
                         children: [
                           GestureDetector(
-                            onTap: () => _loadDoctorsForDepartment(_departments[index]['Department ID']),
-                            child: _specialtyLabel(_departments[index]['Department Name']),
+                            onTap: () => _loadDoctorsForDepartment(departmentId),
+                            child: _specialtyLabel(
+                              _departments[index]['Department Name'],
+                              departmentId == _selectedDepartmentId, // Highlight condition
+                            ),
                           ),
                           SizedBox(height: 30),
                         ],
@@ -164,7 +197,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                     itemBuilder: (context, index) {
                       var doctor = _doctors[index];
                       return _doctorDetailCard(
-                        doctor['userId'], // Pass userId here
+                        doctor['userId'],
                         doctor['name'],
                         doctor['experience'],
                         doctor['userPic'],
@@ -180,10 +213,21 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
     );
   }
 
-  Widget _specialtyLabel(String title) {
-    return Text(
-      title,
-      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w400),
+  Widget _specialtyLabel(String title, bool isSelected) {
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+      decoration: BoxDecoration(
+        color: isSelected ? Colors.blueAccent : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        title,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w400,
+          color: isSelected ? Colors.white : Colors.black,
+        ),
+      ),
     );
   }
 
