@@ -53,6 +53,7 @@ dependencies:
   geolocator: ^9.0.0
   flutter_tts: ^3.5.3
   speech_to_text: ^6.6.2
+  flutter_dotenv: ^5.0.2
   flutter_localizations:
     sdk: flutter
 
@@ -83,6 +84,7 @@ flutter:
     - assets/Images/
     - assets/Icons/
     - assets/knowledge_packs.json
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';  // Import dotenv
 
 import 'Widgets/emergency_hompage_content.dart';
 
@@ -29,13 +30,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    _offsetAnimation = Tween<Offset>(
-      begin: Offset(0.0, 0.95),
-      end: Offset(0.0, 0.0),
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    ));
+    _offsetAnimation = Tween<Offset>(begin: Offset(0.0, 0.95), end: Offset(0.0, 0.0)).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -74,7 +69,11 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
 
   Future<String> _fetchFirstAidResponse(String query) async {
     try {
-      const apiKey = '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';
+      final String apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';  // Fetch API key from .env
+      if (apiKey.isEmpty) {
+        return "API key is missing. Please check the environment variables.";
+      }
+
       final response = await Dio().post(
         'https://api.openai.com/v1/chat/completions',
         options: Options(headers: {'Authorization': 'Bearer $apiKey'}),
@@ -85,7 +84,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           ],
         },
       );
-      // Extract the content from the response structure
       return response.data['choices'][0]['message']['content'];
     } catch (e) {
       return "Sorry, I couldn't fetch the response. Please try again.";

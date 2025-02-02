@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../Appointments/AppointmentScreen.dart';
 import '../Login/login_screen1.dart';
+import '../booking_page.dart';
 
 Future<void> handleBookAppointment(
     BuildContext context, {
@@ -164,7 +165,7 @@ Future<void> _bookAppointment(
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => AppointmentScreen(userId: patientId),
+        builder: (context) => BookingPage(currentUserId: patientId),
       ),
     );
   } catch (e) {

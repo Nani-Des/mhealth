@@ -3,21 +3,24 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'Home/home_page.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'Login/login_screen1.dart';
 import 'Maps/map_screen.dart';
 
 void main() async{
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+  await dotenv.load();
   await Firebase.initializeApp(
-      options: FirebaseOptions(
-        apiKey: 'AIzaSyAUt_W7sme9H31aO3dLzqI1aNSeQVMClEo',
-        appId: '1:346868082875:android:6e61d878b9540d82c7e19e',
-        messagingSenderId: '346868082875',
-        projectId: 'mhealth-6191e',
-        storageBucket: 'mhealth-6191e.appspot.com',
-      )
+    options: FirebaseOptions(
+      apiKey: dotenv.env['FIREBASE_API_KEY']!,
+      appId: dotenv.env['FIREBASE_APP_ID']!,
+      messagingSenderId: dotenv.env['FIREBASE_MESSAGING_SENDER_ID']!,
+      projectId: dotenv.env['FIREBASE_PROJECT_ID']!,
+      storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
+    ),
   );
+
   runApp(const MyApp());
 
 }

@@ -15,79 +15,61 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     'Pending': [],
     'Active': [],
     'Terminated': [],
+    'Requests': [],
+    'Appointments': [],
   };
 
-  bool isDoctor = false;
-  String selectedStatus = 'Pending'; // Default to Pending
   bool isLoading = true;
+  String selectedStatus = 'Pending';
 
   @override
   void initState() {
     super.initState();
-    checkUserRole();
-  }
-
-  Future<void> checkUserRole() async {
-    try {
-      var userDoc =
-      await FirebaseFirestore.instance.collection('Users').doc(widget.userId).get();
-      if (userDoc.exists && userDoc.data()?['Role'] == true) {
-        setState(() {
-          isDoctor = true;
-        });
-      }
-      fetchAppointments();
-    } catch (e) {
-      print("Error fetching user role: $e");
-    }
+    fetchAppointments();
   }
 
   Future<void> fetchAppointments() async {
     try {
-      if (isDoctor) {
-        var bookingsSnapshot =
-        await FirebaseFirestore.instance.collection('Bookings').get();
-        for (var doc in bookingsSnapshot.docs) {
-          List<dynamic> bookings = doc.data()['Bookings'] ?? [];
-          for (var booking in bookings) {
-            if (booking['doctorId'] == widget.userId) {
-              // Use the document ID of the matched booking as the patient ID
-              var patientDoc = await FirebaseFirestore.instance.collection('Users').doc(doc.id).get();
-              if (patientDoc.exists) {
-                booking['patientInfo'] = {
-                  'fname': patientDoc.data()?['Fname'],
-                  'lname': patientDoc.data()?['Lname'],
-                  'userPic': patientDoc.data()?['User Pic'],
-                };
-                categorizedAppointments[booking['status']]?.add(booking);
-              }
+      // Fetch appointments from the Bookings collection
+      var bookingsSnapshot = await FirebaseFirestore.instance.collection('Bookings').get();
+
+      for (var doc in bookingsSnapshot.docs) {
+        String patientId = doc.id; // The document ID is the patient ID
+        List<dynamic> bookings = doc.data()['Bookings'] ?? [];
+
+        for (var booking in bookings) {
+          if (booking['doctorId'] == widget.userId) {
+            // This is an incoming request for a doctor (someone who booked the doctor)
+            var patientDoc = await FirebaseFirestore.instance.collection('Users').doc(patientId).get();
+            if (patientDoc.exists) {
+              booking['patientInfo'] = {
+                'fname': patientDoc.data()?['Fname'],
+                'lname': patientDoc.data()?['Lname'],
+                'userPic': patientDoc.data()?['User Pic'],
+              };
+              // Categorize requests (Pending) and appointments (Active)
+              categorizedAppointments[booking['status']]?.add(booking);
             }
-          }
-        }
-      } else {
-        var bookingDoc =
-        await FirebaseFirestore.instance.collection('Bookings').doc(widget.userId).get();
-        if (bookingDoc.exists) {
-          List<dynamic> bookings = bookingDoc.data()?['Bookings'] ?? [];
-          for (var booking in bookings) {
-            String doctorId = booking['doctorId'];
-            String status = booking['status'];
-            var doctorDoc = await FirebaseFirestore.instance.collection('Users').doc(doctorId).get();
-            if (doctorDoc.exists && doctorDoc.data()?['Status'] == true) {
+          } else if (booking['patientId'] == widget.userId) {
+            // This is a booking made by the logged-in user (patient's bookings)
+            var doctorDoc = await FirebaseFirestore.instance.collection('Users').doc(booking['doctorId']).get();
+            if (doctorDoc.exists) {
               booking['doctorInfo'] = {
                 'title': doctorDoc.data()?['Title'],
                 'fname': doctorDoc.data()?['Fname'],
                 'lname': doctorDoc.data()?['Lname'],
                 'userPic': doctorDoc.data()?['User Pic'],
               };
-              categorizedAppointments[status]?.add(booking);
+              // Categorize bookings (Pending, Active, Terminated)
+              categorizedAppointments[booking['status']]?.add(booking);
             }
           }
         }
       }
     } catch (e) {
-      print("Error fetching appointments: $e");
+      print("❌ Error fetching appointments: $e");
     }
+
     setState(() {
       isLoading = false;
     });
@@ -106,10 +88,8 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.start,
               children: [
-                if (isDoctor) ...[
-                  statusLabel('Requests', Colors.orange),
-                  statusLabel('Appointments', Colors.purple),
-                ],
+                statusLabel('Requests', Colors.orange),
+                statusLabel('Appointments', Colors.purple),
                 statusLabel('Pending', Colors.blue),
                 statusLabel('Active', Colors.green),
                 statusLabel('Terminated', Colors.red),
@@ -120,10 +100,8 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
             flex: 5,
             child: ListView(
               children: [
-                if (isDoctor) ...[
-                  appointmentSection('Requests', 'Pending'),
-                  appointmentSection('Appointments', 'Active'),
-                ],
+                appointmentSection('Requests', 'Pending'),
+                appointmentSection('Appointments', 'Active'),
                 appointmentSection('Pending', 'Pending'),
                 appointmentSection('Active', 'Active'),
                 appointmentSection('Terminated', 'Terminated'),
@@ -171,13 +149,16 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: appointments.map((appointment) => appointmentCard(appointment)).toList(),
+      children: appointments.map((appointment) {
+        return sectionLabel == 'Requests' || sectionLabel == 'Appointments'
+            ? appointmentCard(appointment) // Doctor's side: Requests and Appointments
+            : patientAppointmentCard(appointment); // Patient's side: Pending, Active, Terminated
+      }).toList(),
     );
   }
 
   Widget appointmentCard(Map<String, dynamic> appointment) {
-    var userInfo = isDoctor ? appointment['patientInfo'] : appointment['doctorInfo'];
-    Timestamp bookingDate = appointment['date'];
+    var userInfo = appointment['patientInfo'];
     return Card(
       margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
       elevation: 3,
@@ -196,6 +177,39 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget patientAppointmentCard(Map<String, dynamic> appointment) {
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('Users').doc(appointment['doctorId']).get(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return SizedBox.shrink();
+        }
+        var doctorData = snapshot.data!;
+        return Card(
+          margin: EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+          elevation: 3,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: ListTile(
+            leading: CircleAvatar(
+              backgroundImage: doctorData['User Pic'] != null ? NetworkImage(doctorData['User Pic']) : null,
+              child: doctorData['User Pic'] == null ? Icon(Icons.person) : null,
+            ),
+            title: Text('${doctorData['Fname']} ${doctorData['Lname']}'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Hospital ID: ${appointment['hospitalId']}'),
+                Text('Reason: ${appointment['reason']}'),
+                Text('Date: ${appointment['date'].toDate()}'),
+                Text('Status: ${appointment['status']}'),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

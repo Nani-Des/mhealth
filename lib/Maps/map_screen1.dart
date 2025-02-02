@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:geolocator/geolocator.dart'; // Import geolocator
+import 'package:flutter_dotenv/flutter_dotenv.dart';  // Import dotenv
 
 import 'directions_model.dart';
 import 'directions_repository.dart';
@@ -94,7 +95,6 @@ class _MapScreen1State extends State<MapScreen1> {
     );
   }
 
-
   // Function to search for the nearest hospital
   Future<void> _findNearestHospital() async {
     if (_currentPosition == null) {
@@ -104,12 +104,20 @@ class _MapScreen1State extends State<MapScreen1> {
       return;
     }
 
-    const apiKey = 'AIzaSyCxmBGLBAQ86Aapno5ZcHgtSgJXJA6204s'; // Replace with your actual API key
     final lat = _currentPosition!.latitude;
     final lng = _currentPosition!.longitude;
 
+    final GOOGLE_API_KEY = dotenv.env['GOOGLE_API_KEY'] ?? ''; // Get Google API Key from dotenv
+
+    if (GOOGLE_API_KEY.isEmpty) {
+      setState(() {
+        _selectedPlaceName = 'Google API Key is missing. Please check the environment variables.';
+      });
+      return;
+    }
+
     final url =
-        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=hospital&key=$apiKey';
+        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=hospital&key=$GOOGLE_API_KEY';
 
     try {
       final response = await Dio().get(url);
@@ -129,7 +137,7 @@ class _MapScreen1State extends State<MapScreen1> {
             markerId: const MarkerId('nearest_hospital'),
             infoWindow: InfoWindow(title: hospitalName),
             position: LatLng(hospitalLat, hospitalLng),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue), // Set marker color to red
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue), // Set marker color to blue
           );
         });
 
@@ -149,11 +157,9 @@ class _MapScreen1State extends State<MapScreen1> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-
       body: Stack(
         children: [
           GoogleMap(
@@ -178,89 +184,7 @@ class _MapScreen1State extends State<MapScreen1> {
             },
             onLongPress: _addMarker,
           ),
-          Positioned(
-            top: 10.0,
-            left: 10.0,
-            right: 10.0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    offset: Offset(0, 2),
-                    blurRadius: 6.0,
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: _searchPlace,
-                      decoration: const InputDecoration(
-                        hintText: 'Search for nearest Hospital',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(left: 8.0),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: () => _searchPlace(_searchController.text),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.local_hospital_sharp),
-                    onPressed: _findNearestHospital, // Find nearest hospital
-                    color: Colors.redAccent,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_selectedPlaceName != null)
-            Positioned(
-              bottom: 50.0,
-              left: 50.0,
-              right: 50.0,
-              child: Container(
-                padding: const EdgeInsets.all(8.0),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10.0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      offset: Offset(0, 2),
-                      blurRadius: 6.0,
-                    ),
-                  ],
-                ),
-                child: Text(
-                  _selectedPlaceName!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 10.0,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Theme.of(context).primaryColor,
-        foregroundColor: Colors.black,
-        onPressed: () => _googleMapController.animateCamera(
-          _info != null
-              ? CameraUpdate.newLatLngBounds(_info!.bounds, 100.0)
-              : CameraUpdate.newCameraPosition(_initialCameraPosition),
-        ),
-        child: const Icon(Icons.center_focus_strong),
       ),
     );
   }
@@ -294,10 +218,17 @@ class _MapScreen1State extends State<MapScreen1> {
   }
 
   Future<void> _searchPlace(String query) async {
-    const apiKey = 'AIzaSyCxmBGLBAQ86Aapno5ZcHgtSgJXJA6204s'; // Replace with your actual API key
-
     try {
-      final result = await _placeSearchService.searchPlace(query, apiKey);
+      final GOOGLE_API_KEY = dotenv.env['GOOGLE_API_KEY'] ?? ''; // Get Google API Key from dotenv
+
+      if (GOOGLE_API_KEY.isEmpty) {
+        setState(() {
+          _selectedPlaceName = 'Google API Key is missing. Please check the environment variables.';
+        });
+        return;
+      }
+
+      final result = await _placeSearchService.searchPlace(query, GOOGLE_API_KEY);
 
       // Set the name of the selected place
       setState(() {
@@ -327,5 +258,4 @@ class _MapScreen1State extends State<MapScreen1> {
       });
     }
   }
-
 }

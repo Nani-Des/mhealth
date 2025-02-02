@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:dio/dio.dart';
-import 'package:geolocator/geolocator.dart'; // Import geolocator
-
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';  // Import dotenv
 import 'directions_model.dart';
 import 'directions_repository.dart';
 import 'place_search_service.dart';
@@ -26,7 +26,6 @@ class _MapScreenState extends State<MapScreen> {
   String? _selectedPlaceName;
 
   final PlaceSearchService _placeSearchService = PlaceSearchService();
-
   Position? _currentPosition;
 
   @override
@@ -39,16 +38,11 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation(); // Get the user's current location when the screen loads
+    _getCurrentLocation();
   }
 
-  // Function to get current location and set it as the origin marker
   Future<void> _getCurrentLocation() async {
-    bool serviceEnabled;
-    LocationPermission permission;
-
-    // Check if location services are enabled
-    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       setState(() {
         _selectedPlaceName = 'Location services are disabled. Please enable them in your settings.';
@@ -56,30 +50,25 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    // Check and request location permission
-    permission = await Geolocator.checkPermission();
+    LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission != LocationPermission.whileInUse &&
-          permission != LocationPermission.always) {
+      if (permission == LocationPermission.deniedForever) {
         setState(() {
-          _selectedPlaceName = 'Location permission denied. Please allow location access in your settings.';
+          _selectedPlaceName = 'Location permission denied. Please allow location access in settings.';
         });
         return;
       }
     }
 
-    // Get the user's current location
     Position position = await Geolocator.getCurrentPosition(
       desiredAccuracy: LocationAccuracy.high,
     );
 
-    // Update state with current position
     setState(() {
       _currentPosition = position;
       _selectedPlaceName = 'Current Location: ${position.latitude}, ${position.longitude}';
 
-      // **Set the origin marker by default**
       _origin = Marker(
         markerId: const MarkerId('origin'),
         position: LatLng(position.latitude, position.longitude),
@@ -88,15 +77,11 @@ class _MapScreenState extends State<MapScreen> {
       );
     });
 
-    // Move the camera to the user's location
     _googleMapController.animateCamera(
       CameraUpdate.newLatLngZoom(LatLng(position.latitude, position.longitude), 14.0),
     );
   }
 
-
-
-  // Function to search for the nearest hospital
   Future<void> _findNearestHospital() async {
     if (_currentPosition == null) {
       setState(() {
@@ -105,12 +90,11 @@ class _MapScreenState extends State<MapScreen> {
       return;
     }
 
-    const apiKey = 'AIzaSyCxmBGLBAQ86Aapno5ZcHgtSgJXJA6204s'; // Replace with your actual API key
     final lat = _currentPosition!.latitude;
     final lng = _currentPosition!.longitude;
 
     final url =
-        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=hospital&key=$apiKey';
+        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=hospital&key=${dotenv.env['GOOGLE_API_KEY']}'; // Use dotenv to get the key
 
     try {
       final response = await Dio().get(url);
@@ -122,19 +106,14 @@ class _MapScreenState extends State<MapScreen> {
 
         setState(() {
           _selectedPlaceName = 'Nearest Hospital: $hospitalName';
-        });
-
-        // Add a marker for the nearest hospital
-        setState(() {
           _destination = Marker(
             markerId: const MarkerId('nearest_hospital'),
             infoWindow: InfoWindow(title: hospitalName),
             position: LatLng(hospitalLat, hospitalLng),
-            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue), // Set marker color to red
+            icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
           );
         });
 
-        // Animate camera to the hospital's location
         _googleMapController.animateCamera(
           CameraUpdate.newLatLngZoom(LatLng(hospitalLat, hospitalLng), 14.0),
         );
@@ -149,7 +128,6 @@ class _MapScreenState extends State<MapScreen> {
       });
     }
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -168,10 +146,7 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
               ),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.green,
-                textStyle: const TextStyle(fontWeight: FontWeight.w600),
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.green),
               child: const Text('ORIGIN'),
             ),
           if (_destination != null)
@@ -185,12 +160,9 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
               ),
-              style: TextButton.styleFrom(
-                foregroundColor: Colors.blue,
-                textStyle: const TextStyle(fontWeight: FontWeight.w600),
-              ),
+              style: TextButton.styleFrom(foregroundColor: Colors.blue),
               child: const Text('DEST'),
-            )
+            ),
         ],
       ),
       body: Stack(
@@ -204,62 +176,7 @@ class _MapScreenState extends State<MapScreen> {
               if (_origin != null) _origin!,
               if (_destination != null) _destination!,
             },
-            polylines: {
-              if (_info != null)
-                Polyline(
-                  polylineId: const PolylineId('overview_polyline'),
-                  color: Colors.red,
-                  width: 5,
-                  points: _info!.polylinePoints
-                      .map((e) => LatLng(e.latitude, e.longitude))
-                      .toList(),
-                ),
-            },
             onLongPress: _addMarker,
-          ),
-          Positioned(
-            top: 10.0,
-            left: 10.0,
-            right: 10.0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    offset: Offset(0, 2),
-                    blurRadius: 6.0,
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: _searchPlace,
-                      decoration: const InputDecoration(
-                        hintText: 'Search for nearest Hospital',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(left: 8.0),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: () => _searchPlace(_searchController.text),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.local_hospital_sharp),
-                    onPressed: _findNearestHospital, // Find nearest hospital
-                    color: Colors.redAccent,
-                  ),
-                ],
-              ),
-            ),
           ),
           if (_selectedPlaceName != null)
             Positioned(
@@ -271,21 +188,12 @@ class _MapScreenState extends State<MapScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10.0),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black26,
-                      offset: Offset(0, 2),
-                      blurRadius: 6.0,
-                    ),
-                  ],
+                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 6.0)],
                 ),
                 child: Text(
                   _selectedPlaceName!,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontSize: 10.0,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: const TextStyle(fontSize: 10.0, fontWeight: FontWeight.w600),
                 ),
               ),
             ),
@@ -333,32 +241,19 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Future<void> _searchPlace(String query) async {
-    const apiKey = 'AIzaSyCxmBGLBAQ86Aapno5ZcHgtSgJXJA6204s'; // Replace with your actual API key
-
     try {
-      final result = await _placeSearchService.searchPlace(query, apiKey);
-
-      // Set the name of the selected place
+      final result = await _placeSearchService.searchPlace(query, dotenv.env['GOOGLE_API_KEY']!); // Access API key from dotenv
       setState(() {
         _selectedPlaceName = result['name'];
-      });
-
-      final double lat = result['lat'];
-      final double lng = result['lng'];
-
-      // Add a marker at the searched location
-      setState(() {
         _destination = Marker(
           markerId: MarkerId('searched_place'),
           infoWindow: InfoWindow(title: result['name']),
-          position: LatLng(lat, lng),
-          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue), // Change color to blue
+          position: LatLng(result['lat'], result['lng']),
         );
       });
 
-      // Move the camera to the searched location
       _googleMapController.animateCamera(
-        CameraUpdate.newLatLngZoom(LatLng(lat, lng), 14.0),
+        CameraUpdate.newLatLngZoom(LatLng(result['lat'], result['lng']), 14.0),
       );
     } catch (e) {
       setState(() {
@@ -366,5 +261,4 @@ class _MapScreenState extends State<MapScreen> {
       });
     }
   }
-
 }

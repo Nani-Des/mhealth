@@ -1,9 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mhealth/Hospital/specialty_details.dart';
 import '../Emergency/emergency_page.dart';
-import '../Emergency/knowledge_packs_page.dart';
 import '../Login/login_screen1.dart';
 import 'Widgets/profile_drawer.dart';
 import 'Widgets/custom_bottom_navbar.dart';
@@ -34,7 +32,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   // Method to fetch user data and refresh avatar image
-  void _fetchUserData() async {
+  Future<void> _fetchUserData() async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final docSnapshot = await FirebaseFirestore.instance.collection('Users').doc(user.uid).get();
@@ -51,28 +49,27 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   // Method to check login status before performing the action
-  void _onAvatarTap() {
+  void _onAvatarTap() async {
     if (currentUser == null) {
-      // If no user is logged in, show a login prompt
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Please log in to view your profile'),
-          action: SnackBarAction(
-            label: 'Log in',
-            onPressed: () {
-              // Navigate to login screen when user presses 'Log in'
-              Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen1()));
-            },
-          ),
-        ),
+      // If no user is logged in, navigate to the login page
+      await Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen1()),
       );
+
+      // After login, fetch user data
+      _fetchUserData();
     } else {
       // If user is logged in, toggle the profile drawer
       _toggleProfileDrawer();
     }
   }
 
-  void _toggleProfileDrawer() {
+  void _toggleProfileDrawer() async {
+    if (!showProfileDrawer) {
+      await _fetchUserData(); // Fetch latest data before opening
+    }
+
     setState(() {
       showProfileDrawer = !showProfileDrawer;
       showProfileDrawer ? _controller.forward() : _controller.reverse();
@@ -100,10 +97,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         backgroundColor: Colors.white,
         actions: [
           GestureDetector(
-            onTap: () {
-              _fetchUserData(); // Refresh the user data when the avatar is tapped
-              _onAvatarTap(); // Check login status and open profile drawer if logged in
-            },
+            onTap: _onAvatarTap, // Check login status and open profile drawer if logged in
             child: CircleAvatar(
               backgroundImage: userImageUrl != null && userImageUrl!.isNotEmpty
                   ? NetworkImage(userImageUrl!)

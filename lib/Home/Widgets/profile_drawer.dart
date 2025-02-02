@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../Appointments/AppointmentScreen.dart';
+import '../../booking_page.dart';
 import '../home_page.dart';
 
 class ProfileDrawer extends StatefulWidget {
@@ -40,15 +41,30 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     _userDataFuture = _fetchUserData();
   }
 
+  // Updated _fetchUserData method
   Future<DocumentSnapshot> _fetchUserData() async {
-    User? currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      return FirebaseFirestore.instance
-          .collection('Users')
-          .doc(currentUser.uid)
-          .get();
+    try {
+      User? currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        // Fetch user data from Firestore
+        var userDoc = await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(currentUser.uid)
+            .get();
+
+        if (userDoc.exists) {
+          return userDoc;
+        } else {
+          throw Exception("User data does not exist in Firestore.");
+        }
+      } else {
+        throw Exception("User not logged in");
+      }
+    } catch (e) {
+      print("Error loading user data: $e");
+      // Return Future.error to propagate the error
+      return Future.error(e);
     }
-    throw Exception("User not logged in");
   }
 
   Future<void> _pickImage() async {
@@ -80,6 +96,14 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       setState(() {
         _userDataFuture = _fetchUserData();
         _isEditing = false;
+      });
+    }
+  }
+  void didUpdateWidget(covariant ProfileDrawer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.showProfileDrawer && !oldWidget.showProfileDrawer) {
+      setState(() {
+        _userDataFuture = _fetchUserData();
       });
     }
   }
@@ -116,8 +140,14 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                 return Center(child: CircularProgressIndicator());
               }
 
-              if (snapshot.hasError || !snapshot.hasData) {
-                return Center(child: Text('Error loading user data'));
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text('Error loading user data: ${snapshot.error}'),
+                );
+              }
+
+              if (!snapshot.hasData) {
+                return Center(child: Text('No user data found.'));
               }
 
               var userData = snapshot.data!.data() as Map<String, dynamic>;
@@ -223,17 +253,17 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                             'Bookings',
                             mobileNumber,
                                 () {
-                                  // Navigate to AppointmentScreen with the correct userId
-                                  User? currentUser = FirebaseAuth.instance.currentUser;
-                                  if (currentUser != null) {
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (context) => AppointmentScreen(userId: currentUser.uid),
-                                      ),
-                                    );
-                                  }
-                                }
+                              // Navigate to AppointmentScreen with the correct userId
+                              User? currentUser = FirebaseAuth.instance.currentUser;
+                              if (currentUser != null) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => BookingPage(currentUserId: currentUser.uid),
+                                  ),
+                                );
+                              }
+                            }
                         ),
                         SizedBox(width: 16),
                         _buildInfoBox(
@@ -321,5 +351,4 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       ),
     );
   }
-
 }
