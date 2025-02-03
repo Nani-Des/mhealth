@@ -1,7 +1,107 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/intl.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+
+
+class TranslationService {
+  static String API_KEY = dotenv.env['NLP_API_KEY'] ?? '';
+  static String API_URL = dotenv.env['NLP_API_URL'] ?? '';
+
+  static final Map<String, String> ghanaianLanguages = {
+    'en': 'English',
+    'tw': 'Twi',
+    'ee': 'Ewe',
+    'gaa': 'Ga',
+    'fat': 'Fante',
+    'yo': 'Yoruba',
+    'dag': 'Dagbani',
+    'ki': 'Kikuyu',
+    'gur': 'Gurune',
+    'luo': 'Luo',
+    'mer': 'Kimeru',
+    'kus': 'Kusaal',
+  };
+
+  static Future<String> translateText({
+    required String text,
+    required String targetLanguage,
+    String sourceLanguage = 'en',
+  }) async {
+    try {
+      print('Starting translation for text: $text to language: $targetLanguage');
+
+      final url = Uri.parse('$API_URL?subscription-key=$API_KEY');
+
+      // Ensure proper UTF-8 encoding in the request
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Accept': 'application/json; charset=utf-8',
+        },
+        body: utf8.encode(jsonEncode({
+          'text': text,
+          'target_language': targetLanguage,
+          'source_language': sourceLanguage,
+        })),
+      );
+
+      print('Translation Response Status: ${response.statusCode}');
+      // Decode the response body with UTF-8
+      final decodedBody = utf8.decode(response.bodyBytes);
+      print('Translation Response Body: $decodedBody');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(decodedBody);
+
+        if (data is Map<String, dynamic>) {
+          String? translatedText;
+
+          if (data['type'] == 'Success' && data['message'] != null) {
+            translatedText = data['message'].toString();
+          } else if (data['translatedText'] != null) {
+            translatedText = data['translatedText'].toString();
+          }
+
+          if (translatedText != null) {
+            // Ensure the translated text is properly decoded
+            final decodedText = _decodeSpecialCharacters(translatedText);
+            print('Successfully translated to: $decodedText');
+            return decodedText;
+          }
+
+          throw Exception('Unexpected response format: $decodedBody');
+        } else {
+          throw Exception('Invalid response format: $decodedBody');
+        }
+      } else {
+        final error = jsonDecode(decodedBody);
+        throw Exception('Translation failed: ${error['message'] ?? 'Unknown error'}');
+      }
+    } catch (e) {
+      print('Translation Error: $e');
+      rethrow;
+    }
+  }
+
+  // Helper method to decode special characters
+  static String _decodeSpecialCharacters(String text) {
+    // Replace HTML entities if they appear in the text
+    return text
+        .replaceAll('&amp;', '&')
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&#039;', "'")
+    // Add more replacements if needed for specific characters
+        .replaceAll('\\u', '\\\\u'); // Handle Unicode escape sequences
+  }
+}
 
 class ExpertPostDetailsPage extends StatefulWidget {
   final String postId;
@@ -14,6 +114,7 @@ class ExpertPostDetailsPage extends StatefulWidget {
 }
 
 class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with SingleTickerProviderStateMixin {
+  final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController commentController = TextEditingController();
   final FocusNode _focusNode = FocusNode(); // FocusNode to manage focus
@@ -87,6 +188,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
     final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
     return Scaffold(
+      key: scaffoldMessengerKey,
       appBar: AppBar(
         title: Text("Discussion"),
         backgroundColor: Colors.lightBlue,
@@ -217,7 +319,22 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                   },
                                 ),
                               ),
-                              onLongPress: () => _showCommentMenu(context, comments[index].reference),
+                                onLongPress: () {
+                                  try {
+                                    final commentDoc = comments[index] as QueryDocumentSnapshot<
+                                        Map<String, dynamic>>;
+                                    _showCommentMenu(
+                                      context,
+                                      scaffoldMessengerKey,
+                                      commentDoc,
+                                    );
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(
+                                          'Error loading comment: ${e.toString()}')),
+                                    );
+                                  }
+                                }
                             ),
                             const Divider(),
                           ],
@@ -346,23 +463,188 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
     // Find the index of the comment by ID (this will be used to scroll to that specific comment)
     return comments.indexWhere((comment) => comment.id == commentId);
   }
-}
 
-
-  void _showCommentMenu(BuildContext context, DocumentReference commentRef) {
+  void _showCommentMenu(
+      BuildContext context,
+      GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
+      QueryDocumentSnapshot<Map<String, dynamic>> comment,
+      ) {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Wrap(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.delete),
-            title: const Text('Delete Comment'),
-            onTap: () async {
-              await commentRef.delete();
-              Navigator.pop(context);
-            },
-          ),
-        ],
-      ),
+      builder: (context) {
+        return Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text('Delete Comment'),
+              onTap: () async {
+                Navigator.pop(context); // Close the menu
+                await comment.reference.delete(); // Delete the comment
+                scaffoldMessengerKey.currentState?.showSnackBar(
+                  const SnackBar(content: Text('Comment deleted!')),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy Comment'),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: comment['content']));
+                Navigator.pop(context); // Close the menu
+                scaffoldMessengerKey.currentState?.showSnackBar(
+                  const SnackBar(content: Text('Comment copied to clipboard!')),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.translate),
+              title: const Text('Translate Comment'),
+              onTap: () {
+                Navigator.pop(context); // Close the menu
+                _showCommentTranslationLanguageSelector(
+                  context, // Pass the context
+                  scaffoldMessengerKey, // Pass the scaffoldMessengerKey
+                  comment, // Pass the comment
+                );
+              },
+            ),
+          ],
+        );
+      },
     );
   }
+
+  void _showCommentTranslationLanguageSelector(
+      BuildContext context,
+      GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
+      QueryDocumentSnapshot<Map<String, dynamic>> comment,
+      ) {
+    final postId = comment.reference.parent.parent?.id; // Get the postId from the comment's parent
+    final commentId = comment.id; // Get the commentId
+
+    if (postId == null) {
+      // Handle the case where postId is null
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Error: Post not found.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Select a Language to Translate',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ...TranslationService.ghanaianLanguages.entries.map((entry) {
+                return ListTile(
+                  title: Text(entry.value),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _translateCommentAndShowResult(
+                      postId, // Pass the postId (non-nullable)
+                      commentId, // Pass the commentId
+                      entry.key, // Pass the languageCode
+                    );
+                  },
+                );
+              }).toList(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _translateCommentAndShowResult(
+      String postId,
+      String commentId,
+      String languageCode,
+      ) async {
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    try {
+      // Fetch the comment document from the sub-collection
+      final commentDoc = await firestore
+          .collection('ExpertPosts')
+          .doc(postId)
+          .collection('comments')
+          .doc(commentId)
+          .get();
+
+      if (commentDoc.exists) {
+        final commentContent = commentDoc['content'];
+        print('Translating comment: "$commentContent" to "$languageCode"');
+        final translatedText = await TranslationService.translateText(
+          text: commentContent,
+          targetLanguage: languageCode,
+        );
+        print('Translation Success: $translatedText');
+
+        // Declare the controller as a late variable
+        late final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller;
+
+        // Create the SnackBar content
+        final snackBar = SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Translated: $translatedText',
+                style: TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      controller.close(); // Dismiss the SnackBar
+                    },
+                    child: const Text(
+                      'Okay',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ),
+                  const SizedBox(width: 25),
+                  TextButton(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: translatedText));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Translation copied!')),
+                      );
+                      controller.close(); // Dismiss the SnackBar
+                    },
+                    child: const Text(
+                      'Copy',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          duration: const Duration(days: 365), // Keep the SnackBar open indefinitely
+        );
+
+        // Assign the controller after showing the SnackBar
+        controller = ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      } else {
+        throw Exception('Comment not found');
+      }
+    } catch (e) {
+      print('Translation failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Translation failed: ${e.toString()}')),
+      );
+    }
+  }
+}
+
