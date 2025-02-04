@@ -271,85 +271,102 @@ void _showUserList(BuildContext context, String currentUserId) {
 
           final users = snapshot.data!.docs;
 
-          return ListView.separated(
-            itemCount: users.length,
-            separatorBuilder: (context, index) => const Divider(
-              color: Colors.grey, // Thin grey divider
-              thickness: 0.5,
-              height: 1,
-            ),
-            itemBuilder: (context, index) {
-              final user = users[index].data() as Map<String, dynamic>;
-              final userId = users[index].id;
-              final userFname = user['Fname'] ?? 'Unknown';
-              final userLname = user['Lname'] ?? '';
-              final fullName = "$userFname $userLname";
-              final userPhone = user['Mobile Number'] ?? 'No Phone';
-              final userPic = user['User Pic'] ?? '';
-              final isOnline = user['Status'] ?? false;
-
-              return ListTile(
-                leading: CircleAvatar(
-                  backgroundImage: userPic.isNotEmpty ? NetworkImage(userPic) : null,
-                  child: userPic.isEmpty ? Text(userFname[0]) : null,
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  "Select a user to start chatting",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                  ),
                 ),
-                title: Text(fullName),
-                subtitle: Text(userPhone),
-                trailing: isOnline
-                    ? const Icon(Icons.circle, color: Colors.green, size: 12)
-                    : null,
-                onTap: () async {
-                  Navigator.pop(context); // Close modal
+              ),
+              Expanded(
+                child: ListView.separated(
+                  itemCount: users.length,
+                  separatorBuilder: (context, index) => const Divider(
+                    color: Colors.grey, // Thin grey divider
+                    thickness: 0.5,
+                    height: 1,
+                  ),
+                  itemBuilder: (context, index) {
+                    final user = users[index].data() as Map<String, dynamic>;
+                    final userId = users[index].id;
+                    final userFname = user['Fname'] ?? 'Unknown';
+                    final userLname = user['Lname'] ?? '';
+                    final fullName = "$userFname $userLname";
+                    final userPhone = user['Mobile Number'] ?? 'No Phone';
+                    final userPic = user['User Pic'] ?? '';
+                    final isOnline = user['Status'] ?? false;
 
-                  // Get the current user details
-                  String? fromUid = FirebaseAuth.instance.currentUser?.uid;
-                  if (fromUid == null) {
-                    print("Error: fromUid is null");
-                    return;
-                  }
-
-                  DocumentSnapshot fromUserSnapshot = await FirebaseFirestore.instance.collection('Users').doc(fromUid).get();
-                  String fromName = fromUserSnapshot['Fname'] ?? 'Unknown';
-                  String fromPic = fromUserSnapshot['User Pic'] ?? '';
-
-                  // Get the tapped user's details
-                  String toUid = userId;
-                  String toName = fullName;
-                  String toPic = userPic ?? '';
-
-                  String chatId = await _getOrCreateChatThread(fromUid, fromName, fromPic, toUid, toName, toPic);
-
-                  if (chatId.isEmpty) {
-                    print("Error: chatId is empty!");
-                    return;
-                  }
-
-                  print("chatId retrieved: $chatId");
-
-                  if (!context.mounted) return; // Ensure the context is still active
-
-                  // Debug logs
-                  print("Navigating to ChatThreadDetailsPage with:");
-                  print("chatId: $chatId");
-                  print("toName: $toName");
-                  print("toUid: $toUid");
-                  print("fromUid: $fromUid");
-
-                  // Navigate to ChatThreadDetailsPage
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ChatThreadDetailsPage(
-                        chatId: chatId,
-                        toName: toName,
-                        toUid: toUid,
-                        fromUid: fromUid,
+                    return ListTile(
+                      leading: CircleAvatar(
+                        backgroundImage: userPic.isNotEmpty ? NetworkImage(userPic) : null,
+                        child: userPic.isEmpty ? Text(userFname[0]) : null,
                       ),
-                    ),
-                  );
-                },
-              );
-            },
+                      title: Text(fullName),
+                      subtitle: Text(userPhone),
+                      trailing: isOnline
+                          ? const Icon(Icons.circle, color: Colors.green, size: 12)
+                          : null,
+                      onTap: () async {
+                        Navigator.pop(context); // Close modal
+
+                        // Get the current user details
+                        String? fromUid = FirebaseAuth.instance.currentUser?.uid;
+                        if (fromUid == null) {
+                          print("Error: fromUid is null");
+                          return;
+                        }
+
+                        DocumentSnapshot fromUserSnapshot = await FirebaseFirestore.instance.collection('Users').doc(fromUid).get();
+                        String fromName = '${fromUserSnapshot['Fname'] ?? 'Unknown'} ${fromUserSnapshot['Lname'] ?? ''}'.trim();
+                        String fromPic = fromUserSnapshot['User Pic'] ?? '';
+
+                        // Get the tapped user's details
+                        String toUid = userId;
+                        String toName = fullName;
+                        String toPic = userPic ?? '';
+
+                        String chatId = await _getOrCreateChatThread(fromUid, fromName, fromPic, toUid, toName, toPic);
+
+                        if (chatId.isEmpty) {
+                          print("Error: chatId is empty!");
+                          return;
+                        }
+
+                        print("chatId retrieved: $chatId");
+
+                        if (!context.mounted) return; // Ensure the context is still active
+
+                        // Debug logs
+                        print("Navigating to ChatThreadDetailsPage with:");
+                        print("chatId: $chatId");
+                        print("toName: $toName");
+                        print("toUid: $toUid");
+                        print("fromUid: $fromUid");
+
+                        // Navigate to ChatThreadDetailsPage
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => ChatThreadDetailsPage(
+                              chatId: chatId,
+                              toName: toName,
+                              toUid: toUid,
+                              fromUid: fromUid,
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       );
@@ -400,14 +417,14 @@ Future<String> _getOrCreateChatThread(
   print("New chat created with ID: ${newChat.id}");
 
   // Step 4: Create a first dummy message (if needed)
-  await newChat.collection('messages').add({
+  /*await newChat.collection('messages').add({
     'from_uid': fromUid,
     'to_uid': toUid,
     'content': 'Start chatting!',
     'timestamp': FieldValue.serverTimestamp(),
     'status': 'sent',
     'type': 'text', // Ensures consistency with your schema
-  });
+  });*/
 
   return newChat.id; // Return the chat thread ID
 }
@@ -448,13 +465,18 @@ class ChatPage extends StatelessWidget {
     return '$minutes:$seconds';
   }
 
-
-
   @override
   Widget build(BuildContext context) {
+    final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+    if (currentUserId == null) {
+      return const Center(child: Text("User not logged in"));
+    }
+
     return StreamBuilder<QuerySnapshot>(
       stream: _firestore
           .collection('ChatMessages')
+          .where('participants', arrayContains: currentUserId) // Filter by current user
           .orderBy('last_time', descending: true)
           .snapshots(),
       builder: (context, snapshot) {
@@ -467,6 +489,27 @@ class ChatPage extends StatelessWidget {
 
         final chats = snapshot.data!.docs;
 
+        // If there are no chats, display a message
+        if (chats.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  "No chats yet.",
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Tap on the blue action button below to start chatting.",
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // If there are chats, display the list
         return ListView.separated(
           itemCount: chats.length,
           separatorBuilder: (context, index) {
@@ -478,17 +521,20 @@ class ChatPage extends StatelessWidget {
           },
           itemBuilder: (context, index) {
             final chat = chats[index].data() as Map<String, dynamic>;
-            final lastMessage = chat['last_msg'] ?? 'No messages yet';
-            final lastMessageType = chat['type'] ?? 'text';
+            final lastMessage = chat['last_msg'] ?? '';
+            final lastMessageType = chat['type'] ?? '';
             final audioDuration = chat['audio_duration'] ?? 0;
 
+            // Determine the other participant's ID
+            final isCurrentUserSender = chat['from_uid'] == currentUserId;
+            final otherParticipantId = isCurrentUserSender ? chat['to_uid'] : chat['from_uid'];
+
             return FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance.collection('Users').doc(chat['to_uid']).get(),
+              future: FirebaseFirestore.instance.collection('Users').doc(otherParticipantId).get(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const CircularProgressIndicator();
                 }
-
                 if (!snapshot.hasData || !snapshot.data!.exists) {
                   return const CircleAvatar(child: Icon(Icons.person)); // Default avatar if user data is missing
                 }
@@ -504,16 +550,17 @@ class ChatPage extends StatelessWidget {
                     backgroundImage: userPic != null ? NetworkImage(userPic) : null,
                     child: userPic == null ? Text(firstName[0].toUpperCase()) : null,
                   ),
-                  title: Text(fullName), // ✅ Display full name
+                  title: Text(fullName,
+                    style: TextStyle(fontWeight: FontWeight.bold),), // Display full name
                   subtitle: Row(
                     children: [
-                      Expanded( // ✅ Prevents stretching by containing text inside ListTile
+                      Expanded(
                         child: Text(
                           lastMessageType == 'audio'
                               ? '🎤 Voice message (${_formatDuration(Duration(seconds: audioDuration))})'
                               : truncateMessage(lastMessage),
                           overflow: TextOverflow.ellipsis,
-                          maxLines: 1, // ✅ Ensures message stays in one line
+                          maxLines: 1, // Ensures message stays in one line
                           softWrap: false,
                         ),
                       ),
@@ -525,12 +572,12 @@ class ChatPage extends StatelessWidget {
                   ),
                   onTap: () async {
                     String chatId = chat['chat_id'] ?? await _getOrCreateChatThread(
-                      chat['from_uid'],   // ✅ Current User ID
-                      chat['from_name'],  // ✅ Current User Name
-                      chat['from_pic'],   // ✅ Current User Pic
-                      chat['to_uid'],     // ✅ Receiver User ID
-                      fullName,           // ✅ Receiver Name (retrieved from Firestore)
-                      userPic ?? '',      // ✅ Receiver Profile Pic (or empty string if null)
+                      currentUserId!,
+                      chat[isCurrentUserSender ? 'from_name' : 'to_name'], // Current User Name
+                      chat[isCurrentUserSender ? 'from_pic' : 'to_pic'], // Current User Pic
+                      otherParticipantId, // Other Participant ID
+                      fullName, // Other Participant Name
+                      userPic ?? '', // Other Participant Profile Pic
                     );
 
                     Navigator.push(
@@ -539,8 +586,8 @@ class ChatPage extends StatelessWidget {
                         builder: (context) => ChatThreadDetailsPage(
                           chatId: chatId,
                           toName: fullName,
-                          toUid: chat['to_uid'],
-                          fromUid: chat['from_uid'],
+                          toUid: otherParticipantId,
+                          fromUid: currentUserId!,
                         ),
                       ),
                     );
@@ -1094,7 +1141,7 @@ class PostDetailsPage extends StatefulWidget {
                           if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
                             return ListTile(
                               title: Text(comment['content'] ?? 'No Content'),
-                              subtitle: const Text('Posted by: Unknown User'),
+                              subtitle: const Text('\n Posted by: Unknown User'),
                             );
                           }
 
@@ -1154,7 +1201,7 @@ class PostDetailsPage extends StatefulWidget {
                                 ),
                               ListTile(
                                 title: Text(comment['content'] ?? 'No Content'),
-                                subtitle: Text('Posted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}'),
+                                subtitle: Text('\nPosted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}'),
                                 trailing: ScaleTransition(
                                   scale: _scaleAnimation,
                                   child: IconButton(
