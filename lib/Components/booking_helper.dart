@@ -64,7 +64,7 @@ Future<void> _bookAppointment(
     context: context,
     builder: (context) {
       return AlertDialog(
-        title: Text('Enter Full Name and Why you want to see the Doctor?'),
+        title: Text('Why do you want to see the Doctor?'),
         content: TextField(
           controller: reasonController,
           maxLines: 3,

@@ -27,56 +27,55 @@ class _HomePageContentState extends State<HomePageContent> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Other widgets like SearchBar, SpeechBubble, DoctorsRowItem here
           SearchBar1(),
           SizedBox(height: 6),
           SpeechBubble(
             onPressed: () {
               print("See Doctor now! tapped");
-              // Add your onPressed code here!
             },
             textStyle: TextStyle(
-              fontSize: 15.0, // Adjust the font size here
+              fontSize: 15.0,
               fontWeight: FontWeight.bold,
               color: Colors.blueAccent,
             ),
           ),
-
           DoctorsRowItem(),
-          // SizedBox(height: 2),
-          // Conditionally render the Globe or the List View
-          _showListView
-              ? Column(
-            children: [
-              Container(
-                height: 395, // Set a fixed height for the scrollable area
-                child: SingleChildScrollView(
-                  child: OrganizationListView(),
-                ),
-              ),
-              SizedBox(height: 16), // Add some spacing between the Container and the icon
-              GestureDetector(
-                onTap: () {
-                  // Navigate to the MapScreen
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => MapScreen()),
-                  );
-                },
-                child: Icon(
-                  Icons.location_on_outlined, // Map icon
-                  size: 40, // Adjust the size as needed
-                  color: Colors.blue, // Choose a suitable color
-                ),
-              ),
-            ],
-          )
-              : _buildGlobeAndText(context),
+          SizedBox(height: 8),
 
+          // Add Expanded to prevent overflow
+          Expanded(
+            child: SingleChildScrollView(
+              child: _showListView
+                  ? Column(
+                children: [
+                  Container(
+                    height: 380, // Set a fixed height for the list
+                    child: OrganizationListView(),
+                  ),
+                  SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => MapScreen()),
+                      );
+                    },
+                    child: Icon(
+                      Icons.location_on_outlined,
+                      size: 40,
+                      color: Colors.blue,
+                    ),
+                  ),
+                ],
+              )
+                  : _buildGlobeAndText(context),
+            ),
+          ),
         ],
       ),
     );
   }
+
 
   // Function to build the globe image and "Show hospitals near you" text
   Widget _buildGlobeAndText(BuildContext context) {

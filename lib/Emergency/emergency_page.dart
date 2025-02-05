@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';  // Import dotenv
 
 import 'Widgets/emergency_hompage_content.dart';
+import 'Widgets/first_aid_response_widget.dart';
 
 class EmergencyPage extends StatefulWidget {
   @override
@@ -106,51 +107,15 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       body: Stack(
         children: [
           EmergencyHomePageContent(),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (_showResponsePopup)
-                  SizedBox.shrink(), // Placeholder for hidden content when popup is visible
-              ],
-            ),
-          ),
-          SlideTransition(
-            position: _offsetAnimation,
-            child: Container(
-              color: Colors.white,
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "First Aid Instructions",
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                        ),
-                        IconButton(
-                          icon: Icon(Icons.unfold_more),
-                          onPressed: _toggleResponsePopup,
-                        ),
-                      ],
-                    ),
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(8.0),
-                      child: Text(
-                        _responseText,
-                        style: TextStyle(fontSize: 14),
-                      ),
-                    ),
-                  ),
-                ],
+          // If the response popup is visible, show the FirstAidResponseWidget
+          if (_showResponsePopup)
+            SlideTransition(
+              position: _offsetAnimation,
+              child: FirstAidResponseWidget(
+                responseText: _responseText,
+                onClose: _toggleResponsePopup,
               ),
             ),
-          ),
         ],
       ),
       bottomNavigationBar: Padding(

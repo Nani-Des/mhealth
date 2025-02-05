@@ -24,6 +24,7 @@ class _MapScreenState extends State<MapScreen> {
   Directions? _info;
   final TextEditingController _searchController = TextEditingController();
   String? _selectedPlaceName;
+  Polyline? _routePolyline;
 
   final PlaceSearchService _placeSearchService = PlaceSearchService();
   Position? _currentPosition;
@@ -176,7 +177,52 @@ class _MapScreenState extends State<MapScreen> {
               if (_origin != null) _origin!,
               if (_destination != null) _destination!,
             },
+            polylines: _routePolyline != null ? {_routePolyline!} : {},
             onLongPress: _addMarker,
+          ),
+          Positioned(
+            top: 10.0,
+            left: 10.0,
+            right: 10.0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8.0),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black26,
+                    offset: Offset(0, 2),
+                    blurRadius: 6.0,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: _searchPlace,
+                      decoration: const InputDecoration(
+                        hintText: 'Search for nearest Hospital',
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.only(left: 8.0),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.search),
+                    onPressed: () => _searchPlace(_searchController.text),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.local_hospital_sharp),
+                    onPressed: _findNearestHospital, // Find nearest hospital
+                    color: Colors.redAccent,
+                  ),
+                ],
+              ),
+            ),
           ),
           if (_selectedPlaceName != null)
             Positioned(
@@ -223,6 +269,7 @@ class _MapScreenState extends State<MapScreen> {
         );
         _destination = null;
         _info = null;
+        _routePolyline = null; // Clear polyline when origin is set again
       });
     } else {
       setState(() {
@@ -234,9 +281,22 @@ class _MapScreenState extends State<MapScreen> {
         );
       });
 
+      // Get directions to create a polyline
       final directions = await DirectionsRepository(dio: Dio())
           .getDirections(origin: _origin!.position, destination: pos);
-      setState(() => _info = directions);
+      setState(() {
+        _info = directions;
+
+        // Add polyline between origin and destination
+        _routePolyline = Polyline(
+          polylineId: PolylineId('route'),
+          points: _info!.polylinePoints
+              .map((point) => LatLng(point.latitude, point.longitude)) // Convert PointLatLng to LatLng
+              .toList(),
+          color: Colors.blue,
+          width: 5,
+        );
+      });
     }
   }
 
