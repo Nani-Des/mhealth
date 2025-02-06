@@ -268,8 +268,37 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
               leading: const Icon(Icons.delete),
               title: const Text('Delete Post'),
               onTap: () async {
+                // Close the current menu
                 Navigator.pop(context);
-                await firestore.collection('ExpertPosts').doc(postId).delete();
+
+                // Show confirmation dialog
+                final bool shouldDelete = await showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Delete Post'),
+                      content: const Text('Are you sure you want to delete this post?'),
+                      actions: [
+                        TextButton(
+                          child: const Text('No'),
+                          onPressed: () => Navigator.pop(context, false),
+                        ),
+                        TextButton(
+                          child: const Text('Yes'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          onPressed: () => Navigator.pop(context, true),
+                        ),
+                      ],
+                    );
+                  },
+                ) ?? false; // Default to false if dialog is dismissed
+
+                // Delete if user confirmed
+                if (shouldDelete) {
+                  await firestore.collection('ExpertPosts').doc(postId).delete();
+                }
               },
             ),
             ListTile(

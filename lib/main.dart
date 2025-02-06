@@ -188,6 +188,7 @@ class ChatHomePage extends StatefulWidget {
 class _ChatHomePageState extends State<ChatHomePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  FloatingActionButtonLocation _fabLocation = FloatingActionButtonLocation.endFloat;
 
   @override
   void initState() {
@@ -218,20 +219,57 @@ class _ChatHomePageState extends State<ChatHomePage>
         ],
       ),
       bottomNavigationBar: Container(
-        color: Colors.lightBlue,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade700, Colors.lightBlue.shade400], // Gradient colors
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: const BorderRadius.only(
+            topLeft: Radius.circular(16), // Rounded corners
+            topRight: Radius.circular(16),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
+            ),
+          ],
+        ),
         child: TabBar(
           controller: _tabController,
           tabs: const [
-            Tab(icon: Icon(Icons.message), text: 'Private Chats'),
-            Tab(icon: Icon(Icons.forum), text: 'Forum'),
+            Tab(
+              icon: Icon(Icons.message, size: 28), // Larger icon for better visibility
+              text: 'Private Chats',
+            ),
+            Tab(
+              icon: Icon(Icons.forum, size: 28), // Larger icon for better visibility
+              text: 'Open Forum',
+            ),
           ],
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.grey[300],
-          indicatorColor: Colors.white,
+          labelColor: Colors.white, // Selected tab text and icon color
+          unselectedLabelColor: Colors.grey[300], // Unselected tab text and icon color
+          indicator: UnderlineTabIndicator(
+            borderSide: BorderSide(
+              color: Colors.white, // Indicator color
+              width: 3, // Thicker indicator
+            ),
+            insets: const EdgeInsets.symmetric(horizontal: 40), // Wider indicator
+          ),
           indicatorSize: TabBarIndicatorSize.tab,
+          labelStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold, // Bold text for selected tab
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.normal, // Normal text for unselected tabs
+          ),
         ),
       ),
-      floatingActionButton: _tabController.index == 0 // ✅ FAB updates correctly now
+      floatingActionButton: _tabController.index == 0
           ? FloatingActionButton(
         onPressed: () async {
           String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
@@ -244,10 +282,22 @@ class _ChatHomePageState extends State<ChatHomePage>
           }
         },
         backgroundColor: Colors.blue,
-        child: const Icon(Icons.message, color: Colors.white),
+        child: const Icon(Icons.person_add, color: Colors.white),
       )
-          : null, // Hide FAB when on Forum tab
+          : null,
+      floatingActionButtonLocation: CustomFABLocation(), // Hide FAB when on Forum tab
     );
+  }
+}
+
+class CustomFABLocation extends FloatingActionButtonLocation {
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    // Get the default position for endFloat (bottom-right corner)
+    final defaultOffset = FloatingActionButtonLocation.endFloat.getOffset(scaffoldGeometry);
+
+    // Adjust the vertical position (move it up by 40 pixels)
+    return Offset(defaultOffset.dx, defaultOffset.dy - 25); // Subtract from the y-coordinate to move up
   }
 }
 
@@ -484,6 +534,7 @@ class ChatPage extends StatelessWidget {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
         if (!snapshot.hasData) {
+          // Show a single loading indicator in the center
           return const Center(child: CircularProgressIndicator());
         }
 
@@ -491,18 +542,19 @@ class ChatPage extends StatelessWidget {
 
         // If there are no chats, display a message
         if (chats.isEmpty) {
-          return Center(
+          return const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
+                Text(
                   "No chats yet.",
                   style: TextStyle(fontSize: 16, color: Colors.grey),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  "Tap on the blue action button below to start chatting.",
+                SizedBox(height: 8),
+                Text(
+                  "Tap on the blue action button below to start a healthy chat...",
                   style: TextStyle(fontSize: 14, color: Colors.grey),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -533,7 +585,12 @@ class ChatPage extends StatelessWidget {
               future: FirebaseFirestore.instance.collection('Users').doc(otherParticipantId).get(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
+                  // Return an empty container or a placeholder while loading
+                  return ListTile(
+                    leading: const CircleAvatar(child: Icon(Icons.person)), // Placeholder avatar
+                    title: Text("Loading...", style: TextStyle(fontWeight: FontWeight.bold)), // Placeholder text
+                    subtitle: const Text("Fetching user details..."), // Placeholder text
+                  );
                 }
                 if (!snapshot.hasData || !snapshot.data!.exists) {
                   return const CircleAvatar(child: Icon(Icons.person)); // Default avatar if user data is missing
@@ -550,8 +607,7 @@ class ChatPage extends StatelessWidget {
                     backgroundImage: userPic != null ? NetworkImage(userPic) : null,
                     child: userPic == null ? Text(firstName[0].toUpperCase()) : null,
                   ),
-                  title: Text(fullName,
-                    style: TextStyle(fontWeight: FontWeight.bold),), // Display full name
+                  title: Text(fullName, style: TextStyle(fontWeight: FontWeight.bold)), // Display full name
                   subtitle: Row(
                     children: [
                       Expanded(
@@ -780,8 +836,37 @@ class _ForumPageState extends State<ForumPage> {
               leading: const Icon(Icons.delete),
               title: const Text('Delete Post'),
               onTap: () async {
+                // Close the current menu/modal
                 Navigator.pop(context);
-                await firestore.collection('ForumPosts').doc(postId).delete();
+
+                // Show confirmation dialog
+                final bool shouldDelete = await showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Delete Post'),
+                      content: const Text('Are you sure you want to delete this post?'),
+                      actions: [
+                        TextButton(
+                          child: const Text('No'),
+                          onPressed: () => Navigator.pop(context, false),
+                        ),
+                        TextButton(
+                          child: const Text('Yes'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          onPressed: () => Navigator.pop(context, true),
+                        ),
+                      ],
+                    );
+                  },
+                ) ?? false; // Default to false if dialog is dismissed
+
+                // Delete if user confirmed
+                if (shouldDelete) {
+                  await firestore.collection('ForumPosts').doc(postId).delete();
+                }
               },
             ),
             ListTile(
@@ -1087,18 +1172,31 @@ class PostDetailsPage extends StatefulWidget {
 
       return Scaffold(
         key: scaffoldMessengerKey,
-        appBar: AppBar(title: Text('Discussion'),
-        backgroundColor: Colors.lightBlue),
+        appBar: AppBar(
+          title: Text('Discussion', style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.lightBlue,
+          elevation: 4,
+          iconTheme: IconThemeData(color: Colors.white),
+        ),
         body: Column(
           children: [
             // Post topic at the top (full-width background)
             Container(
-              width: double.infinity, // Ensure the background covers the entire line
+              width: double.infinity,
               padding: const EdgeInsets.all(16.0),
-              color: Colors.grey[200], // Background color
+              decoration: BoxDecoration(
+                color: Colors.lightBlue[50],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.3),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
+                  ),
+                ],
+              ),
               child: Text(
                 widget.postTitle,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.lightBlue[900]),
               ),
             ),
             Expanded(
@@ -1126,8 +1224,8 @@ class PostDetailsPage extends StatefulWidget {
                       final comment = comments[index].data() as Map<String, dynamic>;
                       final userId = comment['userId'];
                       final commentId = comments[index].id;
-                      final repliedTo = comment['repliedTo'] ?? ''; // User ID of the replied-to user
-                      final repliedContent = comment['repliedContent'] ?? ''; // Content of the replied-to message
+                      final repliedTo = comment['repliedTo'] ?? '';
+                      final repliedContent = comment['repliedContent'] ?? '';
                       final timestamp = comment['timestamp'] != null
                           ? (comment['timestamp'] as Timestamp).toDate()
                           : DateTime.now();
@@ -1146,93 +1244,120 @@ class PostDetailsPage extends StatefulWidget {
                           }
 
                           final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-
                           final fname = userData?['Fname'] ?? 'Unknown';
                           final lname = userData?['Lname'] ?? 'User';
                           final fullName = '$fname $lname';
 
                           return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // Show reply box only for the comment that is a reply
-                              if (repliedTo.isNotEmpty)
-                                FutureBuilder<DocumentSnapshot>(
-                                  future: FirebaseFirestore.instance.collection('Users').doc(repliedTo).get(),
-                                  builder: (context, repliedUserSnapshot) {
-                                    if (repliedUserSnapshot.connectionState == ConnectionState.waiting) {
-                                      return const ListTile(title: Text('Loading...'));
-                                    }
-                                    if (repliedUserSnapshot.hasError || !repliedUserSnapshot.hasData || !repliedUserSnapshot.data!.exists) {
-                                      return const SizedBox.shrink();
-                                    }
+                              Card(
+                                margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                                elevation: 2,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      if (repliedTo.isNotEmpty)
+                                        FutureBuilder<DocumentSnapshot>(
+                                          future: FirebaseFirestore.instance.collection('Users').doc(repliedTo).get(),
+                                          builder: (context, repliedUserSnapshot) {
+                                            if (repliedUserSnapshot.connectionState == ConnectionState.waiting) {
+                                              return const ListTile(title: Text('Loading...'));
+                                            }
+                                            if (repliedUserSnapshot.hasError || !repliedUserSnapshot.hasData || !repliedUserSnapshot.data!.exists) {
+                                              return const SizedBox.shrink();
+                                            }
 
-                                    final repliedUserData = repliedUserSnapshot.data!.data() as Map<String, dynamic>?;
-                                    final repliedFname = repliedUserData?['Fname'] ?? 'Unknown';
-                                    final repliedLname = repliedUserData?['Lname'] ?? 'User';
-                                    final repliedToName = '$repliedFname $repliedLname';
+                                            final repliedUserData = repliedUserSnapshot.data!.data() as Map<String, dynamic>?;
+                                            final repliedFname = repliedUserData?['Fname'] ?? 'Unknown';
+                                            final repliedLname = repliedUserData?['Lname'] ?? 'User';
+                                            final repliedToName = '$repliedFname $repliedLname';
 
-                                    return Container(
-                                      padding: const EdgeInsets.all(8.0),
-                                      margin: const EdgeInsets.only(bottom: 4.0),
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[300],
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                            return Container(
+                                              padding: const EdgeInsets.all(8.0),
+                                              margin: const EdgeInsets.only(bottom: 8.0),
+                                              decoration: BoxDecoration(
+                                                color: Colors.grey[200],
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                              child: InkWell(
+                                                onTap: () {
+                                                  _scrollToMessage(comment['repliedToCommentId'], comments);
+                                                },
+                                                child: Text(
+                                                  'Replying to $repliedToName: ${repliedContent.length > 10 ? repliedContent.substring(0, 15) + '...' : repliedContent}',
+                                                  style: TextStyle(
+                                                    color: Colors.blue[800],
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      Row(
                                         children: [
-                                          InkWell(
-                                            onTap: () {
-                                              // Scroll to the original message if user ID is clicked
-                                              _scrollToMessage(comment['repliedToCommentId'], comments);
-                                            },
-                                            child: Text(
-                                              'Replying to $repliedToName: ${repliedContent.length > 10 ? repliedContent.substring(0, 15) + '...' : repliedContent}',
-                                              style: TextStyle(
-                                                color: Colors.blue,
-                                                fontWeight: FontWeight.bold, // Bolden the reply message
+                                          Expanded(
+                                            child: ListTile(
+                                              contentPadding: EdgeInsets.zero,
+                                              title: Text(
+                                                comment['content'] ?? 'No Content',
+                                                style: TextStyle(fontSize: 16),
+                                              ),
+                                              subtitle: Padding(
+                                                padding: const EdgeInsets.only(top: 8.0),
+                                                child: Text(
+                                                  'Posted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}',
+                                                  style: TextStyle(color: Colors.grey[600]),
+                                                ),
                                               ),
                                             ),
                                           ),
+                                          // Reply Icon
+                                          IconButton(
+                                            icon: ScaleTransition(
+                                              scale: _scaleAnimation,
+                                              child: Icon(Icons.reply, color: Colors.lightBlue),
+                                            ),
+                                            onPressed: () {
+                                              _animateReplyButton();
+                                              _focusNode.requestFocus();
+                                              _replyToMessage(context, '$fname $lname', comment['content'], comment['userId'], commentId);
+                                            },
+                                          ),
+                                          // Vertical Dot Icon for Comment Menu
+                                          IconButton(
+                                            icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+                                            onPressed: () {
+                                              try {
+                                                final commentDoc = comments[index] as QueryDocumentSnapshot<Map<String, dynamic>>;
+                                                _showCommentMenu(context, scaffoldMessengerKey, commentDoc);
+                                              } catch (e) {
+                                                ScaffoldMessenger.of(context).showSnackBar(
+                                                  SnackBar(content: Text('Error loading comment: ${e.toString()}')),
+                                                );
+                                              }
+                                            },
+                                          ),
                                         ],
                                       ),
-                                    );
-                                  },
-                                ),
-                              ListTile(
-                                title: Text(comment['content'] ?? 'No Content'),
-                                subtitle: Text('\nPosted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}'),
-                                trailing: ScaleTransition(
-                                  scale: _scaleAnimation,
-                                  child: IconButton(
-                                    icon: const Icon(Icons.reply),
-                                    onPressed: () {
-                                      // Animate the reply button
-                                      _animateReplyButton();
-                                      // Focus on the reply field and bring up the keyboard
-                                      _focusNode.requestFocus(); // Activate the keyboard
-                                      _replyToMessage(context, '$fname $lname', comment['content'], comment['userId'], commentId);
-                                    },
+                                    ],
                                   ),
                                 ),
-                          onLongPress: () {
-                            try {
-                              final commentDoc = comments[index] as QueryDocumentSnapshot<
-                                  Map<String, dynamic>>;
-                              _showCommentMenu(
-                                context,
-                                scaffoldMessengerKey,
-                                commentDoc,
-                              );
-                            } catch (e) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text(
-                                    'Error loading comment: ${e.toString()}')),
-                              );
-                            }
-                          }
                               ),
-                              const Divider(),
+                              // Divider between comments
+                              if (index < comments.length - 1)
+                                Divider(
+                                  height: 1,
+                                  thickness: 1,
+                                  color: Colors.grey[300],
+                                  indent: 16,
+                                  endIndent: 16,
+                                ),
                             ],
                           );
                         },
@@ -1242,28 +1367,26 @@ class PostDetailsPage extends StatefulWidget {
                 },
               ),
             ),
-            // Reply bar (appears when replying to a comment)
             if (_replyingToUserName != null)
               Container(
-                color: Colors.grey[300],
+                color: Colors.grey[200],
                 padding: const EdgeInsets.all(8.0),
                 child: Row(
                   children: [
                     Text(
                       'Replying to $_replyingToUserName: ${_repliedContent!.length > 10 ? _repliedContent!.substring(0, 15) + '...' : _repliedContent}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[800]),
                     ),
-                    const Spacer(),
+                    Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: _cancelReply, // Cancel the reply process
+                      icon: Icon(Icons.close, color: Colors.grey[600]),
+                      onPressed: _cancelReply,
                     ),
                   ],
                 ),
               ),
-            // Input bar for typing comments
             Container(
-              color: Colors.grey[300],
+              color: Colors.grey[200],
               padding: const EdgeInsets.all(8.0),
               child: Row(
                 children: [
@@ -1272,68 +1395,73 @@ class PostDetailsPage extends StatefulWidget {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.2),
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
                       ),
                       constraints: const BoxConstraints(maxHeight: 120),
                       child: TextField(
                         controller: commentController,
-                        focusNode: _focusNode, // Attach the focusNode
-                        decoration: const InputDecoration(
+                        focusNode: _focusNode,
+                        decoration: InputDecoration(
                           hintText: 'Type comment here...',
                           border: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          suffixIcon: IconButton(
+                            icon: Icon(Icons.send, color: Colors.lightBlue),
+                            onPressed: () async {
+                              if (commentController.text.trim().isNotEmpty) {
+                                if (currentUserId == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("User not logged in")),
+                                  );
+                                  return;
+                                }
+
+                                DocumentSnapshot userSnapshot = await FirebaseFirestore.instance.collection('Users').doc(currentUserId).get();
+                                if (!userSnapshot.exists) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("User data not found")),
+                                  );
+                                  return;
+                                }
+
+                                final userData = userSnapshot.data() as Map<String, dynamic>;
+                                final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
+
+                                await FirebaseFirestore.instance
+                                    .collection('ForumPosts')
+                                    .doc(widget.postId)
+                                    .collection('comments')
+                                    .add({
+                                  'content': commentController.text,
+                                  'userId': currentUserId,
+                                  'username': fullName,
+                                  'timestamp': FieldValue.serverTimestamp(),
+                                  'repliedTo': _replyingToUserId,
+                                  'repliedContent': _repliedContent,
+                                  'repliedToCommentId': _replyingToCommentId,
+                                });
+
+                                commentController.clear();
+                                setState(() {
+                                  _replyingToUserId = null;
+                                  _repliedContent = null;
+                                  _replyingToCommentId = null;
+                                  _replyingToUserName = null;
+                                });
+                              }
+                            },
+                          ),
                         ),
                         maxLines: null,
                         keyboardType: TextInputType.multiline,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.send),
-                    onPressed: () async {
-                      if (commentController.text.trim().isNotEmpty) {
-                        if (currentUserId == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("User not logged in")),
-                          );
-                          return;
-                        }
-
-                        DocumentSnapshot userSnapshot = await FirebaseFirestore.instance.collection('Users').doc(currentUserId).get();
-                        if (!userSnapshot.exists) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text("User data not found")),
-                          );
-                          return;
-                        }
-
-                        final userData = userSnapshot.data() as Map<String, dynamic>;
-                        final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
-
-                        await FirebaseFirestore.instance
-                            .collection('ForumPosts')
-                            .doc(widget.postId)
-                            .collection('comments')
-                            .add({
-                          'content': commentController.text,
-                          'userId': currentUserId,
-                          'username': fullName,
-                          'timestamp': FieldValue.serverTimestamp(),
-                          'repliedTo': _replyingToUserId, // Add the replied-to comment's userId
-                          'repliedContent': _repliedContent, // Add the content of the original message
-                          'repliedToCommentId': _replyingToCommentId, // Add the ID of the comment being replied to
-                        });
-
-                        // After posting, reset the reply target
-                        commentController.clear();
-                        setState(() {
-                          _replyingToUserId = null; // Reset the replied-to state
-                          _repliedContent = null; // Clear the content of the message
-                          _replyingToCommentId = null; // Reset the comment being replied to
-                          _replyingToUserName = null; // Clear the name of the user being replied to
-                        });
-                      }
-                    },
                   ),
                 ],
               ),
@@ -1374,11 +1502,40 @@ class PostDetailsPage extends StatefulWidget {
                 leading: const Icon(Icons.delete),
                 title: const Text('Delete Comment'),
                 onTap: () async {
-                  Navigator.pop(context); // Close the menu
-                  await comment.reference.delete(); // Delete the comment
-                  scaffoldMessengerKey.currentState?.showSnackBar(
-                    const SnackBar(content: Text('Comment deleted!')),
-                  );
+                  // Close the current menu
+                  Navigator.pop(context);
+
+                  // Show confirmation dialog
+                  final bool shouldDelete = await showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text('Delete Comment'),
+                        content: const Text('Are you sure you want to delete this comment?'),
+                        actions: [
+                          TextButton(
+                            child: const Text('No'),
+                            onPressed: () => Navigator.pop(context, false),
+                          ),
+                          TextButton(
+                            child: const Text('Yes'),
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                            onPressed: () => Navigator.pop(context, true),
+                          ),
+                        ],
+                      );
+                    },
+                  ) ?? false; // Default to false if dialog is dismissed
+
+                  // Delete if user confirmed
+                  if (shouldDelete) {
+                    await comment.reference.delete();
+                    scaffoldMessengerKey.currentState?.showSnackBar(
+                      const SnackBar(content: Text('Comment deleted!')),
+                    );
+                  }
                 },
               ),
               ListTile(
@@ -1545,8 +1702,6 @@ class PostDetailsPage extends StatefulWidget {
   }
 
 
-
-
 class AudioPlaybackState {
   final String url;
   bool isPlaying = false;
@@ -1663,8 +1818,37 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
               leading: const Icon(Icons.delete),
               title: const Text('Delete Message'),
               onTap: () async {
+                // Close the current menu
                 Navigator.pop(context);
-                await message.reference.delete();
+
+                // Show confirmation dialog
+                final bool shouldDelete = await showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Delete Message'),
+                      content: const Text('Are you sure you want to delete this message?'),
+                      actions: [
+                        TextButton(
+                          child: const Text('No'),
+                          onPressed: () => Navigator.pop(context, false),
+                        ),
+                        TextButton(
+                          child: const Text('Yes'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          onPressed: () => Navigator.pop(context, true),
+                        ),
+                      ],
+                    );
+                  },
+                ) ?? false; // Default to false if dialog is dismissed
+
+                // Delete if user confirmed
+                if (shouldDelete) {
+                  await message.reference.delete();
+                }
               },
             ),
             ListTile(
@@ -2032,12 +2216,115 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.toName),
+        leadingWidth: 30, // Reduce the leading width to bring everything closer to back button
+        title: FutureBuilder<DocumentSnapshot>(
+          future: FirebaseFirestore.instance.collection('Users').doc(widget.toUid).get(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20, // Increased size
+                    child: Icon(Icons.person, size: 24), // Increased icon size
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.toName,
+                        style: const TextStyle(
+                          fontSize: 18, // Increased font size
+                          fontWeight: FontWeight.bold, // Made bold
+                        ),
+                      ),
+                      const Text(
+                        "Loading...",
+                        style: TextStyle(
+                          fontSize: 13, // Slightly increased
+                          color: Colors.black, // Changed to black
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            if (!snapshot.hasData || !snapshot.data!.exists) {
+              return Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20, // Increased size
+                    child: Icon(Icons.person, size: 24), // Increased icon size
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.toName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Text(
+                        "Offline",
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            }
+
+            final userData = snapshot.data!.data() as Map<String, dynamic>?;
+            final userPic = userData?['User Pic'];
+            final isOnline = userData?['Status'] ?? false;
+
+            return Padding(
+              padding: const EdgeInsets.only(left: 0), // Reduce left padding to move closer to back button
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 20, // Increased size
+                    backgroundImage: userPic != null ? NetworkImage(userPic) : null,
+                    child: userPic == null ? Icon(Icons.person, size: 24) : null, // Increased icon size
+                  ),
+                  const SizedBox(width: 8),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.toName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        isOnline ? "Active now" : "Offline",
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.black, // Changed to black regardless of status
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
         backgroundColor: Colors.lightBlue,
         actions: [
           IconButton(
-            icon: const Icon(Icons.video_call, color: Colors.white), // Video call icon
-            onPressed: _onVideoCallPressed, // Placeholder function for video call
+            icon: const Icon(Icons.video_call, color: Colors.white),
+            onPressed: _onVideoCallPressed,
           ),
         ],
       ),
@@ -2088,86 +2375,85 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                                 constraints: BoxConstraints(
                                   maxWidth: MediaQuery.of(context).size.width * 0.7, // Max width for text bubbles
                                 ),
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(
-                                      horizontal: 8.0, vertical: 4.0),
-                                  padding: const EdgeInsets.all(12.0),
-                                  decoration: BoxDecoration(
-                                    color: isSentByUser
-                                        ? Colors.blue[300]
-                                        : Colors.grey[300],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (message['type'] == 'text') ...[
-                                        Text(
-                                          message['content'] ?? '',
-                                          softWrap: true, // Allow text to wrap to the next line
+                                child: CustomPaint(
+                                  size: Size(double.infinity, double.infinity),
+                              painter: ChatBubblePainter(isSentByUser: isSentByUser),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (message['type'] == 'text') ...[
+                                      Text(
+                                        message['content'] ?? '', // Fallback to an empty string if 'content' is null
+                                        softWrap: true, // Allow text to wrap to the next line
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w400, // Make the text bold
+                                          fontSize: 15, // Optional: Set a font size for better readability
+                                          color: isSentByUser ? Colors.black87 : Colors.black87, // Optional: Adjust text color based on sender
                                         ),
-                                      ] else if (message['type'] == 'audio') ...[
-                                        Container(
-                                          padding: const EdgeInsets.all(8.0),
-                                          decoration: BoxDecoration(
-                                            color: Colors.grey[200], // Background color for the playback bar
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              IconButton(
-                                                icon: Icon(_audioPlaybackStates[message['file_url']] == true
-                                                    ? Icons.pause
-                                                    : Icons.play_arrow),
-                                                onPressed: () => _playAudio(message['file_url']),
-                                              ),
-                                              Expanded(
-                                                child: Slider(
-                                                  value: (_audioPlaybackDurations[message['file_url']] ?? Duration.zero)
-                                                      .inSeconds
-                                                      .toDouble(),
-                                                  min: 0,
-                                                  max: (_audioTotalDurations[message['file_url']] ?? Duration.zero)
-                                                      .inSeconds
-                                                      .toDouble(),
-                                                  onChanged: (value) {
-                                                    _player.seekToPlayer(Duration(seconds: value.toInt()));
-                                                  },
-                                                  activeColor: Colors.blue, // Color of the progress bar
-                                                  inactiveColor: Colors.grey[400], // Color of the remaining bar
-                                                  thumbColor: Colors.blue, // Color of the moving circle
-                                                ),
-                                              ),
-                                              // Show the current playback time or total duration
-                                              Text(
-                                                _audioPlaybackStates[message['file_url']] == true
-                                                    ? _formatDuration(_audioPlaybackDurations[message['file_url']] ?? Duration.zero)
-                                                    : _formatDuration(_audioTotalDurations[message['file_url']] ?? Duration.zero),
-                                                style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                              ),
-                                            ],
-                                          ),
+                                      ),
+                                    ] else if (message['type'] == 'audio') ...[
+                                      Container(
+                                        padding: const EdgeInsets.all(8.0),
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey[200], // Background color for the playback bar
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
-                                      ],
-                                      const SizedBox(height: 5),
-                                      // Align the timestamp to the bottom-right
-                                      Align(
-                                        alignment: Alignment.bottomRight,
-                                        child: Text(
-                                          message['timestamp'] != null
-                                              ? DateFormat.jm().format(
-                                            (message['timestamp'] as Timestamp).toDate(),
-                                          )
-                                              : 'Sending...',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey[800], // Deep grey color to match the send icon
-                                          ),
+                                        child: Row(
+                                          children: [
+                                            IconButton(
+                                              icon: Icon(_audioPlaybackStates[message['file_url']] == true
+                                                  ? Icons.pause
+                                                  : Icons.play_arrow),
+                                              onPressed: () => _playAudio(message['file_url']),
+                                            ),
+                                            Expanded(
+                                              child: Slider(
+                                                value: (_audioPlaybackDurations[message['file_url']] ?? Duration.zero)
+                                                    .inSeconds
+                                                    .toDouble(),
+                                                min: 0,
+                                                max: (_audioTotalDurations[message['file_url']] ?? Duration.zero)
+                                                    .inSeconds
+                                                    .toDouble(),
+                                                onChanged: (value) {
+                                                  _player.seekToPlayer(Duration(seconds: value.toInt()));
+                                                },
+                                                activeColor: Colors.blue, // Color of the progress bar
+                                                inactiveColor: Colors.grey[400], // Color of the remaining bar
+                                                thumbColor: Colors.blue, // Color of the moving circle
+                                              ),
+                                            ),
+                                            Text(
+                                              _audioPlaybackStates[message['file_url']] == true
+                                                  ? _formatDuration(_audioPlaybackDurations[message['file_url']] ?? Duration.zero)
+                                                  : _formatDuration(_audioTotalDurations[message['file_url']] ?? Duration.zero),
+                                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
-                                  ),
+                                    const SizedBox(height: 5),
+                                    Align(
+                                      alignment: Alignment.bottomRight,
+                                      child: Text(
+                                        message['timestamp'] != null
+                                            ? DateFormat.jm().format(
+                                          (message['timestamp'] as Timestamp).toDate(),
+                                        )
+                                            : 'Sending...',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Colors.grey[800], // Deep grey color to match the send icon
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                              ),
+                            ),
                               ),
                             ),
                           );
@@ -2272,4 +2558,57 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
       ),
     );
   }
+}
+
+class ChatBubblePainter extends CustomPainter {
+  final bool isSentByUser; // Determines if the message is sent or received
+  final double internalPadding; // Internal padding for the chat bubble
+
+  ChatBubblePainter({
+    required this.isSentByUser,
+    this.internalPadding = 3.0, // Default padding
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint bubblePaint = Paint()
+      ..color = isSentByUser ? Colors.blue[500]! : Colors.grey[200]!
+      ..style = PaintingStyle.fill;
+
+    final Paint shadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.1)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6);
+
+    final radius = 20.0;
+
+    // Adjust the rectangle size to account for internal padding
+    final rect = Rect.fromLTWH(
+      internalPadding,
+      internalPadding,
+      size.width - (internalPadding * 2),
+      size.height - (internalPadding * 2),
+    );
+
+    final path = Path();
+
+    // Draw the main body of the chat bubble with rounded corners
+    path.addRRect(
+      RRect.fromRectAndCorners(
+        rect,
+        topLeft: Radius.circular(isSentByUser ? radius : 0),
+        topRight: Radius.circular(isSentByUser ? 0 : radius),
+        bottomLeft: Radius.circular(radius),
+        bottomRight: Radius.circular(radius),
+      ),
+    );
+
+    // Draw the shadow first
+    canvas.drawPath(path, shadowPaint);
+
+    // Draw the chat bubble
+    canvas.drawPath(path, bubblePaint);
+  }
+
+  @override
+  bool shouldRepaint(CustomPainter oldDelegate) => false;
 }
