@@ -114,7 +114,8 @@ class ExpertPostDetailsPage extends StatefulWidget {
 }
 
 class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with SingleTickerProviderStateMixin {
-  final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+  final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<
+      ScaffoldMessengerState>();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController commentController = TextEditingController();
   final FocusNode _focusNode = FocusNode(); // FocusNode to manage focus
@@ -151,7 +152,8 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
     super.dispose();
   }
 
-  void _replyToMessage(BuildContext context, String shortUserName, String content, String replyUserId, String commentId) {
+  void _replyToMessage(BuildContext context, String shortUserName,
+      String content, String replyUserId, String commentId) {
     // Focus the reply TextField to activate the keyboard
     _focusNode.requestFocus();
 
@@ -160,7 +162,8 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
       _replyingToUserId = replyUserId;
       _repliedContent = content;
       _replyingToCommentId = commentId;
-      _replyingToUserName = shortUserName; // Store the name of the user being replied to
+      _replyingToUserName =
+          shortUserName; // Store the name of the user being replied to
     });
   }
 
@@ -213,7 +216,9 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
             ),
             child: Text(
               widget.postTitle,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.lightBlue[900]),
+              style: TextStyle(fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.lightBlue[900]),
             ),
           ),
           Expanded(
@@ -238,7 +243,9 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                   controller: _scrollController,
                   itemCount: comments.length,
                   itemBuilder: (context, index) {
-                    final comment = comments[index].data() as Map<String, dynamic>;
+                    final comment = comments[index].data() as Map<
+                        String,
+                        dynamic>;
                     final userId = comment['userId'];
                     final commentId = comments[index].id;
                     final repliedTo = comment['repliedTo'] ?? '';
@@ -248,19 +255,25 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                         : DateTime.now();
 
                     return FutureBuilder<DocumentSnapshot>(
-                      future: FirebaseFirestore.instance.collection('Users').doc(userId).get(),
+                      future: FirebaseFirestore.instance.collection('Users')
+                          .doc(userId)
+                          .get(),
                       builder: (context, userSnapshot) {
-                        if (userSnapshot.connectionState == ConnectionState.waiting) {
+                        if (userSnapshot.connectionState == ConnectionState
+                            .waiting) {
                           return const ListTile(title: Text('Loading...'));
                         }
-                        if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
+                        if (userSnapshot.hasError || !userSnapshot.hasData ||
+                            !userSnapshot.data!.exists) {
                           return ListTile(
                             title: Text(comment['content'] ?? 'No Content'),
                             subtitle: const Text('\n Posted by: Unknown User'),
                           );
                         }
 
-                        final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                        final userData = userSnapshot.data!.data() as Map<
+                            String,
+                            dynamic>?;
                         final fname = userData?['Fname'] ?? 'Unknown';
                         final lname = userData?['Lname'] ?? 'User';
                         final fullName = '$fname $lname';
@@ -268,7 +281,8 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                         return Column(
                           children: [
                             Card(
-                              margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                              margin: EdgeInsets.symmetric(
+                                  vertical: 8, horizontal: 16),
                               elevation: 2,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -280,33 +294,56 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                   children: [
                                     if (repliedTo.isNotEmpty)
                                       FutureBuilder<DocumentSnapshot>(
-                                        future: FirebaseFirestore.instance.collection('Users').doc(repliedTo).get(),
-                                        builder: (context, repliedUserSnapshot) {
-                                          if (repliedUserSnapshot.connectionState == ConnectionState.waiting) {
-                                            return const ListTile(title: Text('Loading...'));
+                                        future: FirebaseFirestore.instance
+                                            .collection('Users')
+                                            .doc(repliedTo)
+                                            .get(),
+                                        builder: (context,
+                                            repliedUserSnapshot) {
+                                          if (repliedUserSnapshot
+                                              .connectionState ==
+                                              ConnectionState.waiting) {
+                                            return const ListTile(
+                                                title: Text('Loading...'));
                                           }
-                                          if (repliedUserSnapshot.hasError || !repliedUserSnapshot.hasData || !repliedUserSnapshot.data!.exists) {
+                                          if (repliedUserSnapshot.hasError ||
+                                              !repliedUserSnapshot.hasData ||
+                                              !repliedUserSnapshot.data!
+                                                  .exists) {
                                             return const SizedBox.shrink();
                                           }
 
-                                          final repliedUserData = repliedUserSnapshot.data!.data() as Map<String, dynamic>?;
-                                          final repliedFname = repliedUserData?['Fname'] ?? 'Unknown';
-                                          final repliedLname = repliedUserData?['Lname'] ?? 'User';
+                                          final repliedUserData = repliedUserSnapshot
+                                              .data!.data() as Map<
+                                              String,
+                                              dynamic>?;
+                                          final repliedFname = repliedUserData?['Fname'] ??
+                                              'Unknown';
+                                          final repliedLname = repliedUserData?['Lname'] ??
+                                              'User';
                                           final repliedToName = '$repliedFname $repliedLname';
 
                                           return Container(
                                             padding: const EdgeInsets.all(8.0),
-                                            margin: const EdgeInsets.only(bottom: 8.0),
+                                            margin: const EdgeInsets.only(
+                                                bottom: 8.0),
                                             decoration: BoxDecoration(
                                               color: Colors.grey[200],
-                                              borderRadius: BorderRadius.circular(8),
+                                              borderRadius: BorderRadius
+                                                  .circular(8),
                                             ),
                                             child: InkWell(
                                               onTap: () {
-                                                _scrollToMessage(comment['repliedToCommentId'], comments);
+                                                _scrollToMessage(
+                                                    comment['repliedToCommentId'],
+                                                    comments);
                                               },
                                               child: Text(
-                                                'Replying to $repliedToName: ${repliedContent.length > 10 ? repliedContent.substring(0, 15) + '...' : repliedContent}',
+                                                'Replying to $repliedToName: ${repliedContent
+                                                    .length > 10
+                                                    ? repliedContent.substring(
+                                                    0, 15) + '...'
+                                                    : repliedContent}',
                                                 style: TextStyle(
                                                   color: Colors.blue[800],
                                                   fontWeight: FontWeight.bold,
@@ -322,14 +359,19 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                           child: ListTile(
                                             contentPadding: EdgeInsets.zero,
                                             title: Text(
-                                              comment['content'] ?? 'No Content',
+                                              comment['content'] ??
+                                                  'No Content',
                                               style: TextStyle(fontSize: 16),
                                             ),
                                             subtitle: Padding(
-                                              padding: const EdgeInsets.only(top: 8.0),
+                                              padding: const EdgeInsets.only(
+                                                  top: 8.0),
                                               child: Text(
-                                                'Posted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}',
-                                                style: TextStyle(color: Colors.grey[600]),
+                                                'Posted by: $fullName\n${DateFormat(
+                                                    'yyyy-MM-dd HH:mm').format(
+                                                    timestamp)}',
+                                                style: TextStyle(
+                                                    color: Colors.grey[600]),
                                               ),
                                             ),
                                           ),
@@ -338,24 +380,35 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                         IconButton(
                                           icon: ScaleTransition(
                                             scale: _scaleAnimation,
-                                            child: Icon(Icons.reply, color: Colors.lightBlue),
+                                            child: Icon(Icons.reply,
+                                                color: Colors.lightBlue),
                                           ),
                                           onPressed: () {
                                             _animateReplyButton();
                                             _focusNode.requestFocus();
-                                            _replyToMessage(context, '$fname $lname', comment['content'], comment['userId'], commentId);
+                                            _replyToMessage(
+                                                context, '$fname $lname',
+                                                comment['content'],
+                                                comment['userId'], commentId);
                                           },
                                         ),
                                         // Vertical Dot Icon for Comment Menu
                                         IconButton(
-                                          icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+                                          icon: Icon(Icons.more_vert,
+                                              color: Colors.grey[600]),
                                           onPressed: () {
                                             try {
-                                              final commentDoc = comments[index] as QueryDocumentSnapshot<Map<String, dynamic>>;
-                                              _showCommentMenu(context, scaffoldMessengerKey, commentDoc);
+                                              final commentDoc = comments[index] as QueryDocumentSnapshot<
+                                                  Map<String, dynamic>>;
+                                              _showCommentMenu(
+                                                  context, scaffoldMessengerKey,
+                                                  commentDoc);
                                             } catch (e) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(content: Text('Error loading comment: ${e.toString()}')),
+                                              ScaffoldMessenger.of(context)
+                                                  .showSnackBar(
+                                                SnackBar(content: Text(
+                                                    'Error loading comment: ${e
+                                                        .toString()}')),
                                               );
                                             }
                                           },
@@ -391,8 +444,12 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
               child: Row(
                 children: [
                   Text(
-                    'Replying to $_replyingToUserName: ${_repliedContent!.length > 10 ? _repliedContent!.substring(0, 15) + '...' : _repliedContent}',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[800]),
+                    'Replying to $_replyingToUserName: ${_repliedContent!
+                        .length > 10
+                        ? _repliedContent!.substring(0, 15) + '...'
+                        : _repliedContent}',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.blue[800]),
                   ),
                   Spacer(),
                   IconButton(
@@ -427,7 +484,8 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                       decoration: InputDecoration(
                         hintText: 'Type comment here...',
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding: EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
                         suffixIcon: IconButton(
                           icon: Icon(Icons.send, color: Colors.lightBlue),
                           onPressed: () async {
@@ -439,7 +497,10 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                 return;
                               }
 
-                              DocumentSnapshot userSnapshot = await FirebaseFirestore.instance.collection('Users').doc(currentUserId).get();
+                              DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
+                                  .collection('Users')
+                                  .doc(currentUserId)
+                                  .get();
                               if (!userSnapshot.exists) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(content: Text("User data not found")),
@@ -449,21 +510,38 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
 
                               final userData = userSnapshot.data() as Map<String, dynamic>;
                               final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
+                              final userRegion = userData['Region'] ?? 'Unknown Region';
 
-                              await FirebaseFirestore.instance
-                                  .collection('ExpertPosts')
-                                  .doc(widget.postId)
-                                  .collection('comments')
-                                  .add({
+                              // Prepare the comment data
+                              Map<String, dynamic> commentData = {
                                 'content': commentController.text,
                                 'userId': currentUserId,
                                 'username': fullName,
                                 'timestamp': FieldValue.serverTimestamp(),
-                                'repliedTo': _replyingToUserId,
-                                'repliedContent': _repliedContent,
-                                'repliedToCommentId': _replyingToCommentId,
-                              });
+                              };
 
+                              // Add reply details if replying to a comment
+                              if (_replyingToUserId != null) {
+                                commentData['repliedTo'] = _replyingToUserId;
+                                commentData['repliedContent'] = _repliedContent;
+                                commentData['repliedToCommentId'] = _replyingToCommentId;
+                              }
+
+                              // Add the comment to Firestore
+                              await FirebaseFirestore.instance
+                                  .collection('ExpertPosts')
+                                  .doc(widget.postId)
+                                  .collection('comments')
+                                  .add(commentData);
+
+                              // Process the message for health insights (for both regular comments and replies)
+                              await _processMessageForHealthInsights(
+                                commentController.text, // Process the reply content
+                                currentUserId,
+                                userRegion,
+                              );
+
+                              // Clear the comment controller and reply state
                               commentController.clear();
                               setState(() {
                                 _replyingToUserId = null;
@@ -489,7 +567,8 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
   }
 
   // Scroll to the message when user clicks on the user ID
-  void _scrollToMessage(String commentId, List<QueryDocumentSnapshot> comments) {
+  void _scrollToMessage(String commentId,
+      List<QueryDocumentSnapshot> comments) {
     final index = _getCommentIndexById(commentId, comments);
     if (index != -1) {
       _scrollController.animateTo(
@@ -500,16 +579,15 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
     }
   }
 
-  int _getCommentIndexById(String commentId, List<QueryDocumentSnapshot> comments) {
+  int _getCommentIndexById(String commentId,
+      List<QueryDocumentSnapshot> comments) {
     // Find the index of the comment by ID (this will be used to scroll to that specific comment)
     return comments.indexWhere((comment) => comment.id == commentId);
   }
 
-  void _showCommentMenu(
-      BuildContext context,
+  void _showCommentMenu(BuildContext context,
       GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
-      QueryDocumentSnapshot<Map<String, dynamic>> comment,
-      ) {
+      QueryDocumentSnapshot<Map<String, dynamic>> comment,) {
     showModalBottomSheet(
       context: context,
       builder: (context) {
@@ -528,7 +606,8 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                   builder: (BuildContext context) {
                     return AlertDialog(
                       title: const Text('Delete Comment'),
-                      content: const Text('Are you sure you want to delete this comment?'),
+                      content: const Text(
+                          'Are you sure you want to delete this comment?'),
                       actions: [
                         TextButton(
                           child: const Text('No'),
@@ -584,12 +663,11 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
     );
   }
 
-  void _showCommentTranslationLanguageSelector(
-      BuildContext context,
+  void _showCommentTranslationLanguageSelector(BuildContext context,
       GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
-      QueryDocumentSnapshot<Map<String, dynamic>> comment,
-      ) {
-    final postId = comment.reference.parent.parent?.id; // Get the postId from the comment's parent
+      QueryDocumentSnapshot<Map<String, dynamic>> comment,) {
+    final postId = comment.reference.parent.parent
+        ?.id; // Get the postId from the comment's parent
     final commentId = comment.id; // Get the commentId
 
     if (postId == null) {
@@ -634,11 +712,9 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
     );
   }
 
-  Future<void> _translateCommentAndShowResult(
-      String postId,
+  Future<void> _translateCommentAndShowResult(String postId,
       String commentId,
-      String languageCode,
-      ) async {
+      String languageCode,) async {
     final FirebaseFirestore firestore = FirebaseFirestore.instance;
     try {
       // Fetch the comment document from the sub-collection
@@ -659,7 +735,8 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
         print('Translation Success: $translatedText');
 
         // Declare the controller as a late variable
-        late final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller;
+        late final ScaffoldFeatureController<SnackBar,
+            SnackBarClosedReason> controller;
 
         // Create the SnackBar content
         final snackBar = SnackBar(
@@ -701,7 +778,8 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
               ),
             ],
           ),
-          duration: const Duration(days: 365), // Keep the SnackBar open indefinitely
+          duration: const Duration(
+              days: 365), // Keep the SnackBar open indefinitely
         );
 
         // Assign the controller after showing the SnackBar
@@ -716,5 +794,132 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
       );
     }
   }
-}
 
+  Future<void> _processMessageForHealthInsights(String messageText,
+      String userId, String userRegion) async {
+    // Define health categories and keywords
+    final Map<String, List<String>> healthCategories = {
+      'symptoms': [
+        'fever', 'pain', 'cough', 'fatigue', 'headache', 'nausea',
+        'dizziness', 'inflammation', 'rash', 'anxiety', 'malaria',
+        'typhoid', 'cholera', 'diarrhea', 'vomiting'
+      ],
+      'conditions': [
+        'diabetes', 'hypertension', 'asthma', 'arthritis', 'depression',
+        'obesity', 'cancer', 'allergy', 'infection', 'insomnia',
+        'sickle cell', 'tuberculosis', 'HIV', 'hepatitis', 'stroke'
+      ],
+      'treatments': [
+        'medication',
+        'therapy',
+        'surgery',
+        'exercise',
+        'diet',
+        'vaccination',
+        'rehabilitation',
+        'counseling',
+        'prescription',
+        'supplement',
+        'traditional medicine',
+        'herbs',
+        'physiotherapy',
+        'immunization',
+        'antibiotics'
+      ],
+      'lifestyle': [
+        'nutrition',
+        'fitness',
+        'sleep',
+        'stress',
+        'wellness',
+        'meditation',
+        'diet',
+        'exercise',
+        'hydration',
+        'mindfulness',
+        'traditional food',
+        'local diet',
+        'community',
+        'family health',
+        'work-life'
+      ],
+      'preventive': [
+        'screening',
+        'checkup',
+        'vaccination',
+        'prevention',
+        'hygiene',
+        'immunization',
+        'monitoring',
+        'assessment',
+        'testing',
+        'evaluation',
+        'sanitation',
+        'clean water',
+        'mosquito nets',
+        'hand washing',
+        'nutrition'
+      ],
+    };
+
+    // Convert message text to lowercase for case-insensitive matching
+    String lowerCaseMessage = messageText.toLowerCase();
+
+    // Identify matched categories and keywords
+    Map<String, Map<String, int>> matchedCategories = {};
+    healthCategories.forEach((category, keywords) {
+      for (String keyword in keywords) {
+        if (lowerCaseMessage.contains(keyword)) {
+          matchedCategories.putIfAbsent(category, () => {});
+          matchedCategories[category]![keyword] =
+              (matchedCategories[category]![keyword] ?? 0) + 1;
+        }
+      }
+    });
+
+    // Get reference to the HealthInsights collection
+    final healthInsightsCollection = FirebaseFirestore.instance.collection(
+        'HealthInsights');
+
+    // Update or create documents for each matched category and keyword
+    for (String category in matchedCategories.keys) {
+      for (String keyword in matchedCategories[category]!.keys) {
+        try {
+          // Query for existing document with matching category, messageType, region, and keyword
+          final querySnapshot = await healthInsightsCollection
+              .where('category', isEqualTo: category)
+              .where('messageType', isEqualTo: 'experts')
+              .where('region', isEqualTo: userRegion)
+              .where('keyword', isEqualTo: keyword)
+              .get();
+
+          if (querySnapshot.docs.isNotEmpty) {
+            // Document exists, update the count
+            final docId = querySnapshot.docs.first.id;
+            await healthInsightsCollection.doc(docId).update({
+              'count': FieldValue.increment(
+                  matchedCategories[category]![keyword]!),
+              'lastUpdated': FieldValue.serverTimestamp(),
+            });
+          } else {
+            // Document doesn't exist, create new one
+            await healthInsightsCollection.add({
+              'category': category,
+              'keyword': keyword,
+              'count': matchedCategories[category]![keyword],
+              'region': userRegion,
+              'messageType': 'experts',
+              'timestamp': FieldValue.serverTimestamp(),
+              'lastUpdated': FieldValue.serverTimestamp(),
+            });
+          }
+        } catch (e) {
+          print(
+              'Error processing health insights for category $category and keyword $keyword: $e');
+        }
+      }
+    }
+
+    print("Processed message for health insights: $matchedCategories");
+  }
+}

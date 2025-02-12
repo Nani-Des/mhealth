@@ -497,6 +497,7 @@ void _showAddPostDialog(BuildContext context, FirebaseFirestore firestore) {
 
                 final userData = userSnapshot.data() as Map<String, dynamic>;
                 final String fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
+                final String userRegion = userData['Region'] ?? 'Unknown Region';
 
                 await firestore.collection('ExpertPosts').add({
                   'content': postController.text.trim(),
@@ -504,6 +505,13 @@ void _showAddPostDialog(BuildContext context, FirebaseFirestore firestore) {
                   'userId': currentUserId, // Store userId for reference
                   'timestamp': FieldValue.serverTimestamp(),
                 });
+
+                // Process the post content for health insights
+                await _processMessageForHealthInsights(
+                  postController.text.trim(),
+                  currentUserId,
+                  userRegion,
+                );
 
                 postController.clear();
                 Navigator.pop(context);
@@ -515,6 +523,93 @@ void _showAddPostDialog(BuildContext context, FirebaseFirestore firestore) {
       );
     },
   );
+}
+
+Future<void> _processMessageForHealthInsights(String messageText, String userId, String userRegion) async {
+  // Define health categories and keywords
+  final Map<String, List<String>> healthCategories = {
+    'symptoms': [
+      'fever', 'pain', 'cough', 'fatigue', 'headache', 'nausea',
+      'dizziness', 'inflammation', 'rash', 'anxiety', 'malaria',
+      'typhoid', 'cholera', 'diarrhea', 'vomiting'
+    ],
+    'conditions': [
+      'diabetes', 'hypertension', 'asthma', 'arthritis', 'depression',
+      'obesity', 'cancer', 'allergy', 'infection', 'insomnia',
+      'sickle cell', 'tuberculosis', 'HIV', 'hepatitis', 'stroke'
+    ],
+    'treatments': [
+      'medication', 'therapy', 'surgery', 'exercise', 'diet',
+      'vaccination', 'rehabilitation', 'counseling', 'prescription', 'supplement',
+      'traditional medicine', 'herbs', 'physiotherapy', 'immunization', 'antibiotics'
+    ],
+    'lifestyle': [
+      'nutrition', 'fitness', 'sleep', 'stress', 'wellness',
+      'meditation', 'diet', 'exercise', 'hydration', 'mindfulness',
+      'traditional food', 'local diet', 'community', 'family health', 'work-life'
+    ],
+    'preventive': [
+      'screening', 'checkup', 'vaccination', 'prevention', 'hygiene',
+      'immunization', 'monitoring', 'assessment', 'testing', 'evaluation',
+      'sanitation', 'clean water', 'mosquito nets', 'hand washing', 'nutrition'
+    ],
+  };
+
+  // Convert message text to lowercase for case-insensitive matching
+  String lowerCaseMessage = messageText.toLowerCase();
+
+  // Identify matched categories and keywords
+  Map<String, Map<String, int>> matchedCategories = {};
+  healthCategories.forEach((category, keywords) {
+    for (String keyword in keywords) {
+      if (lowerCaseMessage.contains(keyword)) {
+        matchedCategories.putIfAbsent(category, () => {});
+        matchedCategories[category]![keyword] = (matchedCategories[category]![keyword] ?? 0) + 1;
+      }
+    }
+  });
+
+  // Get reference to the HealthInsights collection
+  final healthInsightsCollection = FirebaseFirestore.instance.collection('HealthInsights');
+
+  // Update or create documents for each matched category and keyword
+  for (String category in matchedCategories.keys) {
+    for (String keyword in matchedCategories[category]!.keys) {
+      try {
+        // Query for existing document with matching category, messageType, region, and keyword
+        final querySnapshot = await healthInsightsCollection
+            .where('category', isEqualTo: category)
+            .where('messageType', isEqualTo: 'experts')
+            .where('region', isEqualTo: userRegion)
+            .where('keyword', isEqualTo: keyword)
+            .get();
+
+        if (querySnapshot.docs.isNotEmpty) {
+          // Document exists, update the count
+          final docId = querySnapshot.docs.first.id;
+          await healthInsightsCollection.doc(docId).update({
+            'count': FieldValue.increment(matchedCategories[category]![keyword]!),
+            'lastUpdated': FieldValue.serverTimestamp(),
+          });
+        } else {
+          // Document doesn't exist, create new one
+          await healthInsightsCollection.add({
+            'category': category,
+            'keyword': keyword,
+            'count': matchedCategories[category]![keyword],
+            'region': userRegion,
+            'messageType': 'experts',
+            'timestamp': FieldValue.serverTimestamp(),
+            'lastUpdated': FieldValue.serverTimestamp(),
+          });
+        }
+      } catch (e) {
+        print('Error processing health insights for category $category and keyword $keyword: $e');
+      }
+    }
+  }
+
+  print("Processed message for health insights: $matchedCategories");
 }
 
 

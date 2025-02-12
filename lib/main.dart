@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
+import 'package:googleapis/streetviewpublish/v1.dart';
 import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -16,7 +19,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:logging/logging.dart' as logging;
+import 'package:logger/logger.dart' as logger;
 import 'experts_community_page.dart';
+import 'HealthInsightsPage.dart';
 
 
 class TranslationService {
@@ -188,7 +194,7 @@ class ChatHomePage extends StatefulWidget {
 class _ChatHomePageState extends State<ChatHomePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  FloatingActionButtonLocation _fabLocation = FloatingActionButtonLocation.endFloat;
+  //FloatingActionButtonLocation _fabLocation = FloatingActionButtonLocation.endFloat;
 
   @override
   void initState() {
@@ -270,21 +276,69 @@ class _ChatHomePageState extends State<ChatHomePage>
         ),
       ),
       floatingActionButton: _tabController.index == 0
-          ? FloatingActionButton(
-        onPressed: () async {
-          String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
-          if (currentUserId != null) {
-            _showUserList(context, currentUserId);
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("User not logged in")),
-            );
-          }
+          ? SpeedDial(
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+        activeBackgroundColor: Colors.blue,
+        activeForegroundColor: Colors.white,
+        buttonSize: const Size(56.0, 56.0),
+        visible: true,
+        closeManually: false,
+        curve: Curves.bounceIn,
+        overlayColor: Colors.black,
+        overlayOpacity: 0.5,
+        elevation: 8.0,
+        shape: const CircleBorder(),
+        children: [
+          SpeedDialChild(
+            child: const Icon(Icons.person_add),
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            label: 'Add User',
+            labelStyle: const TextStyle(fontSize: 16.0),
+            onTap: () async {
+              String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+              if (currentUserId != null) {
+                _showUserList(context, currentUserId);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text("User not logged in")),
+                );
+              }
+            },
+          ),
+          SpeedDialChild(
+            child: const Icon(Icons.analytics),
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            label: 'Health Insights',
+            labelStyle: const TextStyle(fontSize: 16.0),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const HealthInsightsPage(),
+                ),
+              );
+            },
+          ),
+        ],
+      )
+          : FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const HealthInsightsPage(),
+            ),
+          );
         },
         backgroundColor: Colors.blue,
-        child: const Icon(Icons.person_add, color: Colors.white),
-      )
-          : null,
+        child: const Icon(Icons.analytics, color: Colors.white),
+      ),
+          //: null,
       floatingActionButtonLocation: CustomFABLocation(), // Hide FAB when on Forum tab
     );
   }
@@ -508,12 +562,7 @@ class ChatPage extends StatelessWidget {
     }
   }
 
-  // Helper function to format duration
-  String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -575,7 +624,7 @@ class ChatPage extends StatelessWidget {
             final chat = chats[index].data() as Map<String, dynamic>;
             final lastMessage = chat['last_msg'] ?? '';
             final lastMessageType = chat['type'] ?? '';
-            final audioDuration = chat['audio_duration'] ?? 0;
+            //final audioDuration = chat['audio_duration'] ?? 0;
 
             // Determine the other participant's ID
             final isCurrentUserSender = chat['from_uid'] == currentUserId;
@@ -613,7 +662,7 @@ class ChatPage extends StatelessWidget {
                       Expanded(
                         child: Text(
                           lastMessageType == 'audio'
-                              ? '🎤 Voice message (${_formatDuration(Duration(seconds: audioDuration))})'
+                              ? '🎤 Voice message'
                               : truncateMessage(lastMessage),
                           overflow: TextOverflow.ellipsis,
                           maxLines: 1, // Ensures message stays in one line
@@ -667,7 +716,6 @@ class ForumPage extends StatefulWidget {
 
 class _ForumPageState extends State<ForumPage> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   bool? isExpert; // Store user's role
 
@@ -694,16 +742,12 @@ class _ForumPageState extends State<ForumPage> {
     return Scaffold(
       key: _scaffoldKey,
       appBar: AppBar(
-        // Remove the title
         title: const SizedBox.shrink(), // No title
         actions: [
-          // Use Expanded to make the Row take up the full width of the AppBar
           Expanded(
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              // Space between buttons
               children: [
-                // Add Post Button (left)
                 Padding(
                   padding: const EdgeInsets.only(left: 8.0),
                   child: ElevatedButton.icon(
@@ -716,7 +760,6 @@ class _ForumPageState extends State<ForumPage> {
                     ),
                   ),
                 ),
-                // Experts Community Button (right)
                 Padding(
                   padding: const EdgeInsets.only(right: 8.0),
                   child: ElevatedButton(
@@ -836,10 +879,7 @@ class _ForumPageState extends State<ForumPage> {
               leading: const Icon(Icons.delete),
               title: const Text('Delete Post'),
               onTap: () async {
-                // Close the current menu/modal
                 Navigator.pop(context);
-
-                // Show confirmation dialog
                 final bool shouldDelete = await showDialog(
                   context: context,
                   builder: (BuildContext context) {
@@ -861,9 +901,7 @@ class _ForumPageState extends State<ForumPage> {
                       ],
                     );
                   },
-                ) ?? false; // Default to false if dialog is dismissed
-
-                // Delete if user confirmed
+                ) ?? false;
                 if (shouldDelete) {
                   await firestore.collection('ForumPosts').doc(postId).delete();
                 }
@@ -891,9 +929,9 @@ class _ForumPageState extends State<ForumPage> {
               leading: const Icon(Icons.translate),
               title: const Text('Translate Post'),
               onTap: () {
-                Navigator.pop(context); // Close menu
+                Navigator.pop(context);
                 _showPostTranslationLanguageSelector(
-                    context, postId); // Pass only context and postId
+                    context, postId);
               },
             ),
           ],
@@ -925,9 +963,9 @@ class _ForumPageState extends State<ForumPage> {
                 return ListTile(
                   title: Text(entry.value),
                   onTap: () {
-                    Navigator.pop(context); // Close the language selection
+                    Navigator.pop(context);
                     _translatePostAndShowResult(
-                        postId, entry.key); // Pass only postId and languageCode
+                        postId, entry.key);
                   },
                 );
               }).toList(),
@@ -954,11 +992,9 @@ class _ForumPageState extends State<ForumPage> {
         );
         print('Translation Success: $translatedText');
 
-        // Declare the controller as a late variable
         late final ScaffoldFeatureController<SnackBar,
             SnackBarClosedReason> controller;
 
-        // Create the SnackBar content
         final snackBar = SnackBar(
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -967,26 +1003,25 @@ class _ForumPageState extends State<ForumPage> {
               Text('Translated: $translatedText',
                 style: TextStyle(fontSize: 18),),
               const SizedBox(height: 20),
-              // Add spacing between text and buttons
               Row(
                 children: [
                   TextButton(
                     onPressed: () {
-                      controller.close(); // Dismiss the SnackBar
+                      controller.close();
                     },
                     child: const Text(
                       'Okay',
                       style: TextStyle(color: Colors.white, fontSize: 16),
                     ),
                   ),
-                  const SizedBox(width: 25), // Add spacing between buttons
+                  const SizedBox(width: 25),
                   TextButton(
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: translatedText));
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Translation copied!')),
                       );
-                      controller.close(); // Dismiss the SnackBar
+                      controller.close();
                     },
                     child: const Text(
                       'Copy',
@@ -998,10 +1033,9 @@ class _ForumPageState extends State<ForumPage> {
             ],
           ),
           duration: const Duration(
-              days: 365), // Keep the SnackBar open indefinitely
+              days: 365),
         );
 
-        // Assign the controller after showing the SnackBar
         controller = ScaffoldMessenger.of(context).showSnackBar(snackBar);
       } else {
         throw Exception('Post not found');
@@ -1013,9 +1047,163 @@ class _ForumPageState extends State<ForumPage> {
       );
     }
   }
+
+  void _showAddPostDialog(BuildContext context) {
+    final TextEditingController postController = TextEditingController();
+    final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("User not logged in")),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Create a New Post'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: postController,
+                decoration: const InputDecoration(
+                  hintText: 'Enter your post content...',
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+              },
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                if (postController.text.trim().isNotEmpty) {
+                  DocumentSnapshot userSnapshot = await _firestore.collection('Users').doc(currentUserId).get();
+                  if (!userSnapshot.exists) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("User data not found")),
+                    );
+                    return;
+                  }
+
+                  final userData = userSnapshot.data() as Map<String, dynamic>;
+                  final String fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
+                  final String userRegion = userData['Region'] ?? 'Unknown Region';
+
+                  await _firestore.collection('ForumPosts').add({
+                    'content': postController.text.trim(),
+                    'username': fullName,
+                    'userId': currentUserId,
+                    'timestamp': FieldValue.serverTimestamp(),
+                  });
+
+                  await _processMessageForHealthInsights(
+                    postController.text.trim(),
+                    currentUserId,
+                    userRegion,
+                  );
+
+                  postController.clear();
+                  Navigator.pop(context);
+                }
+              },
+              child: const Text('Post'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _processMessageForHealthInsights(String messageText, String userId, String userRegion) async {
+    final Map<String, List<String>> healthCategories = {
+      'symptoms': [
+        'fever', 'pain', 'cough', 'fatigue', 'headache', 'nausea',
+        'dizziness', 'inflammation', 'rash', 'anxiety', 'malaria',
+        'typhoid', 'cholera', 'diarrhea', 'vomiting'
+      ],
+      'conditions': [
+        'diabetes', 'hypertension', 'asthma', 'arthritis', 'depression',
+        'obesity', 'cancer', 'allergy', 'infection', 'insomnia',
+        'sickle cell', 'tuberculosis', 'HIV', 'hepatitis', 'stroke'
+      ],
+      'treatments': [
+        'medication', 'therapy', 'surgery', 'exercise', 'diet',
+        'vaccination', 'rehabilitation', 'counseling', 'prescription', 'supplement',
+        'traditional medicine', 'herbs', 'physiotherapy', 'immunization', 'antibiotics'
+      ],
+      'lifestyle': [
+        'nutrition', 'fitness', 'sleep', 'stress', 'wellness',
+        'meditation', 'diet', 'exercise', 'hydration', 'mindfulness',
+        'traditional food', 'local diet', 'community', 'family health', 'work-life'
+      ],
+      'preventive': [
+        'screening', 'checkup', 'vaccination', 'prevention', 'hygiene',
+        'immunization', 'monitoring', 'assessment', 'testing', 'evaluation',
+        'sanitation', 'clean water', 'mosquito nets', 'hand washing', 'nutrition'
+      ],
+    };
+
+    String lowerCaseMessage = messageText.toLowerCase();
+
+    Map<String, Map<String, int>> matchedCategories = {};
+    healthCategories.forEach((category, keywords) {
+      for (String keyword in keywords) {
+        if (lowerCaseMessage.contains(keyword)) {
+          matchedCategories.putIfAbsent(category, () => {});
+          matchedCategories[category]![keyword] = (matchedCategories[category]![keyword] ?? 0) + 1;
+        }
+      }
+    });
+
+    final healthInsightsCollection = FirebaseFirestore.instance.collection('HealthInsights');
+
+    for (String category in matchedCategories.keys) {
+      for (String keyword in matchedCategories[category]!.keys) {
+        try {
+          final querySnapshot = await healthInsightsCollection
+              .where('category', isEqualTo: category)
+              .where('messageType', isEqualTo: 'forum')
+              .where('region', isEqualTo: userRegion)
+              .where('keyword', isEqualTo: keyword)
+              .get();
+
+          if (querySnapshot.docs.isNotEmpty) {
+            final docId = querySnapshot.docs.first.id;
+            await healthInsightsCollection.doc(docId).update({
+              'count': FieldValue.increment(matchedCategories[category]![keyword]!),
+              'lastUpdated': FieldValue.serverTimestamp(),
+            });
+          } else {
+            await healthInsightsCollection.add({
+              'category': category,
+              'keyword': keyword,
+              'count': matchedCategories[category]![keyword],
+              'region': userRegion,
+              'messageType': 'forum',
+              'timestamp': FieldValue.serverTimestamp(),
+              'lastUpdated': FieldValue.serverTimestamp(),
+            });
+          }
+        } catch (e) {
+          print('Error processing health insights for category $category and keyword $keyword: $e');
+        }
+      }
+    }
+
+    print("Processed message for health insights: $matchedCategories");
+  }
 }
 
-void _showAddPostDialog(BuildContext context) {
+/*void _showAddPostDialog(BuildContext context) {
   final FirebaseFirestore firestore = FirebaseFirestore.instance;
   final TextEditingController postController = TextEditingController();
   final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
@@ -1083,7 +1271,7 @@ void _showAddPostDialog(BuildContext context) {
       );
     },
   );
-}
+}*/
 
 
 
@@ -1097,609 +1285,764 @@ class PostDetailsPage extends StatefulWidget {
   _PostDetailsPageState createState() => _PostDetailsPageState();
 }
 
-  class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProviderStateMixin {
-    final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
-    final ScrollController _scrollController = ScrollController();
-    final TextEditingController commentController = TextEditingController();
-    final FocusNode _focusNode = FocusNode(); // FocusNode to manage focus
-    String? _replyingToUserId; // To track the user being replied to
-    String? _repliedContent; // To store the original message content being replied to
-    String? _replyingToCommentId; // To track the comment being replied to
-    String? _replyingToUserName; // To store the name of the user being replied to
+class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProviderStateMixin {
+  final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
+  final ScrollController _scrollController = ScrollController();
+  final TextEditingController commentController = TextEditingController();
+  final FocusNode _focusNode = FocusNode(); // FocusNode to manage focus
+  String? _replyingToUserId; // To track the user being replied to
+  String? _repliedContent; // To store the original message content being replied to
+  String? _replyingToCommentId; // To track the comment being replied to
+  String? _replyingToUserName; // To store the name of the user being replied to
 
-    // Animation controller for the reply button
-    late AnimationController _animationController;
-    late Animation<double> _scaleAnimation;
+  // Animation controller for the reply button
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
 
-    @override
-    void initState() {
-      super.initState();
+  @override
+  void initState() {
+    super.initState();
 
-      // Initialize animation controller and animation
-      _animationController = AnimationController(
-        vsync: this,
-        duration: const Duration(milliseconds: 100),
-      );
-      _scaleAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
-        CurvedAnimation(
-          parent: _animationController,
-          curve: Curves.easeInOut,
-        ),
-      );
-    }
+    // Initialize animation controller and animation
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
+      CurvedAnimation(
+        parent: _animationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+  }
 
-    @override
-    void dispose() {
-      _animationController.dispose(); // Dispose the animation controller
-      super.dispose();
-    }
+  @override
+  void dispose() {
+    _animationController.dispose(); // Dispose the animation controller
+    super.dispose();
+  }
 
-    void _replyToMessage(BuildContext context, String shortUserName, String content, String replyUserId, String commentId) {
-      // Focus the reply TextField to activate the keyboard
-      _focusNode.requestFocus();
+  void _replyToMessage(BuildContext context, String shortUserName, String content, String replyUserId, String commentId) {
+    // Focus the reply TextField to activate the keyboard
+    _focusNode.requestFocus();
 
-      setState(() {
-        // Set the user and comment details for reply tracking
-        _replyingToUserId = replyUserId;
-        _repliedContent = content;
-        _replyingToCommentId = commentId;
-        _replyingToUserName = shortUserName; // Store the name of the user being replied to
-      });
-    }
+    setState(() {
+      // Set the user and comment details for reply tracking
+      _replyingToUserId = replyUserId;
+      _repliedContent = content;
+      _replyingToCommentId = commentId;
+      _replyingToUserName = shortUserName; // Store the name of the user being replied to
+    });
+  }
 
-    void _cancelReply() {
-      // Clear the reply state and hide the reply bar
-      setState(() {
-        _replyingToUserId = null;
-        _repliedContent = null;
-        _replyingToCommentId = null;
-        _replyingToUserName = null;
-      });
-      commentController.clear(); // Clear the text input
-      _focusNode.unfocus(); // Remove focus from the text input
-    }
+  void _cancelReply() {
+    // Clear the reply state and hide the reply bar
+    setState(() {
+      _replyingToUserId = null;
+      _repliedContent = null;
+      _replyingToCommentId = null;
+      _replyingToUserName = null;
+    });
+    commentController.clear(); // Clear the text input
+    _focusNode.unfocus(); // Remove focus from the text input
+  }
 
-    void _animateReplyButton() {
-      // Play the animation when the reply button is tapped
-      _animationController.forward().then((_) {
-        _animationController.reverse();
-      });
-    }
+  void _animateReplyButton() {
+    // Play the animation when the reply button is tapped
+    _animationController.forward().then((_) {
+      _animationController.reverse();
+    });
+  }
 
-    @override
-    Widget build(BuildContext context) {
-      final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  @override
+  Widget build(BuildContext context) {
+    final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
 
-      return Scaffold(
-        key: scaffoldMessengerKey,
-        appBar: AppBar(
-          title: Text('Discussion', style: TextStyle(color: Colors.white)),
-          backgroundColor: Colors.lightBlue,
-          elevation: 4,
-          iconTheme: IconThemeData(color: Colors.white),
-        ),
-        body: Column(
-          children: [
-            // Post topic at the top (full-width background)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                color: Colors.lightBlue[50],
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.grey.withOpacity(0.3),
-                    blurRadius: 4,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Text(
-                widget.postTitle,
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.lightBlue[900]),
-              ),
+    return Scaffold(
+      key: scaffoldMessengerKey,
+      appBar: AppBar(
+        title: Text('Discussion', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.lightBlue,
+        elevation: 4,
+        iconTheme: IconThemeData(color: Colors.white),
+      ),
+      body: Column(
+        children: [
+          // Post topic at the top (full-width background)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16.0),
+            decoration: BoxDecoration(
+              color: Colors.lightBlue[50],
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.3),
+                  blurRadius: 4,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('ForumPosts')
-                    .doc(widget.postId)
-                    .collection('comments')
-                    .orderBy('timestamp')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  }
-                  if (!snapshot.hasData) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
+            child: Text(
+              widget.postTitle,
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.lightBlue[900]),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection('ForumPosts')
+                  .doc(widget.postId)
+                  .collection('comments')
+                  .orderBy('timestamp')
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-                  final comments = snapshot.data!.docs;
+                final comments = snapshot.data!.docs;
 
-                  return ListView.builder(
-                    controller: _scrollController,
-                    itemCount: comments.length,
-                    itemBuilder: (context, index) {
-                      final comment = comments[index].data() as Map<String, dynamic>;
-                      final userId = comment['userId'];
-                      final commentId = comments[index].id;
-                      final repliedTo = comment['repliedTo'] ?? '';
-                      final repliedContent = comment['repliedContent'] ?? '';
-                      final timestamp = comment['timestamp'] != null
-                          ? (comment['timestamp'] as Timestamp).toDate()
-                          : DateTime.now();
+                return ListView.builder(
+                  controller: _scrollController,
+                  itemCount: comments.length,
+                  itemBuilder: (context, index) {
+                    final comment = comments[index].data() as Map<String, dynamic>;
+                    final userId = comment['userId'];
+                    final commentId = comments[index].id;
+                    final repliedTo = comment['repliedTo'] ?? '';
+                    final repliedContent = comment['repliedContent'] ?? '';
+                    final timestamp = comment['timestamp'] != null
+                        ? (comment['timestamp'] as Timestamp).toDate()
+                        : DateTime.now();
 
-                      return FutureBuilder<DocumentSnapshot>(
-                        future: FirebaseFirestore.instance.collection('Users').doc(userId).get(),
-                        builder: (context, userSnapshot) {
-                          if (userSnapshot.connectionState == ConnectionState.waiting) {
-                            return const ListTile(title: Text('Loading...'));
-                          }
-                          if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
-                            return ListTile(
-                              title: Text(comment['content'] ?? 'No Content'),
-                              subtitle: const Text('\n Posted by: Unknown User'),
-                            );
-                          }
+                    return FutureBuilder<DocumentSnapshot>(
+                      future: FirebaseFirestore.instance.collection('Users').doc(userId).get(),
+                      builder: (context, userSnapshot) {
+                        if (userSnapshot.connectionState == ConnectionState.waiting) {
+                          return const ListTile(title: Text('Loading...'));
+                        }
+                        if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
+                          return ListTile(
+                            title: Text(comment['content'] ?? 'No Content'),
+                            subtitle: const Text('\n Posted by: Unknown User'),
+                          );
+                        }
 
-                          final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
-                          final fname = userData?['Fname'] ?? 'Unknown';
-                          final lname = userData?['Lname'] ?? 'User';
-                          final fullName = '$fname $lname';
+                        final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+                        final fname = userData?['Fname'] ?? 'Unknown';
+                        final lname = userData?['Lname'] ?? 'User';
+                        final fullName = '$fname $lname';
 
-                          return Column(
-                            children: [
-                              Card(
-                                margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                                elevation: 2,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (repliedTo.isNotEmpty)
-                                        FutureBuilder<DocumentSnapshot>(
-                                          future: FirebaseFirestore.instance.collection('Users').doc(repliedTo).get(),
-                                          builder: (context, repliedUserSnapshot) {
-                                            if (repliedUserSnapshot.connectionState == ConnectionState.waiting) {
-                                              return const ListTile(title: Text('Loading...'));
-                                            }
-                                            if (repliedUserSnapshot.hasError || !repliedUserSnapshot.hasData || !repliedUserSnapshot.data!.exists) {
-                                              return const SizedBox.shrink();
-                                            }
+                        return Column(
+                          children: [
+                            Card(
+                              margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (repliedTo.isNotEmpty)
+                                      FutureBuilder<DocumentSnapshot>(
+                                        future: FirebaseFirestore.instance.collection('Users').doc(repliedTo).get(),
+                                        builder: (context, repliedUserSnapshot) {
+                                          if (repliedUserSnapshot.connectionState == ConnectionState.waiting) {
+                                            return const ListTile(title: Text('Loading...'));
+                                          }
+                                          if (repliedUserSnapshot.hasError || !repliedUserSnapshot.hasData || !repliedUserSnapshot.data!.exists) {
+                                            return const SizedBox.shrink();
+                                          }
 
-                                            final repliedUserData = repliedUserSnapshot.data!.data() as Map<String, dynamic>?;
-                                            final repliedFname = repliedUserData?['Fname'] ?? 'Unknown';
-                                            final repliedLname = repliedUserData?['Lname'] ?? 'User';
-                                            final repliedToName = '$repliedFname $repliedLname';
+                                          final repliedUserData = repliedUserSnapshot.data!.data() as Map<String, dynamic>?;
+                                          final repliedFname = repliedUserData?['Fname'] ?? 'Unknown';
+                                          final repliedLname = repliedUserData?['Lname'] ?? 'User';
+                                          final repliedToName = '$repliedFname $repliedLname';
 
-                                            return Container(
-                                              padding: const EdgeInsets.all(8.0),
-                                              margin: const EdgeInsets.only(bottom: 8.0),
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey[200],
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: InkWell(
-                                                onTap: () {
-                                                  _scrollToMessage(comment['repliedToCommentId'], comments);
-                                                },
-                                                child: Text(
-                                                  'Replying to $repliedToName: ${repliedContent.length > 10 ? repliedContent.substring(0, 15) + '...' : repliedContent}',
-                                                  style: TextStyle(
-                                                    color: Colors.blue[800],
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
+                                          return Container(
+                                            padding: const EdgeInsets.all(8.0),
+                                            margin: const EdgeInsets.only(bottom: 8.0),
+                                            decoration: BoxDecoration(
+                                              color: Colors.grey[200],
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                            child: InkWell(
+                                              onTap: () {
+                                                _scrollToMessage(comment['repliedToCommentId'], comments);
+                                              },
+                                              child: Text(
+                                                'Replying to $repliedToName: ${_truncateText(repliedContent, 15)}',
+                                                style: TextStyle(
+                                                  color: Colors.blue[800],
+                                                  fontWeight: FontWeight.bold,
                                                 ),
                                               ),
-                                            );
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    Row(
+                                      children: [
+                                        Expanded(
+                                          child: ListTile(
+                                            contentPadding: EdgeInsets.zero,
+                                            title: Text(
+                                              comment['content'] ?? 'No Content',
+                                              style: TextStyle(fontSize: 16),
+                                            ),
+                                            subtitle: Padding(
+                                              padding: const EdgeInsets.only(top: 8.0),
+                                              child: Text(
+                                                'Posted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}',
+                                                style: TextStyle(color: Colors.grey[600]),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        // Reply Icon
+                                        IconButton(
+                                          icon: ScaleTransition(
+                                            scale: _scaleAnimation,
+                                            child: Icon(Icons.reply, color: Colors.lightBlue),
+                                          ),
+                                          onPressed: () {
+                                            _animateReplyButton();
+                                            _focusNode.requestFocus();
+                                            _replyToMessage(context, '$fname $lname', comment['content'], comment['userId'], commentId);
                                           },
                                         ),
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: ListTile(
-                                              contentPadding: EdgeInsets.zero,
-                                              title: Text(
-                                                comment['content'] ?? 'No Content',
-                                                style: TextStyle(fontSize: 16),
-                                              ),
-                                              subtitle: Padding(
-                                                padding: const EdgeInsets.only(top: 8.0),
-                                                child: Text(
-                                                  'Posted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}',
-                                                  style: TextStyle(color: Colors.grey[600]),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                          // Reply Icon
-                                          IconButton(
-                                            icon: ScaleTransition(
-                                              scale: _scaleAnimation,
-                                              child: Icon(Icons.reply, color: Colors.lightBlue),
-                                            ),
-                                            onPressed: () {
-                                              _animateReplyButton();
-                                              _focusNode.requestFocus();
-                                              _replyToMessage(context, '$fname $lname', comment['content'], comment['userId'], commentId);
-                                            },
-                                          ),
-                                          // Vertical Dot Icon for Comment Menu
-                                          IconButton(
-                                            icon: Icon(Icons.more_vert, color: Colors.grey[600]),
-                                            onPressed: () {
-                                              try {
-                                                final commentDoc = comments[index] as QueryDocumentSnapshot<Map<String, dynamic>>;
-                                                _showCommentMenu(context, scaffoldMessengerKey, commentDoc);
-                                              } catch (e) {
-                                                ScaffoldMessenger.of(context).showSnackBar(
-                                                  SnackBar(content: Text('Error loading comment: ${e.toString()}')),
-                                                );
-                                              }
-                                            },
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
+                                        // Vertical Dot Icon for Comment Menu
+                                        IconButton(
+                                          icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+                                          onPressed: () {
+                                            try {
+                                              final commentDoc = comments[index] as QueryDocumentSnapshot<Map<String, dynamic>>;
+                                              _showCommentMenu(context, scaffoldMessengerKey, commentDoc);
+                                            } catch (e) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('Error loading comment: ${e.toString()}')),
+                                              );
+                                            }
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                  ],
                                 ),
                               ),
-                              // Divider between comments
-                              if (index < comments.length - 1)
-                                Divider(
-                                  height: 1,
-                                  thickness: 1,
-                                  color: Colors.grey[300],
-                                  indent: 16,
-                                  endIndent: 16,
-                                ),
-                            ],
-                          );
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
+                            ),
+                            // Divider between comments
+                            if (index < comments.length - 1)
+                              Divider(
+                                height: 1,
+                                thickness: 1,
+                                color: Colors.grey[300],
+                                indent: 16,
+                                endIndent: 16,
+                              ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                );
+              },
             ),
-            if (_replyingToUserName != null)
-              Container(
-                color: Colors.grey[200],
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    Text(
-                      'Replying to $_replyingToUserName: ${_repliedContent!.length > 10 ? _repliedContent!.substring(0, 15) + '...' : _repliedContent}',
-                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[800]),
-                    ),
-                    Spacer(),
-                    IconButton(
-                      icon: Icon(Icons.close, color: Colors.grey[600]),
-                      onPressed: _cancelReply,
-                    ),
-                  ],
-                ),
-              ),
+          ),
+          if (_replyingToUserName != null)
             Container(
               color: Colors.grey[200],
               padding: const EdgeInsets.all(8.0),
               child: Row(
                 children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.grey.withOpacity(0.2),
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      constraints: const BoxConstraints(maxHeight: 120),
-                      child: TextField(
-                        controller: commentController,
-                        focusNode: _focusNode,
-                        decoration: InputDecoration(
-                          hintText: 'Type comment here...',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          suffixIcon: IconButton(
-                            icon: Icon(Icons.send, color: Colors.lightBlue),
-                            onPressed: () async {
-                              if (commentController.text.trim().isNotEmpty) {
-                                if (currentUserId == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("User not logged in")),
-                                  );
-                                  return;
-                                }
-
-                                DocumentSnapshot userSnapshot = await FirebaseFirestore.instance.collection('Users').doc(currentUserId).get();
-                                if (!userSnapshot.exists) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("User data not found")),
-                                  );
-                                  return;
-                                }
-
-                                final userData = userSnapshot.data() as Map<String, dynamic>;
-                                final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
-
-                                await FirebaseFirestore.instance
-                                    .collection('ForumPosts')
-                                    .doc(widget.postId)
-                                    .collection('comments')
-                                    .add({
-                                  'content': commentController.text,
-                                  'userId': currentUserId,
-                                  'username': fullName,
-                                  'timestamp': FieldValue.serverTimestamp(),
-                                  'repliedTo': _replyingToUserId,
-                                  'repliedContent': _repliedContent,
-                                  'repliedToCommentId': _replyingToCommentId,
-                                });
-
-                                commentController.clear();
-                                setState(() {
-                                  _replyingToUserId = null;
-                                  _repliedContent = null;
-                                  _replyingToCommentId = null;
-                                  _replyingToUserName = null;
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                        maxLines: null,
-                        keyboardType: TextInputType.multiline,
-                      ),
-                    ),
+                  Text(
+                    'Replying to $_replyingToUserName: ${_repliedContent != null && _repliedContent!.isNotEmpty ? _repliedContent!.substring(0, min(_repliedContent!.length, 15)) + '...' : _repliedContent ?? ''}',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[800]),
+                  ),
+                  Spacer(),
+                  IconButton(
+                    icon: Icon(Icons.close, color: Colors.grey[600]),
+                    onPressed: _cancelReply,
                   ),
                 ],
               ),
             ),
-          ],
-        ),
-      );
-    }
-
-    // Scroll to the message when user clicks on the user ID
-    void _scrollToMessage(String commentId, List<QueryDocumentSnapshot> comments) {
-      final index = _getCommentIndexById(commentId, comments);
-      if (index != -1) {
-        _scrollController.animateTo(
-          index * 100.0, // Adjust based on your item height
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-    }
-
-    int _getCommentIndexById(String commentId, List<QueryDocumentSnapshot> comments) {
-      // Find the index of the comment by ID (this will be used to scroll to that specific comment)
-      return comments.indexWhere((comment) => comment.id == commentId);
-    }
-
-    void _showCommentMenu(
-        BuildContext context,
-        GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
-        QueryDocumentSnapshot<Map<String, dynamic>> comment,
-        ) {
-      showModalBottomSheet(
-        context: context,
-        builder: (context) {
-          return Wrap(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.delete),
-                title: const Text('Delete Comment'),
-                onTap: () async {
-                  // Close the current menu
-                  Navigator.pop(context);
-
-                  // Show confirmation dialog
-                  final bool shouldDelete = await showDialog(
-                    context: context,
-                    builder: (BuildContext context) {
-                      return AlertDialog(
-                        title: const Text('Delete Comment'),
-                        content: const Text('Are you sure you want to delete this comment?'),
-                        actions: [
-                          TextButton(
-                            child: const Text('No'),
-                            onPressed: () => Navigator.pop(context, false),
-                          ),
-                          TextButton(
-                            child: const Text('Yes'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.red,
-                            ),
-                            onPressed: () => Navigator.pop(context, true),
-                          ),
-                        ],
-                      );
-                    },
-                  ) ?? false; // Default to false if dialog is dismissed
-
-                  // Delete if user confirmed
-                  if (shouldDelete) {
-                    await comment.reference.delete();
-                    scaffoldMessengerKey.currentState?.showSnackBar(
-                      const SnackBar(content: Text('Comment deleted!')),
-                    );
-                  }
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.copy),
-                title: const Text('Copy Comment'),
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: comment['content']));
-                  Navigator.pop(context); // Close the menu
-                  scaffoldMessengerKey.currentState?.showSnackBar(
-                    const SnackBar(content: Text('Comment copied to clipboard!')),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.translate),
-                title: const Text('Translate Comment'),
-                onTap: () {
-                  Navigator.pop(context); // Close the menu
-                  _showCommentTranslationLanguageSelector(
-                    context, // Pass the context
-                    scaffoldMessengerKey, // Pass the scaffoldMessengerKey
-                    comment, // Pass the comment
-                  );
-                },
-              ),
-            ],
-          );
-        },
-      );
-    }
-
-    void _showCommentTranslationLanguageSelector(
-        BuildContext context,
-        GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
-        QueryDocumentSnapshot<Map<String, dynamic>> comment,
-        ) {
-      final postId = comment.reference.parent.parent?.id; // Get the postId from the comment's parent
-      final commentId = comment.id; // Get the commentId
-
-      if (postId == null) {
-        // Handle the case where postId is null
-        scaffoldMessengerKey.currentState?.showSnackBar(
-          const SnackBar(content: Text('Error: Post not found.')),
-        );
-        return;
-      }
-
-      showModalBottomSheet(
-        context: context,
-        builder: (BuildContext context) {
-          return SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+          Container(
+            color: Colors.grey[200],
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
               children: [
-                Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Select a Language to Translate',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.2),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    constraints: const BoxConstraints(maxHeight: 120),
+                    child: TextField(
+                      controller: commentController,
+                      focusNode: _focusNode,
+                      decoration: InputDecoration(
+                        hintText: 'Type comment here...',
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        suffixIcon: IconButton(
+                          icon: Icon(Icons.send, color: Colors.lightBlue),
+                          onPressed: () async {
+                            if (commentController.text.trim().isNotEmpty) {
+                              if (currentUserId == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("User not logged in")),
+                                );
+                                return;
+                              }
+
+                              DocumentSnapshot userSnapshot = await FirebaseFirestore.instance.collection('Users').doc(currentUserId).get();
+                              if (!userSnapshot.exists) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text("User data not found")),
+                                );
+                                return;
+                              }
+
+                              final userData = userSnapshot.data() as Map<String, dynamic>;
+                              final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
+                              final userRegion = userData['Region'] ?? 'Unknown Region';
+
+                              // Prepare the comment data
+                              Map<String, dynamic> commentData = {
+                                'content': commentController.text,
+                                'userId': currentUserId,
+                                'username': fullName,
+                                'timestamp': FieldValue.serverTimestamp(),
+                              };
+
+                              // Add reply details if replying to a comment
+                              if (_replyingToUserId != null) {
+                                commentData['repliedTo'] = _replyingToUserId;
+                                commentData['repliedContent'] = _repliedContent;
+                                commentData['repliedToCommentId'] = _replyingToCommentId;
+                              }
+
+                              // Add the comment to Firestore
+                              await FirebaseFirestore.instance
+                                  .collection('ForumPosts')
+                                  .doc(widget.postId)
+                                  .collection('comments')
+                                  .add(commentData);
+
+                              // Process the message for health insights (for both regular comments and replies)
+                              await _processMessageForHealthInsights(
+                                commentController.text, // Process the reply content
+                                currentUserId,
+                                userRegion,
+                              );
+
+                              // Clear the comment controller and reply state
+                              commentController.clear();
+                              setState(() {
+                                _replyingToUserId = null;
+                                _repliedContent = null;
+                                _replyingToCommentId = null;
+                                _replyingToUserName = null;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                      maxLines: null,
+                      keyboardType: TextInputType.multiline,
+                    ),
                   ),
                 ),
-                ...TranslationService.ghanaianLanguages.entries.map((entry) {
-                  return ListTile(
-                    title: Text(entry.value),
-                    onTap: () {
-                      Navigator.pop(context);
-                      _translateCommentAndShowResult(
-                        postId, // Pass the postId (non-nullable)
-                        commentId, // Pass the commentId
-                        entry.key, // Pass the languageCode
-                      );
-                    },
-                  );
-                }).toList(),
               ],
             ),
-          );
-        },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Scroll to the message when user clicks on the user ID
+  void _scrollToMessage(String commentId, List<QueryDocumentSnapshot> comments) {
+    final index = _getCommentIndexById(commentId, comments);
+    if (index != -1) {
+      _scrollController.animateTo(
+        index * 100.0, // Adjust based on your item height
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
       );
     }
+  }
 
-    Future<void> _translateCommentAndShowResult(
-        String postId,
-        String commentId,
-        String languageCode,
-        ) async {
-      final FirebaseFirestore firestore = FirebaseFirestore.instance;
-      try {
-        // Fetch the comment document from the sub-collection
-        final commentDoc = await firestore
-            .collection('ForumPosts')
-            .doc(postId)
-            .collection('comments')
-            .doc(commentId)
-            .get();
+  int _getCommentIndexById(String commentId, List<QueryDocumentSnapshot> comments) {
+    // Find the index of the comment by ID (this will be used to scroll to that specific comment)
+    return comments.indexWhere((comment) => comment.id == commentId);
+  }
 
-        if (commentDoc.exists) {
-          final commentContent = commentDoc['content'];
-          print('Translating comment: "$commentContent" to "$languageCode"');
-          final translatedText = await TranslationService.translateText(
-            text: commentContent,
-            targetLanguage: languageCode,
-          );
-          print('Translation Success: $translatedText');
+  void _showCommentMenu(
+      BuildContext context,
+      GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
+      QueryDocumentSnapshot<Map<String, dynamic>> comment,
+      ) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete),
+              title: const Text('Delete Comment'),
+              onTap: () async {
+                // Close the current menu
+                Navigator.pop(context);
 
-          // Declare the controller as a late variable
-          late final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller;
+                // Show confirmation dialog
+                final bool shouldDelete = await showDialog(
+                  context: context,
+                  builder: (BuildContext context) {
+                    return AlertDialog(
+                      title: const Text('Delete Comment'),
+                      content: const Text('Are you sure you want to delete this comment?'),
+                      actions: [
+                        TextButton(
+                          child: const Text('No'),
+                          onPressed: () => Navigator.pop(context, false),
+                        ),
+                        TextButton(
+                          child: const Text('Yes'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.red,
+                          ),
+                          onPressed: () => Navigator.pop(context, true),
+                        ),
+                      ],
+                    );
+                  },
+                ) ?? false; // Default to false if dialog is dismissed
 
-          // Create the SnackBar content
-          final snackBar = SnackBar(
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Translated: $translatedText',
-                  style: TextStyle(fontSize: 18),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  children: [
-                    TextButton(
-                      onPressed: () {
-                        controller.close(); // Dismiss the SnackBar
-                      },
-                      child: const Text(
-                        'Okay',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    ),
-                    const SizedBox(width: 25),
-                    TextButton(
-                      onPressed: () {
-                        Clipboard.setData(ClipboardData(text: translatedText));
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Translation copied!')),
-                        );
-                        controller.close(); // Dismiss the SnackBar
-                      },
-                      child: const Text(
-                        'Copy',
-                        style: TextStyle(color: Colors.white, fontSize: 16),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                // Delete if user confirmed
+                if (shouldDelete) {
+                  await comment.reference.delete();
+                  scaffoldMessengerKey.currentState?.showSnackBar(
+                    const SnackBar(content: Text('Comment deleted!')),
+                  );
+                }
+              },
             ),
-            duration: const Duration(days: 365), // Keep the SnackBar open indefinitely
-          );
-
-          // Assign the controller after showing the SnackBar
-          controller = ScaffoldMessenger.of(context).showSnackBar(snackBar);
-        } else {
-          throw Exception('Comment not found');
-        }
-      } catch (e) {
-        print('Translation failed: $e');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Translation failed: ${e.toString()}')),
+            ListTile(
+              leading: const Icon(Icons.copy),
+              title: const Text('Copy Comment'),
+              onTap: () {
+                Clipboard.setData(ClipboardData(text: comment['content']));
+                Navigator.pop(context); // Close the menu
+                scaffoldMessengerKey.currentState?.showSnackBar(
+                  const SnackBar(content: Text('Comment copied to clipboard!')),
+                );
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.translate),
+              title: const Text('Translate Comment'),
+              onTap: () {
+                Navigator.pop(context); // Close the menu
+                _showCommentTranslationLanguageSelector(
+                  context, // Pass the context
+                  scaffoldMessengerKey, // Pass the scaffoldMessengerKey
+                  comment, // Pass the comment
+                );
+              },
+            ),
+          ],
         );
+      },
+    );
+  }
+
+  void _showCommentTranslationLanguageSelector(
+      BuildContext context,
+      GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
+      QueryDocumentSnapshot<Map<String, dynamic>> comment,
+      ) {
+    final postId = comment.reference.parent.parent?.id; // Get the postId from the comment's parent
+    final commentId = comment.id; // Get the commentId
+
+    if (postId == null) {
+      // Handle the case where postId is null
+      scaffoldMessengerKey.currentState?.showSnackBar(
+        const SnackBar(content: Text('Error: Post not found.')),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext context) {
+        return SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(
+                  'Select a Language to Translate',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+              ),
+              ...TranslationService.ghanaianLanguages.entries.map((entry) {
+                return ListTile(
+                  title: Text(entry.value),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _translateCommentAndShowResult(
+                      postId, // Pass the postId (non-nullable)
+                      commentId, // Pass the commentId
+                      entry.key, // Pass the languageCode
+                    );
+                  },
+                );
+              }).toList(),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _translateCommentAndShowResult(
+      String postId,
+      String commentId,
+      String languageCode,
+      ) async {
+    final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    try {
+      // Fetch the comment document from the sub-collection
+      final commentDoc = await firestore
+          .collection('ForumPosts')
+          .doc(postId)
+          .collection('comments')
+          .doc(commentId)
+          .get();
+
+      if (commentDoc.exists) {
+        final commentContent = commentDoc['content'];
+        print('Translating comment: "$commentContent" to "$languageCode"');
+        final translatedText = await TranslationService.translateText(
+          text: commentContent,
+          targetLanguage: languageCode,
+        );
+        print('Translation Success: $translatedText');
+
+        // Declare the controller as a late variable
+        late final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller;
+
+        // Create the SnackBar content
+        final snackBar = SnackBar(
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Translated: $translatedText',
+                style: TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      controller.close(); // Dismiss the SnackBar
+                    },
+                    child: const Text(
+                      'Okay',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ),
+                  const SizedBox(width: 25),
+                  TextButton(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: translatedText));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Translation copied!')),
+                      );
+                      controller.close(); // Dismiss the SnackBar
+                    },
+                    child: const Text(
+                      'Copy',
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          duration: const Duration(days: 365), // Keep the SnackBar open indefinitely
+        );
+
+        // Assign the controller after showing the SnackBar
+        controller = ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      } else {
+        throw Exception('Comment not found');
       }
+    } catch (e) {
+      print('Translation failed: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Translation failed: ${e.toString()}')),
+      );
     }
   }
+
+  Future<void> _processMessageForHealthInsights(String messageText,
+      String userId, String userRegion) async {
+    // Define health categories and keywords
+    final Map<String, List<String>> healthCategories = {
+      'symptoms': [
+        'fever', 'pain', 'cough', 'fatigue', 'headache', 'nausea',
+        'dizziness', 'inflammation', 'rash', 'anxiety', 'malaria',
+        'typhoid', 'cholera', 'diarrhea', 'vomiting'
+      ],
+      'conditions': [
+        'diabetes', 'hypertension', 'asthma', 'arthritis', 'depression',
+        'obesity', 'cancer', 'allergy', 'infection', 'insomnia',
+        'sickle cell', 'tuberculosis', 'HIV', 'hepatitis', 'stroke'
+      ],
+      'treatments': [
+        'medication',
+        'therapy',
+        'surgery',
+        'exercise',
+        'diet',
+        'vaccination',
+        'rehabilitation',
+        'counseling',
+        'prescription',
+        'supplement',
+        'traditional medicine',
+        'herbs',
+        'physiotherapy',
+        'immunization',
+        'antibiotics'
+      ],
+      'lifestyle': [
+        'nutrition',
+        'fitness',
+        'sleep',
+        'stress',
+        'wellness',
+        'meditation',
+        'diet',
+        'exercise',
+        'hydration',
+        'mindfulness',
+        'traditional food',
+        'local diet',
+        'community',
+        'family health',
+        'work-life'
+      ],
+      'preventive': [
+        'screening',
+        'checkup',
+        'vaccination',
+        'prevention',
+        'hygiene',
+        'immunization',
+        'monitoring',
+        'assessment',
+        'testing',
+        'evaluation',
+        'sanitation',
+        'clean water',
+        'mosquito nets',
+        'hand washing',
+        'nutrition'
+      ],
+    };
+
+    // Convert message text to lowercase for case-insensitive matching
+    String lowerCaseMessage = messageText.toLowerCase();
+
+    // Identify matched categories and keywords
+    Map<String, Map<String, int>> matchedCategories = {};
+    healthCategories.forEach((category, keywords) {
+      for (String keyword in keywords) {
+        if (lowerCaseMessage.contains(keyword)) {
+          matchedCategories.putIfAbsent(category, () => {});
+          matchedCategories[category]![keyword] =
+              (matchedCategories[category]![keyword] ?? 0) + 1;
+        }
+      }
+    });
+
+    // Get reference to the HealthInsights collection
+    final healthInsightsCollection = FirebaseFirestore.instance.collection(
+        'HealthInsights');
+
+    // Update or create documents for each matched category and keyword
+    for (String category in matchedCategories.keys) {
+      for (String keyword in matchedCategories[category]!.keys) {
+        try {
+          // Query for existing document with matching category, messageType, region, and keyword
+          final querySnapshot = await healthInsightsCollection
+              .where('category', isEqualTo: category)
+              .where('messageType', isEqualTo: 'forum')
+              .where('region', isEqualTo: userRegion)
+              .where('keyword', isEqualTo: keyword)
+              .get();
+
+          if (querySnapshot.docs.isNotEmpty) {
+            // Document exists, update the count
+            final docId = querySnapshot.docs.first.id;
+            await healthInsightsCollection.doc(docId).update({
+              'count': FieldValue.increment(
+                  matchedCategories[category]![keyword]!),
+              'lastUpdated': FieldValue.serverTimestamp(),
+            });
+          } else {
+            // Document doesn't exist, create new one
+            await healthInsightsCollection.add({
+              'category': category,
+              'keyword': keyword,
+              'count': matchedCategories[category]![keyword],
+              'region': userRegion,
+              'messageType': 'forum',
+              'timestamp': FieldValue.serverTimestamp(),
+              'lastUpdated': FieldValue.serverTimestamp(),
+            });
+          }
+        } catch (e) {
+          print(
+              'Error processing health insights for category $category and keyword $keyword: $e');
+        }
+      }
+    }
+
+    print("Processed message for health insights: $matchedCategories");
+  }
+}
+
+String _truncateText(String? text, int maxLength) {
+  if (text == null || text.isEmpty) {
+    return ''; // Return an empty string if the text is null or empty
+  }
+  if (text.length <= maxLength) {
+    return text; // Return the full text if it's shorter than or equal to maxLength
+  }
+  return '${text.substring(0, maxLength)}...'; // Truncate and append '...'
+}
 
 
 class AudioPlaybackState {
@@ -1741,11 +2084,19 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
   Duration _recordingDuration = Duration.zero;
   Timer? _recordingTimer;
 
+  // Track currently playing audio URL
+  String? _currentlyPlayingUrl;
+
   // Track playback state for each audio message
   final Map<String, bool> _audioPlaybackStates = {};
   final Map<String, Duration> _audioPlaybackDurations = {};
   final Map<String, Duration> _audioTotalDurations = {};
   Timer? _playbackTimer;
+
+  // Track current audio position for each message
+  final Map<String, Duration> _currentPositions = {};
+  final Map<String, StreamSubscription<PlaybackDisposition>> _positionSubscriptions = {};
+  final Map<String, Duration> _durations = {};
 
   // Add ScrollController for scroll-to-bottom functionality
   final ScrollController _scrollController = ScrollController();
@@ -1754,6 +2105,9 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
   // Use a GlobalKey to ensure the context remains valid
   final GlobalKey<_ChatThreadDetailsPageState> _pageKey = GlobalKey();
 
+  // Subscription for position updates
+  StreamSubscription? _playerSubscription;
+
   @override
   void initState() {
     super.initState();
@@ -1761,8 +2115,15 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     _recorder.openRecorder();
     Permission.microphone.request();
 
+    _initializePlayer();
+
     // Add scroll listener
     _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _initializePlayer() async {
+    await _player.openPlayer();
+    await _player.setLogLevel(logger.Level.info); // Use logger.Level
   }
 
   @override
@@ -1773,6 +2134,9 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     _playbackTimer?.cancel();
     _scrollController.removeListener(_onScroll); // Remove scroll listener
     _scrollController.dispose(); // Dispose the ScrollController
+    _positionSubscriptions.values.forEach((sub) => sub.cancel());
+    _playerSubscription?.cancel();
+    _player.closePlayer();
     super.dispose();
   }
 
@@ -1976,65 +2340,97 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     }
   }
 
-  Future<void> _playAudio(String url) async {
+
+  Future _playAudio(String audioUrl) async {
     try {
-      if (_audioPlaybackStates[url] == true) {
-        // Stop the player if it's already playing
-        await _player.stopPlayer();
+      print('Attempting to play audio: $audioUrl');
+      if (_currentlyPlayingUrl == audioUrl && _player.isPlaying) {
+        print('Pausing current audio');
+        await _player.pausePlayer();
+        _playerSubscription?.cancel();
         setState(() {
-          _audioPlaybackStates[url] = false;
-          _audioPlaybackDurations[url] = Duration.zero;
+          _audioPlaybackStates[audioUrl] = false;
         });
-        _playbackTimer?.cancel();
-      } else {
-        // Stop any currently playing audio
-        for (var key in _audioPlaybackStates.keys) {
-          if (_audioPlaybackStates[key] == true) {
-            await _player.stopPlayer();
-            setState(() {
-              _audioPlaybackStates[key] = false;
-              _audioPlaybackDurations[key] = Duration.zero;
-            });
-          }
-        }
-
-        // Start the player for the selected audio
-        await _player.startPlayer(
-          fromURI: url,
-          codec: Codec.aacADTS,
-          whenFinished: () {
-            setState(() {
-              _audioPlaybackStates[url] = false;
-              _audioPlaybackDurations[url] = Duration.zero;
-            });
-            _playbackTimer?.cancel();
-          },
-        );
-
-        // Reset the playback duration to 0:00
-        setState(() {
-          _audioPlaybackDurations[url] = Duration.zero;
-        });
-
-        // Start the playback timer
-        _playbackTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) async {
-          final progress = await _player.getProgress();
-          setState(() {
-            _audioPlaybackDurations[url] = progress['currentPosition'] ?? Duration.zero;
-            _audioTotalDurations[url] = progress['duration'] ?? Duration.zero;
-          });
-                });
-
-        setState(() {
-          _audioPlaybackStates[url] = true;
-        });
+        return;
       }
+
+      if (_currentlyPlayingUrl == audioUrl && !_player.isPlaying) {
+        print('Resuming paused audio');
+        await _player.resumePlayer();
+        _startListeningToProgress(audioUrl);
+        setState(() {
+          _audioPlaybackStates[audioUrl] = true;
+        });
+        return;
+      }
+
+      // Stop any currently playing audio
+      if (_player.isPlaying) {
+        print('Stopping previous audio');
+        await _player.stopPlayer();
+        _playerSubscription?.cancel();
+        if (_currentlyPlayingUrl != null) {
+          setState(() {
+            _audioPlaybackStates[_currentlyPlayingUrl!] = false;
+            _audioPlaybackDurations[_currentlyPlayingUrl!] = Duration.zero;
+          });
+        }
+      }
+
+      print('Starting new audio playback');
+      await _player.startPlayer(
+        fromURI: audioUrl,
+        codec: Codec.aacADTS,
+        whenFinished: () {
+          print('Audio playback finished');
+          _onPlaybackComplete(audioUrl);
+        },
+      );
+
+      // Start listening to progress
+      _startListeningToProgress(audioUrl);
+
+      setState(() {
+        _currentlyPlayingUrl = audioUrl;
+        _audioPlaybackStates[audioUrl] = true;
+        _audioPlaybackDurations[audioUrl] = Duration.zero; // Reset playback position
+      });
     } catch (e) {
       print('Error playing audio: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to play audio')),
+        SnackBar(content: Text('Failed to play audio: ${e.toString()}')),
       );
     }
+  }
+
+  void _startListeningToProgress(String audioUrl) {
+    print('Starting progress listener for $audioUrl');
+    _playerSubscription?.cancel(); // Cancel any existing subscription
+    _playerSubscription = _player.onProgress?.listen(
+          (event) {
+        if (mounted) {
+          setState(() {
+            _audioPlaybackDurations[audioUrl] = event.position; // Update current position
+            _audioTotalDurations[audioUrl] = event.duration; // Update total duration
+          });
+        }
+      },
+      onError: (error) {
+        print('Progress stream error: $error');
+      },
+    );
+  }
+
+  void _onPlaybackComplete(String audioUrl) {
+    print('Playback complete for $audioUrl');
+    if (mounted) {
+      setState(() {
+        _audioPlaybackStates[audioUrl] = false;
+        _audioPlaybackDurations[audioUrl] = Duration.zero;
+        _currentlyPlayingUrl = null;
+      });
+    }
+    _playerSubscription?.cancel();
   }
 
   Future<void> _startRecording() async {
@@ -2150,7 +2546,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
 
           // Update the last message in the chat thread
           await _firestore.collection('ChatMessages').doc(widget.chatId).update({
-            'last_msg': '🎤 $formattedDuration', // Include microphone icon and duration
+            'last_msg': '🎤 Voice Message', // Include microphone icon and duration
             'last_time': FieldValue.serverTimestamp(),
           });
 
@@ -2183,8 +2579,9 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
   void _sendMessage() async {
     if (_messageController.text.trim().isEmpty) return;
 
+    String messageText = _messageController.text.trim();
     final message = {
-      'content': _messageController.text,
+      'content': messageText,
       'from_uid': widget.fromUid,
       'to_uid': widget.toUid,
       'timestamp': FieldValue.serverTimestamp(),
@@ -2192,23 +2589,119 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
       'status': 'sent',
     };
 
+    // Store message in Firestore
     await _firestore
         .collection('ChatMessages')
         .doc(widget.chatId)
         .collection('messages')
         .add(message);
 
+    // Update last message details
     await _firestore.collection('ChatMessages').doc(widget.chatId).update({
-      'last_msg': _messageController.text,
+      'last_msg': messageText,
       'last_time': FieldValue.serverTimestamp(),
     });
 
+    // Clear the message input
     _messageController.clear();
+
+    // Process the message for health insights
+    await _processMessageForHealthInsights(messageText, widget.fromUid);
   }
 
+  Future<void> _processMessageForHealthInsights(String messageText, String userId) async {
+    // Fetch user's region from the Users collection
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(userId).get();
+    String userRegion = userDoc['Region'] ?? 'Unknown';
+
+    // Define health categories and keywords
+    final Map<String, List<String>> healthCategories = {
+      'symptoms': [
+        'fever', 'pain', 'cough', 'fatigue', 'headache', 'nausea',
+        'dizziness', 'inflammation', 'rash', 'anxiety', 'malaria',
+        'typhoid', 'cholera', 'diarrhea', 'vomiting'
+      ],
+      'conditions': [
+        'diabetes', 'hypertension', 'asthma', 'arthritis', 'depression',
+        'obesity', 'cancer', 'allergy', 'infection', 'insomnia',
+        'sickle cell', 'tuberculosis', 'HIV', 'hepatitis', 'stroke'
+      ],
+      'treatments': [
+        'medication', 'therapy', 'surgery', 'exercise', 'diet',
+        'vaccination', 'rehabilitation', 'counseling', 'prescription', 'supplement',
+        'traditional medicine', 'herbs', 'physiotherapy', 'immunization', 'antibiotics'
+      ],
+      'lifestyle': [
+        'nutrition', 'fitness', 'sleep', 'stress', 'wellness',
+        'meditation', 'diet', 'exercise', 'hydration', 'mindfulness',
+        'traditional food', 'local diet', 'community', 'family health', 'work-life'
+      ],
+      'preventive': [
+        'screening', 'checkup', 'vaccination', 'prevention', 'hygiene',
+        'immunization', 'monitoring', 'assessment', 'testing', 'evaluation',
+        'sanitation', 'clean water', 'mosquito nets', 'hand washing', 'nutrition'
+      ],
+    };
+
+    // Convert message text to lowercase for case-insensitive matching
+    String lowerCaseMessage = messageText.toLowerCase();
+
+    // Identify matched categories
+    Map<String, int> matchedCategories = {};
+    healthCategories.forEach((category, keywords) {
+      for (String keyword in keywords) {
+        if (lowerCaseMessage.contains(keyword)) {
+          matchedCategories[category] = (matchedCategories[category] ?? 0) + 1;
+        }
+      }
+    });
+
+    // Debugging output
+    print("Matched Categories: $matchedCategories");
+
+    // Update HealthInsights collection
+    for (String category in matchedCategories.keys) {
+      int count = matchedCategories[category]!;
+      String messageType = 'private'; // Adjust based on the type of message
+
+      // Query for an existing document with the same category, region, and messageType
+      QuerySnapshot querySnapshot = await FirebaseFirestore.instance
+          .collection('HealthInsights')
+          .where('category', isEqualTo: category)
+          .where('region', isEqualTo: userRegion)
+          .where('messageType', isEqualTo: messageType)
+          .limit(1) // Limit the query to one result
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        // Document exists, increment the count field
+        DocumentReference docRef = querySnapshot.docs.first.reference;
+        await docRef.update({
+          'count': FieldValue.increment(count),
+        });
+        print("Updated existing document for category: $category, region: $userRegion, messageType: $messageType");
+      } else {
+        // Document does not exist, create a new one
+        await FirebaseFirestore.instance.collection('HealthInsights').add({
+          'category': category,
+          'count': count,
+          'region': userRegion,
+          'messageType': messageType,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        print("Created new document for category: $category, region: $userRegion, messageType: $messageType");
+      }
+    }
+
+    print("Processed message for health insights: $matchedCategories");
+  }
+
+
+
   String _formatDuration(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    String minutes = twoDigits(duration.inMinutes.remainder(60));
+    String seconds = twoDigits(duration.inSeconds.remainder(60));
     return '$minutes:$seconds';
   }
 
@@ -2394,46 +2887,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                                         ),
                                       ),
                                     ] else if (message['type'] == 'audio') ...[
-                                      Container(
-                                        padding: const EdgeInsets.all(8.0),
-                                        decoration: BoxDecoration(
-                                          color: Colors.grey[200], // Background color for the playback bar
-                                          borderRadius: BorderRadius.circular(12),
-                                        ),
-                                        child: Row(
-                                          children: [
-                                            IconButton(
-                                              icon: Icon(_audioPlaybackStates[message['file_url']] == true
-                                                  ? Icons.pause
-                                                  : Icons.play_arrow),
-                                              onPressed: () => _playAudio(message['file_url']),
-                                            ),
-                                            Expanded(
-                                              child: Slider(
-                                                value: (_audioPlaybackDurations[message['file_url']] ?? Duration.zero)
-                                                    .inSeconds
-                                                    .toDouble(),
-                                                min: 0,
-                                                max: (_audioTotalDurations[message['file_url']] ?? Duration.zero)
-                                                    .inSeconds
-                                                    .toDouble(),
-                                                onChanged: (value) {
-                                                  _player.seekToPlayer(Duration(seconds: value.toInt()));
-                                                },
-                                                activeColor: Colors.blue, // Color of the progress bar
-                                                inactiveColor: Colors.grey[400], // Color of the remaining bar
-                                                thumbColor: Colors.blue, // Color of the moving circle
-                                              ),
-                                            ),
-                                            Text(
-                                              _audioPlaybackStates[message['file_url']] == true
-                                                  ? _formatDuration(_audioPlaybackDurations[message['file_url']] ?? Duration.zero)
-                                                  : _formatDuration(_audioTotalDurations[message['file_url']] ?? Duration.zero),
-                                              style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
+                                      _buildAudioMessage(message.data()),
                                     ],
                                     const SizedBox(height: 5),
                                     Align(
@@ -2558,7 +3012,84 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
       ),
     );
   }
+
+  Widget _buildAudioMessage(Map message) {
+    final audioUrl = message['file_url'] as String;
+    final isPlaying = _audioPlaybackStates[audioUrl] == true;
+    final position = _audioPlaybackDurations[audioUrl] ?? Duration.zero;
+    final duration = _audioTotalDurations[audioUrl] ?? Duration.zero;
+
+    return Container(
+      padding: const EdgeInsets.all(8.0),
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Play/Pause Button with Playback Indicator
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: Icon(
+                  isPlaying ? Icons.pause : Icons.play_arrow,
+                  color: Colors.blue,
+                ),
+                onPressed: () => _playAudio(audioUrl),
+              ),
+              if (isPlaying)
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(Colors.white),
+                  ),
+                ),
+            ],
+          ),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Slider for Scrubbing (Thumb Does Not Move)
+                SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 2.0,
+                    thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                  ),
+                  child: Slider(
+                    value: position.inMilliseconds.toDouble(),
+                    max: duration.inMilliseconds > 0
+                        ? duration.inMilliseconds.toDouble()
+                        : 1.0, // Default to 1 if duration is 0
+                    min: 0,
+                    onChanged: (value) async {
+                      if (_player.isPlaying || _currentlyPlayingUrl == audioUrl) {
+                        print('Seeking to: ${Duration(milliseconds: value.toInt())}');
+                        await _player.seekToPlayer(Duration(milliseconds: value.toInt()));
+                        if (mounted) {
+                          setState(() {
+                            _audioPlaybackDurations[audioUrl] =
+                                Duration(milliseconds: value.toInt());
+                          });
+                        }
+                      }
+                    },
+                  ),
+                ),
+                // Removed Timing Display
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
+
 
 class ChatBubblePainter extends CustomPainter {
   final bool isSentByUser; // Determines if the message is sent or received
