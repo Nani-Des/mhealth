@@ -62,7 +62,7 @@ class _ForumPageState extends State<Forum> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => DoctorProfileScreen(userId: widget.userId),
+          builder: (context) => DoctorProfileScreen(userId: widget.userId, isReferral: false),
         ),
       );
     } else {

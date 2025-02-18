@@ -5,8 +5,9 @@ import 'doctor_info_widget.dart'; // Import the new widget
 
 class DoctorProfileScreen extends StatefulWidget {
   final String userId;
+  final bool isReferral;
 
-  DoctorProfileScreen({required this.userId});
+  DoctorProfileScreen({required this.isReferral,required this.userId});
 
   @override
   _DoctorProfileScreenState createState() => _DoctorProfileScreenState();
@@ -79,6 +80,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
         hospitalName: _hospitalName,
         departmentName: _departmentName,
         onCall: _makePhoneCall,
+          isReferral:widget.isReferral
       ),
     );
   }

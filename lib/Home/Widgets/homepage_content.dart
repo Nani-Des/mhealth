@@ -50,7 +50,7 @@ class _HomePageContentState extends State<HomePageContent> {
                 children: [
                   Container(
                     height: 380, // Set a fixed height for the list
-                    child: OrganizationListView(),
+                    child: OrganizationListView(showSearchBar: false,isReferral : false),
                   ),
                   SizedBox(height: 16),
                   GestureDetector(

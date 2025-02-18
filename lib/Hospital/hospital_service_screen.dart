@@ -1,5 +1,9 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+
+import '../Appointments/referral_form.dart';
+import '../Login/login_screen1.dart';
 
 class HospitalServiceScreen extends StatefulWidget {
   final String hospitalId;
@@ -13,20 +17,66 @@ class HospitalServiceScreen extends StatefulWidget {
 class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
   Map<String, List<Map<String, String>>> timetable = {};
 
-  final List<Map<String, String>> services = [
-    {"title": "Referrals", "icon": "🏥"},
-    {"title": "Consultation", "icon": "🩺"},
-    {"title": "Emergency", "icon": "🚑"},
-    {"title": "Lab Tests", "icon": "🧪"},
-    {"title": "Pharmacy", "icon": "💊"},
-    {"title": "Radiology", "icon": "🩻"},
+  final List<Map<String, dynamic>> services = [
+    {"title": "Referrals", "icon": "🏥", "page": () => ReferralForm()},
+    {"title": "Consultation", "icon": "🩺", "page": () => ReferralForm()},
+    {"title": "Emergency", "icon": "🚑", "page": () => ReferralForm()},
+    {"title": "Lab Tests", "icon": "🧪", "page": () => ReferralForm()},
+    {"title": "Pharmacy", "icon": "💊", "page": () => ReferralForm()},
+    {"title": "Radiology", "icon": "🩻", "page": () => ReferralForm()},
   ];
+
 
   @override
   void initState() {
     super.initState();
     _loadServices();
   }
+  void _checkAndNavigate(BuildContext context, int index) async {
+    User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      // Redirect to login if user is not signed in
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen1()),
+      );
+      return;
+    }
+
+    // Check user role from Firestore
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance
+        .collection('Users')
+        .doc(user.uid)
+        .get();
+
+    bool isDoctor = userDoc.exists && userDoc['Role'] == true;
+
+    if (index == 0 && !isDoctor) {
+      // Show a message if a non-doctor tries to access "Referrals"
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text("Access Denied"),
+          content: Text("Only doctors can access Referrals."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("OK"),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Navigate to the service page
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => services[index]["page"]()),
+    );
+  }
+
 
   Future<void> _loadServices() async {
     try {
@@ -59,6 +109,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
       print("Error loading services: $e");
     }
   }
+
 
   void _showServiceTime(String service, String time) {
     showDialog(
@@ -127,23 +178,28 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
                   childAspectRatio: 1.0,
                 ),
                 itemBuilder: (context, index) {
-                  return Card(
-                    elevation: 4,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          services[index]["icon"]!,
-                          style: TextStyle(fontSize: 30),
-                        ),
-                        SizedBox(height: 5),
-                        Text(
-                          services[index]["title"]!,
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                  return GestureDetector(
+                    onTap: () {
+                      _checkAndNavigate(context, index);
+                    },
+                    child: Card(
+                      elevation: 4,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            services[index]["icon"]!,
+                            style: TextStyle(fontSize: 30),
+                          ),
+                          SizedBox(height: 5),
+                          Text(
+                            services[index]["title"]!,
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
+                      ),
                     ),
                   );
                 },

@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../Components/booking_helper.dart';
 import 'doctor_availability_calendar.dart';
 
+
 class DoctorInfoWidget extends StatelessWidget {
   final Map<String, dynamic> doctorDetails;
   final String hospitalName;
   final String departmentName;
   final Function(String) onCall;
+  final bool isReferral;
 
   const DoctorInfoWidget({
     Key? key,
@@ -15,6 +17,7 @@ class DoctorInfoWidget extends StatelessWidget {
     required this.hospitalName,
     required this.departmentName,
     required this.onCall,
+    required this.isReferral,
   }) : super(key: key);
 
   @override
@@ -121,18 +124,25 @@ class DoctorInfoWidget extends StatelessWidget {
               SizedBox(width: 10),  // Space between buttons
 
               // Book Appointment Button
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: Icon(Icons.book_online, color: Colors.white),
-                  label: Text('     Book Appointment'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.greenAccent.shade700,
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  onPressed: () => _showCalendarDialog(context),
+              ElevatedButton.icon(
+                icon: Icon(Icons.book_online, color: Colors.white),
+                label: Text('     Book Appointment'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isReferral
+                      ? Colors.grey.shade400 // Greyed out when isReferral is true
+                      : Colors.greenAccent.shade700,
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
+                onPressed: isReferral ? null : () => _showCalendarDialog(context),
               ),
+              // Blur effect overlay
+              if (isReferral)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.white.withOpacity(0.5), // Semi-transparent overlay
+                  ),
+                ),
             ],
           ),
         ),

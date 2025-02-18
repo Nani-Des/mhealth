@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:mhealth/Hospital/shift_schedule_Table.dart';
 import '../Services/firebase_service.dart';
 import 'doctor_profile.dart';
 import 'hospital_service_screen.dart';
 
 class SpecialtyDetails extends StatefulWidget {
   final String hospitalId;
+  final bool isReferral;
+  final Function? selectHealthFacility;
 
-  SpecialtyDetails({required this.hospitalId});
+  SpecialtyDetails({required this.hospitalId, required this.isReferral, this.selectHealthFacility,});
 
   @override
   _SpecialtyDetailsState createState() => _SpecialtyDetailsState();
@@ -18,13 +21,13 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
   late Animation<Color?> _animation;
   FirebaseService _firebaseService = FirebaseService();
 
-  Map<String, String> _hospitalDetails = {'hospitalName': '', 'logo': ''}; // For hospital name and logo
-  List<Map<String, dynamic>> _departments = [];  // Department List with Name and ID
-  List<Map<String, dynamic>> _doctors = []; // List of doctors for a selected department
+  Map<String, String> _hospitalDetails = {'hospitalName': '', 'logo': ''};
+  List<Map<String, dynamic>> _departments = [];
+  List<Map<String, dynamic>> _doctors = [];
 
   bool _isLoading = true;
   bool _isDoctorsLoading = false;
-  String? _selectedDepartmentId; // Tracks selected department
+  String? _selectedDepartmentId;
 
   @override
   void initState() {
@@ -52,7 +55,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
 
       if (departments.isNotEmpty) {
         _selectedDepartmentId = departments.first['Department ID'];
-        _loadDoctorsForDepartment(_selectedDepartmentId!); // Load first department's doctors
+        _loadDoctorsForDepartment(_selectedDepartmentId!);
       }
 
       setState(() {
@@ -71,8 +74,8 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
       _selectedDepartmentId = departmentId;
     });
     try {
-      List<Map<String, dynamic>> doctors =
-      await _firebaseService.getDoctorsForDepartment(widget.hospitalId, departmentId);
+      List<Map<String, dynamic>> doctors = await _firebaseService
+          .getDoctorsForDepartment(widget.hospitalId, departmentId);
       setState(() {
         _doctors = doctors;
         _isDoctorsLoading = false;
@@ -96,6 +99,27 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
           _hospitalDetails['hospitalName'] ?? 'Unknown Hospital',
           style: TextStyle(fontSize: 12),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.calendar_today),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  content: SizedBox(
+                    width: 300,
+                    height: 650,
+                    child: ShiftScheduleScreen(
+                      hospitalId: widget.hospitalId,
+                      departmentId: _selectedDepartmentId!,
+                      doctors: _doctors,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
@@ -110,7 +134,8 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                   children: [
                     CircleAvatar(
                       radius: 30,
-                      backgroundImage: NetworkImage(_hospitalDetails['logo'] ?? ''),
+                      backgroundImage:
+                      NetworkImage(_hospitalDetails['logo'] ?? ''),
                     ),
                     SizedBox(width: 10),
                   ],
@@ -124,12 +149,16 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => HospitalServiceScreen(hospitalId: widget.hospitalId),
+                              builder: (context) =>
+                                  HospitalServiceScreen(
+                                      hospitalId: widget.hospitalId),
                             ),
                           );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text("Please select a department first")),
+                            SnackBar(
+                                content: Text(
+                                    "Please select a department first")),
                           );
                         }
                       },
@@ -141,7 +170,8 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                         ),
                         child: Row(
                           children: [
-                            Icon(Icons.chat_bubble_outline, color: Colors.white),
+                            Icon(Icons.chat_bubble_outline,
+                                color: Colors.white),
                             SizedBox(width: 5),
                             Text(
                               'Services',
@@ -157,7 +187,6 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                     );
                   },
                 ),
-
               ],
             ),
           ),
@@ -170,14 +199,16 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                   child: ListView.builder(
                     itemCount: _departments.length,
                     itemBuilder: (context, index) {
-                      String departmentId = _departments[index]['Department ID'];
+                      String departmentId =
+                      _departments[index]['Department ID'];
                       return Column(
                         children: [
                           GestureDetector(
-                            onTap: () => _loadDoctorsForDepartment(departmentId),
+                            onTap: () =>
+                                _loadDoctorsForDepartment(departmentId),
                             child: _specialtyLabel(
                               _departments[index]['Department Name'],
-                              departmentId == _selectedDepartmentId, // Highlight condition
+                              departmentId == _selectedDepartmentId,
                             ),
                           ),
                           SizedBox(height: 30),
@@ -210,6 +241,32 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
           ),
         ],
       ),
+      floatingActionButton: widget.isReferral
+          ? FloatingActionButton(
+        onPressed: () {
+          String selectedHospitalName = _hospitalDetails['hospitalName'] ?? 'Unknown Hospital';
+
+          // Pass the selected hospital name back to the previous screen
+          Navigator.pop(context, selectedHospitalName);
+          // Pop the navigation stack twice
+          Navigator.pop(context, selectedHospitalName);; // First pop to go back to previous page
+
+          // Trigger the method to reset and re-execute the _selectHealthFacility logic
+          Future.delayed(Duration(milliseconds: 300), () {
+            // Check if the selectHealthFacility function is passed and execute it
+            if (widget.selectHealthFacility != null) {
+              widget.selectHealthFacility!(selectedHospitalName); // Pass selectedHospitalName here
+            }
+          });
+        },
+        child: Icon(Icons.add),
+        backgroundColor: Colors.blueAccent,
+      )
+          : null,
+
+
+
+
     );
   }
 
@@ -231,13 +288,14 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
     );
   }
 
-  Widget _doctorDetailCard(String userId, String name, String experience, String userPic) {
+  Widget _doctorDetailCard(
+      String userId, String name, String experience, String userPic) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => DoctorProfileScreen(userId: userId),
+            builder: (context) => DoctorProfileScreen(userId: userId,isReferral:widget.isReferral),
           ),
         );
       },
@@ -247,43 +305,13 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(15),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(
-                  shape: BoxShape.rectangle,
-                  border: Border.all(color: Colors.grey, width: 1),
-                  borderRadius: BorderRadius.circular(10),
-                  color: Colors.grey[200],
-                ),
-                child: userPic.isNotEmpty
-                    ? Image.network(userPic, fit: BoxFit.cover)
-                    : Icon(Icons.person, size: 50, color: Colors.grey[700]),
-              ),
-              SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 5),
-                    Text(
-                      experience,
-                      style: TextStyle(fontSize: 14, color: Colors.black54),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundImage: userPic.isNotEmpty ? NetworkImage(userPic) : null,
+            child: userPic.isEmpty ? Icon(Icons.person) : null,
           ),
+          title: Text(name, style: TextStyle(fontWeight: FontWeight.bold)),
+          subtitle: Text(experience),
         ),
       ),
     );

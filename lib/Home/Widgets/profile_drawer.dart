@@ -1,11 +1,10 @@
 import 'dart:io';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-
-import '../../Appointments/AppointmentScreen.dart';
+import 'package:mhealth/Appointments/referral_form.dart';
+import '../../Login/login_screen1.dart';
 import '../../booking_page.dart';
 import '../home_page.dart';
 
@@ -106,6 +105,50 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
         _userDataFuture = _fetchUserData();
       });
     }
+  }
+  void _checkAndNavigate(BuildContext context) async {
+    User? user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      // Redirect to login if user is not signed in
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen1()),
+      );
+      return;
+    }
+
+    // Check user role from Firestore
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance
+        .collection('Users')
+        .doc(user.uid)
+        .get();
+
+    bool isDoctor = userDoc.exists && userDoc['Role'] == true;
+
+    if (!isDoctor) {
+      // Show a message if a non-doctor tries to access "Referrals"
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text("Access Denied"),
+          content: Text("Only doctors can access Referrals."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text("OK"),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Navigate to the service page
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => ReferralForm()),
+    );
   }
 
   @override
@@ -267,13 +310,11 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                         ),
                         SizedBox(width: 16),
                         _buildInfoBox(
-                            Icons.location_pin,
-                            'Region',
+                            Icons.add_call,
+                            'Reffer a Patient',
                             region,
                                 () {
-                              // Define the action for tapping the Region info box
-                              print("Region tapped");
-                              // You can show region details or any other action here
+                                  _checkAndNavigate(context);
                             }
                         ),
                       ],

@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';  // Import dotenv
 
 import 'Widgets/emergency_hompage_content.dart';
 import 'Widgets/first_aid_response_widget.dart';
+import 'Widgets/first_aid_response_widget1.dart';
 
 class EmergencyPage extends StatefulWidget {
   @override
@@ -111,7 +112,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           if (_showResponsePopup)
             SlideTransition(
               position: _offsetAnimation,
-              child: FirstAidResponseWidget(
+              child: FirstAidResponseWidget1(
                 responseText: _responseText,
                 onClose: _toggleResponsePopup,
               ),

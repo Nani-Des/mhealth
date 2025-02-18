@@ -148,7 +148,7 @@ class _PostCardState extends State<PostCard> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => DoctorProfileScreen(userId: widget.postData['User ID']),
+                          builder: (context) => DoctorProfileScreen(userId: widget.postData['User ID'],isReferral: false),
                         ),
                       );
                     } else {

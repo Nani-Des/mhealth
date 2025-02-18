@@ -51,7 +51,7 @@ class _DoctorsRowItemState extends State<DoctorsRowItem> {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => DoctorProfileScreen(userId: userId),
+          builder: (context) => DoctorProfileScreen(userId: userId, isReferral: false,),
         ),
       );
     }
