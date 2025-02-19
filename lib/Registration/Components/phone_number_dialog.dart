@@ -111,15 +111,7 @@ class PhoneNumberDialog {
               ],
             ),
           ),
-          // actions: <Widget>[
-          //   TextButton(
-          //     child: Text('skip'),
-          //     onPressed: () {_pageController.nextPage(
-          //       duration: Duration(milliseconds: 300),
-          //       curve: Curves.easeIn,
-          //     );},
-          //   ),
-          // ],
+
         );
       },
     );
