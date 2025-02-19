@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:mhealth/Appointments/Referral%20screens/referral_details_page.dart';
 
 import '../Appointments/referral_form.dart';
 import '../Login/login_screen1.dart';
@@ -16,20 +17,22 @@ class HospitalServiceScreen extends StatefulWidget {
 
 class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
   Map<String, List<Map<String, String>>> timetable = {};
+  List<Map<String, dynamic>> services = [];
 
-  final List<Map<String, dynamic>> services = [
-    {"title": "Referrals", "icon": "🏥", "page": () => ReferralForm()},
-    {"title": "Consultation", "icon": "🩺", "page": () => ReferralForm()},
-    {"title": "Emergency", "icon": "🚑", "page": () => ReferralForm()},
-    {"title": "Lab Tests", "icon": "🧪", "page": () => ReferralForm()},
-    {"title": "Pharmacy", "icon": "💊", "page": () => ReferralForm()},
-    {"title": "Radiology", "icon": "🩻", "page": () => ReferralForm()},
-  ];
+
 
 
   @override
   void initState() {
     super.initState();
+    services = [
+      {"title": "Referrals", "icon": "🏥", "page": () => ReferralForm()},
+      {"title": "Consultation", "icon": "🩺", "page": () => ReferralDetailsPage(hospitalId: widget.hospitalId)}, // ✅ Now widget.hospitalId is accessible
+      {"title": "Emergency", "icon": "🚑", "page": () => ReferralForm()},
+      {"title": "Lab Tests", "icon": "🧪", "page": () => ReferralForm()},
+      {"title": "Pharmacy", "icon": "💊", "page": () => ReferralForm()},
+      {"title": "Radiology", "icon": "🩻", "page": () => ReferralForm()},
+    ];
     _loadServices();
   }
   void _checkAndNavigate(BuildContext context, int index) async {

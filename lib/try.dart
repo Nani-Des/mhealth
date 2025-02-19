@@ -1,138 +1,184 @@
 // import 'package:flutter/material.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'doctor_profile_screen.dart';
 //
-// class ReferralSummaryScreen extends StatelessWidget {
-//   final String serialNumber;
-//   // final String? patientRegNo;
-//   final String patientName;
-//   final String? sex;
-//   final String dateOfBirth;
-//   final int? age;
-//   final String examinationFindings;
-//   final String treatmentAdministered;
-//   final String? diagnosis;
-//   final String reasonForReferral;
-//   final String? uploadedFileName;
-//   final String? selectedHospitalName;
+// class ReferralDetailsPage extends StatefulWidget {
+//   final String hospitalId;
 //
-//   ReferralSummaryScreen({
-//     required this.serialNumber,
-//     required this.patientRegNo,
-//     required this.patientName,
-//     required this.sex,
-//     required this.dateOfBirth,
-//     required this.age,
-//     required this.examinationFindings,
-//     required this.treatmentAdministered,
-//     required this.diagnosis,
-//     required this.reasonForReferral,
-//     required this.uploadedFileName,
-//     required this.selectedHospitalName,
-//   });
+//   const ReferralDetailsPage({Key? key, required this.hospitalId}) : super(key: key);
+//
+//   @override
+//   _ReferralDetailsPageState createState() => _ReferralDetailsPageState();
+// }
+//
+// class _ReferralDetailsPageState extends State<ReferralDetailsPage> {
+//   Future<Map<String, dynamic>> _fetchReferrerDetails(String userId) async {
+//     DocumentSnapshot userDoc =
+//     await FirebaseFirestore.instance.collection('Users').doc(userId).get();
+//     if (userDoc.exists) {
+//       var data = userDoc.data() as Map<String, dynamic>;
+//       Map<String, dynamic> hospitalData = await _fetchHospitalDetails(data['Hospital ID']);
+//       String departmentName = await _fetchDepartmentName(data['Department ID']);
+//       return {
+//         'UserId': userId,
+//         'Title': data['Title'] ?? 'N/A',
+//         'Fname': data['Fname'] ?? '',
+//         'Lname': data['Lname'] ?? '',
+//         'Email': data['Email'] ?? 'N/A',
+//         'Mobile Number': data['Mobile Number'] ?? 'N/A',
+//         'User Pic': data['User Pic'] ?? '',
+//         'Hospital Name': hospitalData['Hospital Name'],
+//         'Hospital Logo': hospitalData['Logo'],
+//         'Department Name': departmentName,
+//       };
+//     }
+//     return {};
+//   }
+//
+//   Future<Map<String, dynamic>> _fetchHospitalDetails(String hospitalId) async {
+//     DocumentSnapshot hospitalDoc =
+//     await FirebaseFirestore.instance.collection('Hospital').doc(hospitalId).get();
+//     if (hospitalDoc.exists) {
+//       var data = hospitalDoc.data() as Map<String, dynamic>;
+//       return {
+//         'Hospital Name': data['Hospital Name'] ?? 'N/A',
+//         'Logo': data['Logo'] ?? '',
+//       };
+//     }
+//     return {'Hospital Name': 'N/A', 'Logo': ''};
+//   }
+//
+//   Future<String> _fetchDepartmentName(String departmentId) async {
+//     DocumentSnapshot departmentDoc =
+//     await FirebaseFirestore.instance.collection('Department').doc(departmentId).get();
+//     return departmentDoc.exists ? departmentDoc['Department Name'] : 'N/A';
+//   }
 //
 //   @override
 //   Widget build(BuildContext context) {
 //     return Scaffold(
-//       appBar: AppBar(
-//         title: Text("Referral Summary", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
-//         actions: [
-//           TextButton(
-//             onPressed: () => Navigator.pop(context),
-//             child: Text(
-//               "Confirm",
-//               style: TextStyle(
-//                 color: Colors.blueAccent,
-//                 fontWeight: FontWeight.bold,
-//                 fontSize: 16,
-//               ),
-//             ),
-//           ),
-//         ],
-//       ),
-//       body: Padding(
-//         padding: EdgeInsets.all(16.0),
-//         child: ListView(
-//           children: [
-//             // Patient Information Section
-//             _buildSectionTitle(context, "Patient Information"),
-//             Divider(),
-//             _buildInfoRow(context, "Serial Number", serialNumber),
-//             _buildInfoRow(context, "Patient Reg. No.", patientRegNo ?? "N/A"),
-//             _buildInfoRow(context, "Name", patientName),
-//             _buildInfoRow(context, "Sex", sex ?? "N/A"),
-//             _buildInfoRow(context, "Date of Birth", dateOfBirth),
-//             _buildInfoRow(context, "Age", age?.toString() ?? "N/A"),
-//
-//             SizedBox(height: 24),
-//
-//             // Referee Notes Section
-//             _buildSectionTitle(context, "Referee Notes"),
-//             Divider(),
-//             _buildInfoRow(context, "Examination Findings", examinationFindings),
-//             _buildInfoRow(context, "Treatment Administered", treatmentAdministered),
-//             _buildInfoRow(context, "Diagnosis", diagnosis ?? "N/A"),
-//             _buildInfoRow(context, "Reason for Referral", reasonForReferral),
-//
-//             SizedBox(height: 24),
-//
-//             // Additional Information Section
-//             _buildSectionTitle(context, "Additional Information"),
-//             Divider(),
-//             _buildInfoRow(context, "Uploaded Medical Records", uploadedFileName ?? "No file uploaded"),
-//             _buildInfoRow(context, "Selected Health Facility", selectedHospitalName ?? "Not selected"),
-//
-//             SizedBox(height: 32),
-//           ],
-//         ),
+//       appBar: AppBar(title: Text("Referrals")),
+//       body: StreamBuilder(
+//         stream: FirebaseFirestore.instance
+//             .collection('Hospital')
+//             .doc(widget.hospitalId)
+//             .collection('Referrals')
+//             .orderBy('Timestamp', descending: true)
+//             .snapshots(),
+//         builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
+//           if (snapshot.connectionState == ConnectionState.waiting) {
+//             return Center(child: CircularProgressIndicator());
+//           }
+//           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+//             return Center(child: Text("No referrals found"));
+//           }
+//           return ListView(
+//             padding: EdgeInsets.all(8.0),
+//             children: snapshot.data!.docs.map((doc) {
+//               var data = doc.data() as Map<String, dynamic>;
+//               return FutureBuilder<Map<String, dynamic>>(
+//                 future: _fetchReferrerDetails(data['Referred By']),
+//                 builder: (context, refSnapshot) {
+//                   if (refSnapshot.connectionState == ConnectionState.waiting) {
+//                     return SizedBox.shrink();
+//                   }
+//                   return Card(
+//                     elevation: 4,
+//                     shape: RoundedRectangleBorder(
+//                       borderRadius: BorderRadius.circular(10),
+//                     ),
+//                     child: Padding(
+//                       padding: EdgeInsets.all(12.0),
+//                       child: Column(
+//                         crossAxisAlignment: CrossAxisAlignment.start,
+//                         children: [
+//                           Row(
+//                             children: [
+//                               refSnapshot.data?['Hospital Logo'] != ''
+//                                   ? Image.network(
+//                                 refSnapshot.data?['Hospital Logo'],
+//                                 height: 50,
+//                                 width: 50,
+//                                 fit: BoxFit.cover,
+//                               )
+//                                   : Icon(Icons.local_hospital, size: 50),
+//                               SizedBox(width: 10),
+//                               Column(
+//                                 crossAxisAlignment: CrossAxisAlignment.start,
+//                                 children: [
+//                                   Text("Patient: ${data['Name']}",
+//                                       style: TextStyle(
+//                                           fontWeight: FontWeight.bold,
+//                                           fontSize: 16)),
+//                                   Text("Referral: ${data['Serial Number']}",
+//                                       style: TextStyle(color: Colors.grey)),
+//                                 ],
+//                               ),
+//                               Spacer(),
+//                               GestureDetector(
+//                                 onTap: () {
+//                                   Navigator.push(
+//                                     context,
+//                                     MaterialPageRoute(
+//                                       builder: (context) => DoctorProfileScreen(
+//                                         userId: refSnapshot.data?['UserId'],
+//                                         isReferral: false,
+//                                       ),
+//                                     ),
+//                                   );
+//                                 },
+//                                 child: refSnapshot.data?['User Pic'] != ''
+//                                     ? CircleAvatar(
+//                                   backgroundImage:
+//                                   NetworkImage(refSnapshot.data?['User Pic']),
+//                                   radius: 25,
+//                                 )
+//                                     : CircleAvatar(
+//                                   child: Icon(Icons.person),
+//                                   radius: 25,
+//                                 ),
+//                               ),
+//                             ],
+//                           ),
+//                           Divider(),
+//                           Text("Sex: ${data['Sex']}", style: TextStyle(fontWeight: FontWeight.w500)),
+//                           Text("DOB: ${data['Date of Birth']}"),
+//                           Text("Age: ${data['Age']}"),
+//                           ExpansionTile(
+//                             title: Text("Diagnosis"),
+//                             children: [Text(data['Diagnosis'] ?? 'N/A')],
+//                           ),
+//                           ExpansionTile(
+//                             title: Text("Reason for Referral"),
+//                             children: [Text(data['Reason for Referral'] ?? 'N/A')],
+//                           ),
+//                           ExpansionTile(
+//                             title: Text("Examination Findings"),
+//                             children: [Text(data['Examination Findings'] ?? 'N/A')],
+//                           ),
+//                           ExpansionTile(
+//                             title: Text("Treatment Administered"),
+//                             children: [Text(data['Treatment Administered'] ?? 'N/A')],
+//                           ),
+//                           SizedBox(height: 8),
+//                           Text("Selected Facility:", style: TextStyle(fontWeight: FontWeight.bold)),
+//                           Text("${data['Selected Health Facility']}", style: TextStyle(color: Colors.grey)),
+//                           SizedBox(height: 8),
+//                           Text("Referred By:", style: TextStyle(fontWeight: FontWeight.bold)),
+//                           Text("${refSnapshot.data?['Title']} ${refSnapshot.data?['Fname']} ${refSnapshot.data?['Lname']}",
+//                               style: TextStyle(fontSize: 16)),
+//                           Text("Hospital: ${refSnapshot.data?['Hospital Name']}"),
+//                           Text("Department: ${refSnapshot.data?['Department Name']}"),
+//                         ],
+//                       ),
+//                     ),
+//                   );
+//                 },
+//               );
+//             }).toList(),
+//           );
+//         },
 //       ),
 //     );
 //   }
-//
-//   // Section Title Widget
-//   Widget _buildSectionTitle(BuildContext context, String title) {
-//     return Padding(
-//       padding: const EdgeInsets.symmetric(vertical: 12.0),
-//       child: Text(
-//         title,
-//         style: TextStyle(
-//           fontWeight: FontWeight.bold,
-//           color: Colors.blueAccent,
-//           fontSize: 20,
-//         ),
-//       ),
-//     );
-//   }
-//
-//   // Info Row Widget for displaying key-value pairs
-//   Widget _buildInfoRow(BuildContext context, String label, String value) {
-//     return Padding(
-//       padding: const EdgeInsets.symmetric(vertical: 8.0),
-//       child: Row(
-//         crossAxisAlignment: CrossAxisAlignment.start,
-//         children: [
-//           Expanded(
-//             flex: 2,
-//             child: Text(
-//               "$label:",
-//               style: TextStyle(
-//                 fontWeight: FontWeight.bold,
-//                 fontSize: 16,
-//                 color: Colors.black.withOpacity(0.7),
-//               ),
-//             ),
-//           ),
-//           Expanded(
-//             flex: 3,
-//             child: Text(
-//               value,
-//               style: TextStyle(
-//                 fontSize: 16,
-//                 color: Colors.black.withOpacity(0.7),
-//               ),
-//             ),
-//           ),
-//         ],
-//       ),
-//     );
-//   }
-// //ReferralForm() //
 // }
