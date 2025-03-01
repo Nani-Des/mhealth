@@ -1,5 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../Hospital/hospital_profile_screen.dart';
 import '../../Hospital/specialty_details.dart';
 
 class OrganizationListView extends StatefulWidget {
@@ -14,6 +16,7 @@ class OrganizationListView extends StatefulWidget {
 
 class _OrganizationListViewState extends State<OrganizationListView> {
   String searchQuery = "";
+  final User? user = FirebaseAuth.instance.currentUser;
 
   @override
   Widget build(BuildContext context) {
@@ -75,6 +78,8 @@ class _OrganizationListViewState extends State<OrganizationListView> {
                       backgroundImage: backgroundImage,
                       city: city,
                       contact: contact,
+                      isLoggedIn: user != null,
+                      hospitalId: hospitalId,
                     ),
                   );
                 },
@@ -91,12 +96,16 @@ class HospitalCard extends StatelessWidget {
   final String backgroundImage;
   final String city;
   final String contact;
+  final String hospitalId;
+  final bool isLoggedIn;
 
   const HospitalCard({
     Key? key,
     required this.backgroundImage,
     required this.city,
     required this.contact,
+    required this.hospitalId,
+    required this.isLoggedIn,
   }) : super(key: key);
 
   @override
@@ -104,9 +113,7 @@ class HospitalCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.symmetric(vertical: 5.0),
       elevation: 8.0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(15.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15.0)),
       child: Column(
         children: [
           ClipRRect(
@@ -121,17 +128,42 @@ class HospitalCard extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  city,
-                  style: TextStyle(fontSize: 14.0, color: Colors.black87, fontWeight: FontWeight.bold),
+                if (isLoggedIn)
+                  Row(
+                    children: [
+                      Icon(Icons.star, color: Colors.orange, size: 16),
+                      SizedBox(width: 5),
+                      Text("4.5", style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    ],
+                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Text(
+                      city,
+                      style: TextStyle(fontSize: 14.0, color: Colors.black87, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      contact,
+                      style: TextStyle(fontSize: 12.0, fontStyle: FontStyle.italic, color: Colors.grey),
+                    ),
+                  ],
                 ),
-                Text(
-                  contact,
-                  style: TextStyle(fontSize: 12.0, fontStyle: FontStyle.italic, color: Colors.grey),
-                ),
+                if (isLoggedIn)
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => HospitalProfileScreen(hospitalId: hospitalId),
+                        ),
+                      );
+                    },
+                    child: Text("Reviews", style: TextStyle(color: Colors.blue)),
+                  ),
               ],
             ),
           ),
@@ -140,3 +172,4 @@ class HospitalCard extends StatelessWidget {
     );
   }
 }
+

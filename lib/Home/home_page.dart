@@ -85,13 +85,14 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: Text(
           'Do you have Health needs?',
           style: TextStyle(
-            color: Colors.grey,
-            fontSize: 20,
-            fontWeight: FontWeight.w900,
+              color: Colors.teal,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
           ),
         ),
         backgroundColor: Colors.white,
@@ -103,28 +104,35 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                   ? NetworkImage(userImageUrl!)
                   : null,
               child: userImageUrl == null || userImageUrl!.isEmpty
-                  ? Icon(Icons.person, color: Colors.white) // Placeholder icon
+                  ? Icon(Icons.person, color: Colors.teal) // Placeholder icon
                   : null,
             ),
           ),
           SizedBox(width: 16),
         ],
       ),
-      body: Stack(
-        children: [
-          HomePageContent(
-            onMessagePressed: () {
-              print('Message icon tapped');
-            },
-          ),
-          ProfileDrawer(
-            controller: _controller,
-            slideAnimation: _slideAnimation,
-            showProfileDrawer: showProfileDrawer,
-          ),
-        ],
+      body: RefreshIndicator(
+        onRefresh: _fetchUserData,
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.teal.withOpacity(0.05), Colors.grey[100]!],
+                ),
+              ),
+              child: HomePageContent(),
+            ),
+            ProfileDrawer(
+              controller: _controller,
+              slideAnimation: _slideAnimation,
+              showProfileDrawer: showProfileDrawer,
+            ),
+          ],
+        ),
       ),
-      backgroundColor: Colors.white,
       bottomNavigationBar: CustomBottomNavBar(),
       floatingActionButton: FloatingActionButton(
         onPressed: () {

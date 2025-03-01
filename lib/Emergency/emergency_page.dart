@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';  // Import dotenv
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import 'Widgets/emergency_hompage_content.dart';
-import 'Widgets/first_aid_response_widget.dart';
 import 'Widgets/first_aid_response_widget1.dart';
 
 class EmergencyPage extends StatefulWidget {
@@ -22,17 +21,20 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
 
   bool _isListening = false;
   bool _showResponsePopup = false;
-  String _responseText = ""; // To store AI-generated first aid response
+  String _responseText = "";
 
   @override
   void initState() {
     super.initState();
     _speechToText = stt.SpeechToText();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
-    _offsetAnimation = Tween<Offset>(begin: Offset(0.0, 0.95), end: Offset(0.0, 0.0)).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+    _offsetAnimation = Tween<Offset>(
+      begin: const Offset(0.0, 1.0),
+      end: const Offset(0.0, 0.0),
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOutBack));
   }
 
   @override
@@ -52,6 +54,10 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           _messageController.text = result.recognizedWords;
         });
       });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Speech recognition not available')),
+      );
     }
   }
 
@@ -61,9 +67,15 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   }
 
   Future<void> _fetchAndShowResponse(String query) async {
+    if (query.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please describe the emergency')),
+      );
+      return;
+    }
     final String response = await _fetchFirstAidResponse(query);
     setState(() {
-      _responseText = response; // Update UI with the response
+      _responseText = response;
       _toggleResponsePopup();
     });
     await _flutterTts.speak(response);
@@ -71,7 +83,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
 
   Future<String> _fetchFirstAidResponse(String query) async {
     try {
-      final String apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';  // Fetch API key from .env
+      final String apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
       if (apiKey.isEmpty) {
         return "API key is missing. Please check the environment variables.";
       }
@@ -103,46 +115,120 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Emergency Assistance"),
-      ),
-      body: Stack(
-        children: [
-          EmergencyHomePageContent(),
-          // If the response popup is visible, show the FirstAidResponseWidget
-          if (_showResponsePopup)
-            SlideTransition(
-              position: _offsetAnimation,
-              child: FirstAidResponseWidget1(
-                responseText: _responseText,
-                onClose: _toggleResponsePopup,
-              ),
-            ),
-        ],
-      ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-        child: Row(
+        elevation: 0,
+        backgroundColor: Colors.redAccent,
+        title: const Row(
           children: [
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                decoration: InputDecoration(
-                  labelText: "Describe the emergency",
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ),
+            Icon(Icons.emergency, color: Colors.white),
             SizedBox(width: 8),
-            IconButton(
-              icon: Icon(_isListening ? Icons.mic : Icons.mic_none),
-              onPressed: _isListening ? _stopListening : _startListening,
-            ),
-            IconButton(
-              icon: Icon(Icons.send),
-              onPressed: () => _fetchAndShowResponse(_messageController.text),
+            Text(
+              "Emergency Assistance",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
             ),
           ],
         ),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.redAccent, Colors.redAccent.shade700],
+            ),
+          ),
+        ),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.redAccent.withOpacity(0.1), Colors.white],
+          ),
+        ),
+        child: Stack(
+          children: [
+            EmergencyHomePageContent(),
+            // Input Area
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildInputArea(),
+            ),
+            // Response Popup
+            if (_showResponsePopup)
+              SlideTransition(
+                position: _offsetAnimation,
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: FirstAidResponseWidget1(
+                    responseText: _responseText,
+                    onClose: _toggleResponsePopup,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputArea() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 2,
+            blurRadius: 10,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _messageController,
+              maxLines: null,
+              decoration: InputDecoration(
+                hintText: "Describe the emergency...",
+                filled: true,
+                fillColor: Colors.grey[100],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(20),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                suffixIcon: IconButton(
+                  icon: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 200),
+                    child: Icon(
+                      _isListening ? Icons.mic : Icons.mic_none,
+                      key: ValueKey(_isListening),
+                      color: Colors.redAccent,
+                    ),
+                  ),
+                  onPressed: _isListening ? _stopListening : _startListening,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton(
+            onPressed: () => _fetchAndShowResponse(_messageController.text),
+            backgroundColor: Colors.redAccent,
+            elevation: 2,
+            child: const Icon(Icons.send, color: Colors.white),
+          ),
+        ],
       ),
     );
   }

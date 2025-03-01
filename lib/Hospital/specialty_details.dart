@@ -39,8 +39,8 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
     )..repeat(reverse: true);
 
     _animation = ColorTween(
-      begin: Colors.blueAccent,
-      end: Colors.blue[200],
+      begin: Colors.teal,
+      end: Colors.tealAccent,
     ).animate(_controller);
 
     _loadHospitalData();
@@ -94,20 +94,30 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Color(0xFFE0F2F1),
       appBar: AppBar(
+        backgroundColor: Colors.teal,
+        elevation: 0,
         title: Text(
           _hospitalDetails['hospitalName'] ?? 'Unknown Hospital',
-          style: TextStyle(fontSize: 12),
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.calendar_today),
+            icon: const Icon(Icons.calendar_today, color: Colors.white),
             onPressed: () {
               showDialog(
                 context: context,
-                builder: (context) => AlertDialog(
-                  content: SizedBox(
-                    width: 300,
+                builder: (context) => Dialog(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: SizedBox(
+                    width: 700,
                     height: 650,
                     child: ShiftScheduleScreen(
                       hospitalId: widget.hospitalId,
@@ -137,7 +147,15 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                       backgroundImage:
                       NetworkImage(_hospitalDetails['logo'] ?? ''),
                     ),
-                    SizedBox(width: 10),
+                    const SizedBox(width: 16),
+                    Text(
+                      _hospitalDetails['hospitalName'] ?? '',
+                      style: const TextStyle(
+                        color: Colors.teal,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
                   ],
                 ),
                 AnimatedBuilder(
@@ -260,7 +278,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
           });
         },
         child: Icon(Icons.add),
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Colors.teal,
       )
           : null,
 
@@ -274,7 +292,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
     return Container(
       padding: EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
-        color: isSelected ? Colors.blueAccent : Colors.transparent,
+        color: isSelected ? Colors.teal : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -310,7 +328,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
             backgroundImage: userPic.isNotEmpty ? NetworkImage(userPic) : null,
             child: userPic.isEmpty ? Icon(Icons.person) : null,
           ),
-          title: Text(name, style: TextStyle(fontWeight: FontWeight.bold)),
+          title: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
           subtitle: Text(experience),
         ),
       ),

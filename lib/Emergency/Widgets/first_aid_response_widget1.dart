@@ -20,7 +20,7 @@ class FirstAidResponseWidget1 extends StatefulWidget {
 
 class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
   String translatedText = "";
-  String selectedLanguage = "ak"; // Default language is Akan (Twi alternative)
+  String selectedLanguage = "ak";
   bool isLoading = false;
   bool isSpeaking = false;
   late FlutterTts flutterTts;
@@ -39,13 +39,14 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
   }
 
   String _sanitizeTextForTranslation(String text) {
-    return text.replaceAll("\n", " <br> ") // Preserve new lines for formatting
+    return text
+        .replaceAll("\n", " <br> ")
         .replaceAllMapped(RegExp(r'^(#{1,})\s*(.*)', multiLine: true), (match) => match.group(2)!)
-        .replaceAll("**", ""); // Remove markdown markers
+        .replaceAll("**", "");
   }
 
   String _restoreFormatting(String text) {
-    return text.replaceAll("<br>", "\n"); // Convert HTML-like breaks back to new lines
+    return text.replaceAll("<br>", "\n");
   }
 
   Future<void> translateText() async {
@@ -105,96 +106,177 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
     String textToSpeak = translatedText.isNotEmpty ? translatedText : widget.responseText;
     String languageCode = selectedLanguage;
 
-    // Map language codes to TTS-supported languages
     final Map<String, String> ttsLanguageMap = {
-      "ak": "ak_GH", // Akan (Twi)
-      "ee": "ee_GH", // Ewe
-      "gaa": "gaa_GH", // Ga
-      "en": "en-US" // English
+      "ak": "ak_GH",
+      "ee": "ee_GH",
+      "gaa": "gaa_GH",
+      "en": "en-US"
     };
 
-    // Set TTS language
     if (ttsLanguageMap.containsKey(languageCode)) {
       await flutterTts.setLanguage(ttsLanguageMap[languageCode]!);
     } else {
-      await flutterTts.setLanguage("en-US"); // Default to English if unavailable
+      await flutterTts.setLanguage("en-US");
     }
 
-    // Set speech rate and pitch for better clarity
     await flutterTts.setSpeechRate(0.5);
     await flutterTts.setPitch(1.0);
 
-    // Start speaking
     int result = await flutterTts.speak(textToSpeak);
     if (result == 1) {
       setState(() => isSpeaking = true);
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-        boxShadow: [BoxShadow(blurRadius: 5, color: Colors.black26)],
+        borderRadius: BorderRadius.circular(20), // More rounded corners
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            spreadRadius: 2,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      padding: EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          _buildHeader(),
+          const SizedBox(height: 16),
+          Expanded(child: _buildContent()),
+          if (isLoading) _buildLoadingOverlay(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Colors.redAccent, Colors.redAccent.shade700],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Row(
             children: [
-              Text("First Aid", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-              Row(
-                children: [
-                  DropdownButton<String>(
-                    value: selectedLanguage,
-                    items: languageMap.entries.map((entry) {
-                      return DropdownMenuItem<String>(
-                        value: entry.value,
-                        child: Text(entry.key),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => selectedLanguage = value);
-                      }
-                    },
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.translate),
-                    onPressed: translateText,
-                  ),
-                  IconButton(
-                    icon: Icon(isSpeaking ? Icons.volume_off : Icons.volume_up),
-                    onPressed: _toggleSpeech,
-                  ),
-                  IconButton(
-                    icon: Icon(Icons.close),
-                    onPressed: widget.onClose,
-                  ),
-                ],
+              Icon(Icons.medical_services, color: Colors.white, size: 24),
+              SizedBox(width: 4),
+              Text(
+                "First Aid",
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
-          Divider(),
-          Expanded(
-            child: SingleChildScrollView(
-              child: RichText(
-                text: TextSpan(
-                  style: TextStyle(fontSize: 16, color: Colors.black),
-                  children: translatedText.isNotEmpty
-                      ? _formatText(translatedText)
-                      : _formatText(widget.responseText),
-                ),
-              ),
-            ),
+          Row(
+            children: [
+              _buildLanguageDropdown(),
+              const SizedBox(width: 8),
+              _buildActionButton(Icons.translate, translateText),
+              const SizedBox(width: 8),
+              _buildActionButton(isSpeaking ? Icons.volume_off : Icons.volume_up, _toggleSpeech),
+              const SizedBox(width: 8),
+              _buildActionButton(Icons.close, widget.onClose),
+            ],
           ),
-          if (isLoading) Center(child: CircularProgressIndicator()),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageDropdown() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: DropdownButton<String>(
+        value: selectedLanguage,
+        underline: const SizedBox(),
+        dropdownColor: Colors.redAccent,
+        icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
+        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+        items: languageMap.entries.map((entry) {
+          return DropdownMenuItem<String>(
+            value: entry.value,
+            child: Text(entry.key),
+          );
+        }).toList(),
+        onChanged: (value) {
+          if (value != null) {
+            setState(() => selectedLanguage = value);
+          }
+        },
+      ),
+    );
+  }
+
+  Widget _buildActionButton(IconData icon, VoidCallback onPressed) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.2),
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        icon: Icon(icon, color: Colors.white),
+        onPressed: onPressed,
+        splashRadius: 20,
+      ),
+    );
+  }
+
+  Widget _buildContent() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: SingleChildScrollView(
+        child: RichText(
+          text: TextSpan(
+            style: const TextStyle(
+              fontSize: 16,
+              color: Colors.black87,
+              height: 1.5, // Improved line spacing
+            ),
+            children: translatedText.isNotEmpty
+                ? _formatText(translatedText)
+                : _formatText(widget.responseText),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingOverlay() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(Colors.redAccent),
+          backgroundColor: Colors.white.withOpacity(0.3),
+        ),
       ),
     );
   }
@@ -204,10 +286,17 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
     List<String> lines = text.split("\n");
 
     for (String line in lines) {
-      if (line.startsWith("- ")) {
-        spans.add(TextSpan(text: "• ${line.substring(2)}\n", style: TextStyle(fontWeight: FontWeight.bold)));
+      if (line.trim().isEmpty) continue; // Skip empty lines
+      if (line.startsWith("- ") || line.startsWith("• ")) {
+        spans.add(TextSpan(
+          text: "• ${line.substring(2)}\n",
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ));
       } else if (line.startsWith("#")) {
-        spans.add(TextSpan(text: "${line.replaceAll("#", "")}\n", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)));
+        spans.add(TextSpan(
+          text: "${line.replaceAll("#", "")}\n",
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ));
       } else {
         spans.add(TextSpan(text: "$line\n"));
       }

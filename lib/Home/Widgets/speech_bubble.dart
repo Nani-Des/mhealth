@@ -43,7 +43,7 @@ class _SpeechBubbleState extends State<SpeechBubble> {
               opacity: _isVisible ? 1.0 : 0.0,
               duration: Duration(milliseconds: 500),
               child: Text(
-                'See Doctor now!',
+                'Featured Doctors!',
                 style: widget.textStyle,
               ),
             ),

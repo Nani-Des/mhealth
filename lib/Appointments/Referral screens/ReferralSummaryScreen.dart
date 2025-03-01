@@ -46,7 +46,6 @@ class ReferralSummaryScreen extends StatelessWidget {
     }
     String? userId = FirebaseAuth.instance.currentUser?.uid;
 
-
     try {
       String? fileUrl;
       if (uploadedFile != null) {
@@ -108,19 +107,28 @@ class ReferralSummaryScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(title, style: TextStyle(color: isError ? Colors.red : Colors.green)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: isError ? Colors.red : Colors.green,
+            ),
+            SizedBox(width: 8),
+            Text(title, style: TextStyle(color: isError ? Colors.red : Colors.green)),
+          ],
+        ),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Close the dialog
-              // Navigate directly to the Homepage widget and replace the current screen
+              Navigator.pop(context);
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (context) => HomePage()), // Replace with your Homepage widget
+                MaterialPageRoute(builder: (context) => HomePage()),
               );
             },
-            child: Text("Okay"),
+            child: Text("Okay", style: TextStyle(color: Colors.teal)),
           ),
         ],
       ),
@@ -131,71 +139,124 @@ class ReferralSummaryScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Referral Summary", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22)),
+        title: Text("Referral Summary", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.white)),
+        backgroundColor: Colors.teal,
+        elevation: 0,
         actions: [
-          if (showConfirm) // Only show the Confirm button when showConfirm is true
-            TextButton(
-              onPressed: () => saveReferralToFirestore(context),
-              child: Text(
-                "Confirm",
-                style: TextStyle(
-                  color: Colors.blueAccent,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+          if (showConfirm)
+            Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: ElevatedButton(
+                onPressed: () => saveReferralToFirestore(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.teal,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: EdgeInsets.symmetric(horizontal: 16),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check, size: 20),
+                    SizedBox(width: 8),
+                    Text("Confirm", style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
                 ),
               ),
             ),
         ],
       ),
-      body: Padding(
-        padding: EdgeInsets.all(16.0),
-        child: ListView(
+      body: Container(
+        color: Colors.grey[100],
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildSectionCard(
+                context,
+                "Patient Information",
+                [
+                  _buildInfoRow("Serial Number", serialNumber),
+                  _buildInfoRow("Patient Reg. No.", patientRegNo ?? "N/A"),
+                  _buildInfoRow("Name", patientName),
+                  _buildInfoRow("Sex", sex ?? "N/A"),
+                  _buildInfoRow("Date of Birth", dateOfBirth),
+                  _buildInfoRow("Age", age?.toString() ?? "N/A"),
+                ],
+              ),
+              SizedBox(height: 16),
+              _buildSectionCard(
+                context,
+                "Referee Notes",
+                [
+                  _buildInfoRow("Examination Findings", examinationFindings),
+                  _buildInfoRow("Treatment Administered", treatmentAdministered),
+                  _buildInfoRow("Diagnosis", diagnosis ?? "N/A"),
+                  _buildInfoRow("Reason for Referral", reasonForReferral),
+                ],
+              ),
+              SizedBox(height: 16),
+              _buildSectionCard(
+                context,
+                "Additional Information",
+                [
+                  _buildInfoRow("Uploaded Medical Records", uploadedFileName ?? "No file uploaded"),
+                  _buildInfoRow("Selected Health Facility", selectedHospitalName ?? "Not selected"),
+                ],
+              ),
+              SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionCard(BuildContext context, String title, List<Widget> children) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildSectionTitle(context, "Patient Information"),
-            Divider(),
-            _buildInfoRow(context, "Serial Number", serialNumber),
-            _buildInfoRow(context, "Patient Reg. No.", patientRegNo ?? "N/A"),
-            _buildInfoRow(context, "Name", patientName),
-            _buildInfoRow(context, "Sex", sex ?? "N/A"),
-            _buildInfoRow(context, "Date of Birth", dateOfBirth),
-            _buildInfoRow(context, "Age", age?.toString() ?? "N/A"),
-            SizedBox(height: 24),
-            _buildSectionTitle(context, "Referee Notes"),
-            Divider(),
-            _buildInfoRow(context, "Examination Findings", examinationFindings),
-            _buildInfoRow(context, "Treatment Administered", treatmentAdministered),
-            _buildInfoRow(context, "Diagnosis", diagnosis ?? "N/A"),
-            _buildInfoRow(context, "Reason for Referral", reasonForReferral),
-            SizedBox(height: 24),
-            _buildSectionTitle(context, "Additional Information"),
-            Divider(),
-            _buildInfoRow(context, "Uploaded Medical Records", uploadedFileName ?? "No file uploaded"),
-            _buildInfoRow(context, "Selected Health Facility", selectedHospitalName ?? "Not selected"),
-            SizedBox(height: 32),
+            Text(
+              title,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                color: Colors.teal,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            SizedBox(height: 16),
+            ...children,
           ],
         ),
       ),
     );
   }
 
-  Widget _buildSectionTitle(BuildContext context, String title) {
+  Widget _buildInfoRow(String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12.0),
-      child: Text(
-        title,
-        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent, fontSize: 20),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(BuildContext context, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: EdgeInsets.symmetric(vertical: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 2, child: Text("$label:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
-          Expanded(flex: 3, child: Text(value, style: TextStyle(fontSize: 16))),
+          Expanded(
+            flex: 2,
+            child: Text(
+              "$label:",
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.grey[800]),
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              value,
+              style: TextStyle(fontSize: 16, color: Colors.grey[700]),
+            ),
+          ),
         ],
       ),
     );

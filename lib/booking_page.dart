@@ -25,19 +25,27 @@ class _BookingPageState extends State<BookingPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text("Bookings"),
-          bottom: const TabBar(
+          title: Text("Bookings", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          backgroundColor: Colors.teal,
+          elevation: 0,
+          bottom: TabBar(
+            indicatorColor: Colors.white,
+            labelColor: Colors.white,
+            unselectedLabelColor: Colors.white70,
             tabs: [
               Tab(text: "Requests"),
               Tab(text: "Appointments"),
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            _buildRequests(),
-            _buildAppointments(),
-          ],
+        body: Container(
+          color: Colors.grey[100],
+          child: TabBarView(
+            children: [
+              _buildRequests(),
+              _buildAppointments(),
+            ],
+          ),
         ),
       ),
     );
@@ -48,10 +56,10 @@ class _BookingPageState extends State<BookingPage> {
       stream: _allBookingsStream,
       builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator(color: Colors.teal));
         }
-        if (!snapshot.hasData) {
-          return const Center(child: Text("No booking requests."));
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          return _buildEmptyState("No booking requests found");
         }
 
         List<Map<String, dynamic>> requests = [];
@@ -59,7 +67,6 @@ class _BookingPageState extends State<BookingPage> {
           var bookings = doc['Bookings'] as List<dynamic>? ?? [];
           for (var booking in bookings) {
             if (booking['doctorId'] == widget.currentUserId) {
-              // Check if the date is in the past and update status if needed
               if (_isDateInPast(booking['date'])) {
                 booking['status'] = "Terminated";
               }
@@ -68,17 +75,11 @@ class _BookingPageState extends State<BookingPage> {
           }
         }
 
-        // Sort requests: Active first, then Pending, then Terminated
-        requests.sort((a, b) {
-          if (a['status'] == "Active" && b['status'] != "Active") return -1;
-          if (a['status'] != "Active" && b['status'] == "Active") return 1;
-          if (a['status'] == "Terminated" && b['status'] != "Terminated") return 1;
-          if (a['status'] != "Terminated" && b['status'] == "Terminated") return -1;
-          return 0;
-        });
-
-        return ListView(
-          children: requests.map((doc) => _buildAppointmentCard(doc, doc['patientId'], true)).toList(),
+        requests.sort((a, b) => _sortBookings(a, b));
+        return ListView.builder(
+          padding: EdgeInsets.all(16),
+          itemCount: requests.length,
+          itemBuilder: (context, index) => _buildAppointmentCard(requests[index], requests[index]['patientId'], true),
         );
       },
     );
@@ -89,27 +90,23 @@ class _BookingPageState extends State<BookingPage> {
       stream: FirebaseFirestore.instance.collection('Bookings').doc(widget.currentUserId).snapshots(),
       builder: (context, AsyncSnapshot<DocumentSnapshot> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator(color: Colors.teal));
         }
         if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const Center(child: Text("No bookings."));
+          return _buildEmptyState("No appointments found");
         }
 
-        var bookings = snapshot.data!['Bookings'] as List<dynamic>? ?? [];
-
-        // Check and update status for each booking (mark past ones as Terminated)
+        var bookings = List<Map<String, dynamic>>.from(snapshot.data!['Bookings'] ?? []);
         bookings.forEach((booking) {
           if (_isDateInPast(booking['date'])) {
             booking['status'] = "Terminated";
           }
         });
 
-        // Count Pending, Active, and Terminated appointments after status update
         int pendingCount = bookings.where((doc) => doc['status'] == "Pending").length;
         int activeCount = bookings.where((doc) => doc['status'] == "Active").length;
         int terminatedCount = bookings.where((doc) => doc['status'] == "Terminated").length;
 
-        // Update the Firebase DB with the new status values
         _updateBookingStatusInDB(bookings);
 
         return DefaultTabController(
@@ -117,16 +114,13 @@ class _BookingPageState extends State<BookingPage> {
           child: Column(
             children: [
               TabBar(
+                indicatorColor: Colors.teal,
+                labelColor: Colors.teal,
+                unselectedLabelColor: Colors.grey[600],
                 tabs: [
-                  Tab(
-                    text: "Pending ($pendingCount)",  // Show count for Pending
-                  ),
-                  Tab(
-                    text: "Active ($activeCount)",  // Show count for Active
-                  ),
-                  Tab(
-                    text: "Terminated ($terminatedCount)",  // Show count for Terminated
-                  ),
+                  Tab(text: "Pending ($pendingCount)"),
+                  Tab(text: "Active ($activeCount)"),
+                  Tab(text: "Terminated ($terminatedCount)"),
                 ],
               ),
               Expanded(
@@ -145,10 +139,14 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-  Widget _buildStatusList(List<dynamic> bookings, String status) {
+  Widget _buildStatusList(List<Map<String, dynamic>> bookings, String status) {
     var filtered = bookings.where((doc) => doc['status'] == status).toList();
-    return ListView(
-      children: filtered.map((doc) => _buildAppointmentCard(doc, doc['doctorId'], false)).toList(),
+    return filtered.isEmpty
+        ? _buildEmptyState("No $status appointments")
+        : ListView.builder(
+      padding: EdgeInsets.all(16),
+      itemCount: filtered.length,
+      itemBuilder: (context, index) => _buildAppointmentCard(filtered[index], widget.currentUserId, false),
     );
   }
 
@@ -157,75 +155,84 @@ class _BookingPageState extends State<BookingPage> {
       future: FirebaseFirestore.instance.collection('Users').doc(userId).get(),
       builder: (context, AsyncSnapshot<DocumentSnapshot> userSnapshot) {
         if (userSnapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+          return Center(child: CircularProgressIndicator(color: Colors.teal));
         }
         if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
-          return const SizedBox.shrink();
+          return SizedBox.shrink();
         }
         var userInfo = userSnapshot.data!.data() as Map<String, dynamic>;
         String formattedDate = appointment['date'] is Timestamp
-            ? DateFormat('yyyy-MM-dd HH:mm').format(appointment['date'].toDate())
+            ? DateFormat('MMM dd, yyyy HH:mm').format(appointment['date'].toDate())
             : appointment['date'].toString();
 
-        // Apply a light blue border for active items
-        BoxDecoration decoration = appointment['status'] == "Active"
-            ? BoxDecoration(
-          border: Border.all(color: Colors.lightBlue, width: 2),
-          borderRadius: BorderRadius.circular(10),
-        )
-            : BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-        );
+        Color borderColor = appointment['status'] == "Active"
+            ? Colors.teal
+            : appointment['status'] == "Pending"
+            ? Colors.orange
+            : Colors.red;
 
-        return Container(
-          decoration: decoration,
-          margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
-          child: Card(
-            elevation: 6,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-            color: Colors.white,
-            shadowColor: Colors.grey.withOpacity(0.5),
-            child: ListTile(
-              leading: CircleAvatar(
-                backgroundImage: userInfo['User Pic'] != null ? NetworkImage(userInfo['User Pic']) : null,
-                child: userInfo['User Pic'] == null ? const Icon(Icons.person) : null,
-              ),
-              title: Text(
-                "${userInfo['Fname']} ${userInfo['Lname']}",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-              ),
-              subtitle: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Reason: ${appointment['reason']}",
-                    style: TextStyle(fontStyle: FontStyle.italic, color: Colors.grey),
+        return Card(
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: borderColor, width: 2),
+          ),
+          margin: EdgeInsets.symmetric(vertical: 8),
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: 25,
+                  backgroundColor: Colors.teal.withOpacity(0.1),
+                  backgroundImage: userInfo['User Pic'] != null ? NetworkImage(userInfo['User Pic']) : null,
+                  child: userInfo['User Pic'] == null ? Icon(Icons.person, color: Colors.teal) : null,
+                ),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "${userInfo['Fname']} ${userInfo['Lname']}",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        "Reason: ${appointment['reason']}",
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        "Date: $formattedDate",
+                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                      ),
+                      SizedBox(height: 4),
+                      _buildStatusChip(appointment['status']),
+                    ],
                   ),
-                  Text("Date: $formattedDate"),
-                ],
-              ),
-              trailing: isRequest
-                  ? appointment['status'] == "Active"  // Check if the request is Active
-                  ? null  // If Active, don't show the icons
-                  : Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+                ),
+                if (isRequest && appointment['status'] != "Active")
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.check, color: Colors.green),
+                        onPressed: () => _updateStatus(userId, appointment['date'], "Active"),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete, color: Colors.red),
+                        onPressed: () => _confirmDelete(userId, appointment['date']),
+                      ),
+                    ],
+                  )
+                else if (!isRequest && appointment['status'] == "Pending")
                   IconButton(
-                    icon: const Icon(Icons.check, color: Colors.green),
-                    onPressed: () => _updateStatus(userId, appointment['date'], "Active"),
+                    icon: Icon(Icons.delete, color: Colors.red),
+                    onPressed: () => _confirmDelete(userId, appointment['date']),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
-                    onPressed: () => _deleteBooking(userId, appointment['date']),
-                  ),
-                ],
-              )
-                  : appointment['status'] == "Pending"
-                  ? IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () => _deleteBooking(userId, appointment['date']),
-              )
-                  : null,
+              ],
             ),
           ),
         );
@@ -233,37 +240,130 @@ class _BookingPageState extends State<BookingPage> {
     );
   }
 
-  void _updateStatus(String userId, Timestamp date, String newStatus) {
-    FirebaseFirestore.instance.collection('Bookings').doc(userId).get().then((doc) {
-      if (doc.exists) {
-        List<dynamic> bookings = List.from(doc['Bookings']);
-        for (var booking in bookings) {
-          if (booking['date'] == date) {
-            booking['status'] = newStatus;
-          }
-        }
-        FirebaseFirestore.instance.collection('Bookings').doc(userId).update({'Bookings': bookings});
-      }
-    });
+  Widget _buildStatusChip(String status) {
+    Color color;
+    switch (status) {
+      case "Active":
+        color = Colors.teal;
+        break;
+      case "Pending":
+        color = Colors.orange;
+        break;
+      case "Terminated":
+        color = Colors.red;
+        break;
+      default:
+        color = Colors.grey;
+    }
+    return Chip(
+      label: Text(status, style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      backgroundColor: color.withOpacity(0.8),
+      padding: EdgeInsets.symmetric(horizontal: 8),
+    );
   }
 
-  void _deleteBooking(String userId, Timestamp date) {
-    FirebaseFirestore.instance.collection('Bookings').doc(userId).get().then((doc) {
-      if (doc.exists) {
-        List<dynamic> bookings = List.from(doc['Bookings']);
-        bookings.removeWhere((booking) => booking['date'] == date);
-        FirebaseFirestore.instance.collection('Bookings').doc(userId).update({'Bookings': bookings});
-      }
-    });
+  Widget _buildEmptyState(String message) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.event_busy, size: 48, color: Colors.grey),
+          SizedBox(height: 16),
+          Text(message, style: TextStyle(fontSize: 18, color: Colors.grey)),
+        ],
+      ),
+    );
+  }
+
+  int _sortBookings(Map<String, dynamic> a, Map<String, dynamic> b) {
+    if (a['status'] == "Active" && b['status'] != "Active") return -1;
+    if (a['status'] != "Active" && b['status'] == "Active") return 1;
+    if (a['status'] == "Terminated" && b['status'] != "Terminated") return 1;
+    if (a['status'] != "Terminated" && b['status'] == "Terminated") return -1;
+    return 0;
   }
 
   bool _isDateInPast(Timestamp timestamp) {
     return timestamp.toDate().isBefore(DateTime.now());
   }
 
-  void _updateBookingStatusInDB(List<dynamic> bookings) {
-    FirebaseFirestore.instance.collection('Bookings').doc(widget.currentUserId).update({
-      'Bookings': bookings,
-    });
+  void _updateStatus(String userId, Timestamp date, String newStatus) async {
+    try {
+      DocumentSnapshot doc = await FirebaseFirestore.instance.collection('Bookings').doc(userId).get();
+      if (doc.exists) {
+        List<dynamic> bookings = List.from(doc['Bookings']);
+        int index = bookings.indexWhere((b) => b['date'] == date);
+        if (index != -1) {
+          bookings[index]['status'] = newStatus;
+          await FirebaseFirestore.instance.collection('Bookings').doc(userId).update({'Bookings': bookings});
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("Status updated to $newStatus")),
+          );
+        }
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to update status: $e")),
+      );
+    }
+  }
+
+  void _confirmDelete(String userId, Timestamp date) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Row(
+          children: [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text("Confirm Delete"),
+          ],
+        ),
+        content: Text("Are you sure you want to delete this booking?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel", style: TextStyle(color: Colors.teal)),
+          ),
+          TextButton(
+            onPressed: () {
+              _deleteBooking(userId, date);
+              Navigator.pop(context);
+            },
+            child: Text("Delete", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _deleteBooking(String userId, Timestamp date) async {
+    try {
+      DocumentReference docRef = FirebaseFirestore.instance.collection('Bookings').doc(userId);
+      DocumentSnapshot doc = await docRef.get();
+      if (doc.exists) {
+        List<dynamic> bookings = List.from(doc['Bookings']);
+        bookings.removeWhere((booking) => booking['date'] == date);
+        await docRef.update({'Bookings': bookings});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Booking deleted successfully")),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to delete booking: $e")),
+      );
+    }
+  }
+
+  void _updateBookingStatusInDB(List<Map<String, dynamic>> bookings) async {
+    try {
+      await FirebaseFirestore.instance.collection('Bookings').doc(widget.currentUserId).update({
+        'Bookings': bookings,
+      });
+    } catch (e) {
+      print("Error updating booking status: $e");
+    }
   }
 }

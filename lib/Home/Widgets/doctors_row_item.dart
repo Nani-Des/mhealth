@@ -22,18 +22,25 @@ class _DoctorsRowItemState extends State<DoctorsRowItem> {
     try {
       QuerySnapshot snapshot = await _firestore
           .collection('Users')
-          .where('Role', isEqualTo: true)
+          .where('Role', isEqualTo: true) // Ensure 'Role' is stored as a boolean
           .limit(10)
           .get();
 
       List<Map<String, String>> users = snapshot.docs
-          .where((doc) =>
-      doc['User Pic'] != null &&
-          Uri.tryParse(doc['User Pic'])?.hasAbsolutePath == true)
-          .map((doc) => {
-        'userId': doc.id, // Capture the userId
-        'User Pic': doc['User Pic'] as String,
-        'Fname': '${doc['Title']} ${doc['Fname']}' as String,
+          .where((doc) {
+        var data = doc.data() as Map<String, dynamic>?; // Cast safely
+        return data != null &&
+            data.containsKey('User Pic') &&
+            data['User Pic'] != null &&
+            Uri.tryParse(data['User Pic'])?.hasAbsolutePath == true;
+      })
+          .map((doc) {
+        var data = doc.data() as Map<String, dynamic>;
+        return {
+          'userId': doc.id,
+          'User Pic': data['User Pic'] as String,
+          'Fname': '${data['Title'] ?? ''} ${data['Fname'] ?? ''}'.trim(),
+        };
       })
           .toList();
 
@@ -44,6 +51,7 @@ class _DoctorsRowItemState extends State<DoctorsRowItem> {
       print('Error fetching user pics and names: $e');
     }
   }
+
 
   void _onItemPressed(int index) {
     final userId = _users[index]['userId'];

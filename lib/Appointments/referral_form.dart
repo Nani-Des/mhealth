@@ -3,7 +3,6 @@ import 'dart:math';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
 import '../Home/Widgets/organization_list_view.dart';
 import 'Referral screens/ReferralSummaryScreen.dart';
 
@@ -16,40 +15,34 @@ class _ReferralFormState extends State<ReferralForm> {
   final PageController _pageController = PageController();
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers for Patient Information
+  // Controllers and variables (unchanged)
   final TextEditingController _patientRegController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _examinationFindingsController = TextEditingController();
+  final TextEditingController _treatmentAdministeredController = TextEditingController();
+  final TextEditingController _diagnosisController = TextEditingController();
+  final TextEditingController _reasonForReferralController = TextEditingController();
 
   String? _selectedSex;
   DateTime? _dateOfBirth;
   int? _age;
   late String _serialNumber;
-  String? selectedHospitalName;
-
-  // Controllers for Referee Notes
-  final TextEditingController _examinationFindingsController =
-  TextEditingController();
-  final TextEditingController _treatmentAdministeredController =
-  TextEditingController();
-  final TextEditingController _diagnosisController = TextEditingController();
-  final TextEditingController _reasonForReferralController =
-  TextEditingController();
-
-  // Health Facility selection
   String? _selectedHealthFacility;
-
-  // Medical records upload (optional)
   String? _uploadedFileName;
   File? _uploadedFile;
-
+  int _currentPage = 0;
 
   @override
   void initState() {
     super.initState();
     _serialNumber = _generateSerialNumber(7);
+    _pageController.addListener(() {
+      setState(() {
+        _currentPage = _pageController.page?.round() ?? 0;
+      });
+    });
   }
 
-  // Generates a random alphanumeric serial number of given length.
   String _generateSerialNumber(int length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     Random rnd = Random();
@@ -57,19 +50,22 @@ class _ReferralFormState extends State<ReferralForm> {
         length, (_) => chars.codeUnitAt(rnd.nextInt(chars.length))));
   }
 
-  // Date picker that calculates age automatically.
   Future<void> _selectDate(BuildContext context) async {
-    final DateTime initialDate = _dateOfBirth ?? DateTime(2000);
-    final DateTime firstDate = DateTime(1900);
-    final DateTime lastDate = DateTime.now();
-
     final DateTime? picked = await showDatePicker(
       context: context,
-      initialDate: initialDate,
-      firstDate: firstDate,
-      lastDate: lastDate,
+      initialDate: _dateOfBirth ?? DateTime(2000),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: ColorScheme.light(primary: Colors.teal),
+            buttonTheme: ButtonThemeData(textTheme: ButtonTextTheme.primary),
+          ),
+          child: child!,
+        );
+      },
     );
-
     if (picked != null && picked != _dateOfBirth) {
       setState(() {
         _dateOfBirth = picked;
@@ -81,100 +77,58 @@ class _ReferralFormState extends State<ReferralForm> {
   int _calculateAge(DateTime birthDate) {
     final today = DateTime.now();
     int age = today.year - birthDate.year;
-    if (today.month < birthDate.month ||
-        (today.month == birthDate.month && today.day < birthDate.day)) {
+    if (today.month < birthDate.month || (today.month == birthDate.month && today.day < birthDate.day)) {
       age--;
     }
     return age;
   }
 
   void _nextPage() {
-    // Validate only required fields on page 1.
-    print("Selected Health Facility: $selectedHospitalName");
     if (_formKey.currentState!.validate()) {
-      _pageController.nextPage(
-          duration: Duration(milliseconds: 300), curve: Curves.easeIn);
+      _pageController.nextPage(duration: Duration(milliseconds: 300), curve: Curves.easeIn);
     }
   }
 
   void _previousPage() {
-    _pageController.previousPage(
-        duration: Duration(milliseconds: 300), curve: Curves.easeOut);
+    _pageController.previousPage(duration: Duration(milliseconds: 300), curve: Curves.easeOut);
   }
 
-
-
-
-  // Updated: Shows a bottom sheet with OrganizationListView.
   void _selectHealthFacility() async {
-    // Open the bottom sheet and wait for the result (hospital name).
-    final String? selectedHospitalName = await showModalBottomSheet<String>(
+    final String? result = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.75,
+        padding: EdgeInsets.all(16),
+        child: OrganizationListView(showSearchBar: true, isReferral: true),
       ),
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.75,
-          padding: EdgeInsets.all(16),
-          child: OrganizationListView(showSearchBar: true, isReferral: true),
-        );
-      },
     );
-
-    // If a hospital name was selected, update the selected health facility state.
-    if (selectedHospitalName != null) {
-      setState(() {
-        _selectedHealthFacility = selectedHospitalName; // Update with selected name
-      });
-    } else {
-      setState(() {
-        _selectedHealthFacility = null; // Reset the health facility value if no selection
-      });
+    if (result != null) {
+      setState(() => _selectedHealthFacility = result);
     }
   }
 
   void _uploadMedicalRecords() async {
-    // Open the file picker dialog
     FilePickerResult? result = await FilePicker.platform.pickFiles(
-      allowMultiple: false,  // You can set this to true if you want to allow multiple file selections.
-      type: FileType.custom,  // Allow custom file types (you can specify file extensions if needed)
-      allowedExtensions: ['pdf', 'jpg', 'png'], // Customize allowed file types (e.g. pdf, image files)
+      allowMultiple: false,
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'png'],
     );
-
     if (result != null) {
-      // Get the selected file
       PlatformFile file = result.files.single;
-
-      // Store the file as a File object for future use
       setState(() {
-        _uploadedFile = File(file.path!); // Ensure the file path is not null
+        _uploadedFile = File(file.path!);
         _uploadedFileName = file.name;
       });
-
-      // Show snack bar to notify user about file selection
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Medical records uploaded: ${file.name}")),
-      );
-    } else {
-      // User canceled the file picking
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("File picking was canceled.")),
+        SnackBar(content: Text("Uploaded: ${file.name}", style: TextStyle(color: Colors.white))),
       );
     }
   }
 
   void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      if (_selectedHealthFacility == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Please select a health facility")),
-        );
-        return; // Exit the method if no hospital is selected
-      }
-
-      // Pass the file to the ReferralSummaryScreen if uploaded
+    if (_formKey.currentState!.validate() && _selectedHealthFacility != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -192,15 +146,16 @@ class _ReferralFormState extends State<ReferralForm> {
             uploadedFileName: _uploadedFileName,
             selectedHospitalName: _selectedHealthFacility,
             uploadedFile: _uploadedFile,
-            showConfirm: true,// Pass the actual file here
+            showConfirm: true,
           ),
         ),
       );
+    } else if (_selectedHealthFacility == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Please select a health facility")),
+      );
     }
   }
-
-
-
 
   @override
   void dispose() {
@@ -216,332 +171,310 @@ class _ReferralFormState extends State<ReferralForm> {
 
   @override
   Widget build(BuildContext context) {
-    // A consistent padding for better UI.
-    const contentPadding = EdgeInsets.all(16.0);
-
     return Scaffold(
       appBar: AppBar(
-        title: Text("Referral Form"),
+        title: Text("Referral Form", style: TextStyle(fontWeight: FontWeight.bold)),
+        elevation: 0,
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
       ),
-      body: Form(
-        key: _formKey,
-        child: PageView(
-          controller: _pageController,
-          physics: NeverScrollableScrollPhysics(), // Prevent manual swiping.
+      body: Container(
+        color: Colors.grey[100],
+        child: Column(
           children: [
-
-            // ----- Page 1: Patient Information -----
-            SingleChildScrollView(
-              padding: contentPadding,
-              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                margin: EdgeInsets.all(8),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Patient Information",
-                          style: Theme.of(context).textTheme.titleLarge),
-                      SizedBox(height: 16),
-                      // Row: Patient Reg. No. (Optional) and Serial Number
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: TextFormField(
-                              controller: _patientRegController,
-                              decoration: InputDecoration(
-                                labelText: "Patient Reg. No. (Optional)",
-                                border: OutlineInputBorder(),
-                              ),
-                              // Optional field: No validator provided.
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            flex: 1,
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                    color: Colors.grey.shade400),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                "Serial: $_serialNumber",
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      // Name Field (Required)
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: InputDecoration(
-                          labelText: "Name",
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return "Enter the patient's name";
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 16),
-                      // Sex Radio Buttons (Required)
-                      Text("Sex", style: TextStyle(fontSize: 16)),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: RadioListTile<String>(
-                              title: Text("M"),
-                              value: "Male",
-                              groupValue: _selectedSex,
-                              onChanged: (val) {
-                                setState(() {
-                                  _selectedSex = val;
-                                });
-                              },
-                            ),
-                          ),
-                          Expanded(
-                            child: RadioListTile<String>(
-                              title: Text("F"),
-                              value: "Female",
-                              groupValue: _selectedSex,
-                              onChanged: (val) {
-                                setState(() {
-                                  _selectedSex = val;
-                                });
-                              },
-                            ),
-                          ),
-                          Expanded(
-                            child: RadioListTile<String>(
-                              title: Text("Other"),
-                              value: "Other",
-                              groupValue: _selectedSex,
-                              onChanged: (val) {
-                                setState(() {
-                                  _selectedSex = val;
-                                });
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 16),
-                      // Row: Date of Birth and Age (Required)
-                      Row(
-                        children: [
-                          Expanded(
-                            flex: 2,
-                            child: GestureDetector(
-                              onTap: () => _selectDate(context),
-                              child: AbsorbPointer(
-                                child: TextFormField(
-                                  decoration: InputDecoration(
-                                    labelText: "Date of Birth",
-                                    border: OutlineInputBorder(),
-                                    suffixIcon: Icon(Icons.calendar_today),
-                                  ),
-                                  controller: TextEditingController(
-                                    text: _dateOfBirth != null
-                                        ? DateFormat('yyyy-MM-dd')
-                                        .format(_dateOfBirth!)
-                                        : "",
-                                  ),
-                                  validator: (value) {
-                                    if (_dateOfBirth == null) {
-                                      return "Select date of birth";
-                                    }
-                                    return null;
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 16),
-                          Expanded(
-                            flex: 1,
-                            child: Container(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              decoration: BoxDecoration(
-                                border: Border.all(
-                                    color: Colors.grey.shade400),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                _age != null ? "Age: $_age" : "Age",
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      SizedBox(height: 24),
-                      // Next button to proceed to Referee Notes page
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-
-                          ElevatedButton(
-                            onPressed: _nextPage,
-                            child: Text("Next"),
-                          )
-                        ],
-                      )
-                    ],
-                  ),
+            // Progress Indicator
+            Padding(
+              padding: EdgeInsets.all(16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(3, (index) => _buildStepIndicator(index)),
+              ),
+            ),
+            Expanded(
+              child: Form(
+                key: _formKey,
+                child: PageView(
+                  controller: _pageController,
+                  physics: NeverScrollableScrollPhysics(),
+                  children: [
+                    _buildPatientInfoPage(),
+                    _buildRefereeNotesPage(),
+                    _buildHealthFacilityPage(),
+                  ],
                 ),
               ),
             ),
-            // ----- Page 2: Referee Notes & Additional Features -----
-            SingleChildScrollView(
-              padding: contentPadding,
-              child: Card(
-                elevation: 4,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                margin: EdgeInsets.all(8),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Referee Notes",
-                          style: Theme.of(context).textTheme.titleLarge),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _examinationFindingsController,
-                        decoration: InputDecoration(
-                          labelText: "Examination Findings",
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 3,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return "Enter examination findings";
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _treatmentAdministeredController,
-                        decoration: InputDecoration(
-                          labelText: "Treatment Administered",
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 3,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return "Enter treatment administered";
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 16),
-                      // Diagnosis is optional.
-                      TextFormField(
-                        controller: _diagnosisController,
-                        decoration: InputDecoration(
-                          labelText: "Diagnosis (Optional)",
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 2,
-                      ),
-                      SizedBox(height: 16),
-                      TextFormField(
-                        controller: _reasonForReferralController,
-                        decoration: InputDecoration(
-                          labelText: "Reason for Referral",
-                          border: OutlineInputBorder(),
-                        ),
-                        maxLines: 3,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return "Enter reason for referral";
-                          }
-                          return null;
-                        },
-                      ),
-                      SizedBox(height: 24),
-                      // Upload Medical Records (Optional)
-                      Text("Upload Medical Records (Optional)",
-                          style: TextStyle(fontWeight: FontWeight.bold)),
-                      SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        onPressed: _uploadMedicalRecords,
-                        icon: Icon(Icons.upload_file),
-                        label: Text(_uploadedFileName == null
-                            ? "Upload File"
-                            : "Uploaded: $_uploadedFileName"),
-                      ),
-                      SizedBox(height: 24),
-                      // Health Facility selection button.
-
-
-                      SizedBox(height: 24),
-                      // Navigation: Back and Submit buttons.
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          ElevatedButton(
-                            onPressed: _previousPage,
-                            child: Text("Back"),
-                          ),
-                          ElevatedButton(
-                            onPressed: _nextPage,
-                            child: Text("Next"),
-                          )
-                        ],
-                      )
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            SingleChildScrollView(
-              padding: EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text("Select Health Facility", style: Theme.of(context).textTheme.titleLarge),
-                  SizedBox(height: 24),
-                  ElevatedButton.icon(
-                    onPressed: _selectHealthFacility,
-                    icon: Icon(Icons.local_hospital),
-                    label: Text(
-                      _selectedHealthFacility == null
-                          ? "Select Health Facility (Required)"
-                          : "Selected: $_selectedHealthFacility",
-                    ),
-                  ),
-                  SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      ElevatedButton(onPressed: _previousPage, child: Text("Back")),
-                      ElevatedButton(onPressed: _submitForm, child: Text("Submit")),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-
           ],
         ),
       ),
     );
   }
-}
 
+  Widget _buildStepIndicator(int index) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8),
+      child: CircleAvatar(
+        radius: 12,
+        backgroundColor: _currentPage >= index ? Colors.teal : Colors.grey[400],
+        child: Text(
+          "${index + 1}",
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPatientInfoPage() {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Patient Information", style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
+              SizedBox(height: 24),
+              // Row with Patient Reg No and Serial Number
+              Row(
+                children: [
+                  Expanded(
+                    flex: 2,
+                    child: _buildTextField(_patientRegController, "Patient Reg. No. (Optional)", isRequired: false),
+                  ),
+                  SizedBox(width: 16),
+                  Expanded(
+                    flex: 1,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(vertical: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.teal.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        "Serial: $_serialNumber",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: 16),
+              _buildTextField(_nameController, "Name"),
+              SizedBox(height: 24),
+              Text("Sex", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              _buildSexSelection(),
+              SizedBox(height: 24),
+              _buildDateOfBirthField(),
+              SizedBox(height: 32),
+              _buildNavigationButtons(nextOnly: true),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRefereeNotesPage() {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Referee Notes", style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
+              SizedBox(height: 24),
+              _buildTextField(_examinationFindingsController, "Examination Findings", maxLines: 3),
+              SizedBox(height: 16),
+              _buildTextField(_treatmentAdministeredController, "Treatment Administered", maxLines: 3),
+              SizedBox(height: 16),
+              _buildTextField(_diagnosisController, "Diagnosis (Optional)", maxLines: 2, isRequired: false),
+              SizedBox(height: 16),
+              _buildTextField(_reasonForReferralController, "Reason for Referral", maxLines: 3),
+              SizedBox(height: 24),
+              _buildUploadButton(),
+              SizedBox(height: 32),
+              _buildNavigationButtons(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHealthFacilityPage() {
+    return SingleChildScrollView(
+      padding: EdgeInsets.all(16),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Select Health Facility", style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
+              SizedBox(height: 32),
+              _buildHealthFacilityButton(),
+              SizedBox(height: 48),
+              _buildNavigationButtons(isLastPage: true),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String label, {int maxLines = 1, bool isRequired = true}) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      ),
+      validator: isRequired ? (value) => value!.isEmpty ? "Please enter $label" : null : null,
+    );
+  }
+
+  Widget _buildSexSelection() {
+    return Row(
+      children: ["Male", "Female", "Other"].map((sex) => Expanded(
+        child: RadioListTile<String>(
+          title: Text(sex[0], style: TextStyle(fontWeight: FontWeight.bold)),
+          value: sex,
+          groupValue: _selectedSex,
+          onChanged: (val) => setState(() => _selectedSex = val),
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+        ),
+      )).toList(),
+    );
+  }
+
+  Widget _buildDateOfBirthField() {
+    return Row(
+      children: [
+        Expanded(
+          flex: 2,
+          child: GestureDetector(
+            onTap: () => _selectDate(context),
+            child: AbsorbPointer(
+              child: TextFormField(
+                decoration: InputDecoration(
+                  labelText: "Date of Birth",
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  suffixIcon: Icon(Icons.calendar_today, color: Colors.teal),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                controller: TextEditingController(
+                  text: _dateOfBirth != null ? DateFormat('yyyy-MM-dd').format(_dateOfBirth!) : "",
+                ),
+                validator: (value) => _dateOfBirth == null ? "Select date of birth" : null,
+              ),
+            ),
+          ),
+        ),
+        SizedBox(width: 16),
+        Expanded(
+          flex: 1,
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: 16),
+            decoration: BoxDecoration(
+              color: Colors.teal.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              _age != null ? "Age: $_age" : "Age",
+              textAlign: TextAlign.center,
+              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildUploadButton() {
+    return OutlinedButton.icon(
+      onPressed: _uploadMedicalRecords,
+      icon: Icon(Icons.upload_file, color: Colors.teal),
+      label: Text(
+        _uploadedFileName == null ? "Upload Medical Records" : "Uploaded: $_uploadedFileName",
+        style: TextStyle(color: Colors.teal),
+      ),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: Colors.teal),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      ),
+    );
+  }
+
+  Widget _buildHealthFacilityButton() {
+    return ElevatedButton.icon(
+      onPressed: _selectHealthFacility,
+      icon: Icon(Icons.local_hospital),
+      label: Text(
+        _selectedHealthFacility == null ? "Select Health Facility" : "Selected: $_selectedHealthFacility",
+        overflow: TextOverflow.ellipsis,
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.teal,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+        minimumSize: Size(double.infinity, 50),
+      ),
+    );
+  }
+
+  Widget _buildNavigationButtons({bool nextOnly = false, bool isLastPage = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        if (!nextOnly) ...[
+          TextButton(
+            onPressed: _previousPage,
+            child: Row(
+              children: [
+                Icon(Icons.arrow_back, color: Colors.teal),
+                SizedBox(width: 8),
+                Text("Back", style: TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ] else
+          Spacer(),
+        ElevatedButton(
+          onPressed: isLastPage ? _submitForm : _nextPage,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(isLastPage ? "Submit" : "Next", style: TextStyle(fontWeight: FontWeight.bold)),
+              SizedBox(width: 8),
+              Icon(isLastPage ? Icons.check : Icons.arrow_forward),
+            ],
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            padding: EdgeInsets.symmetric(vertical: 12, horizontal: 24),
+          ),
+        ),
+      ],
+    );
+  }
+}

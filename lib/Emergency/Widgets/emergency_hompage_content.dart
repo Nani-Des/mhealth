@@ -166,7 +166,6 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
         ),
 
         // Third Section (40% height) - Display categories and articles
-        // Third Section (40% height) - Display categories and articles
         Expanded(
           flex: 2,
           child: Column(
@@ -205,7 +204,7 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
                   ],
                 ),
               ),
-              SizedBox(height: 4),
+              SizedBox(height: 6),
               Expanded(
                 child: ListView(
                   scrollDirection: Axis.horizontal,
@@ -216,8 +215,9 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
               ),
             ],
           ),
-        ),
 
+        ),
+        SizedBox(height: 50),
       ],
     );
   }
