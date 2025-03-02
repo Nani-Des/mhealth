@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../Emergency/emergency_page.dart';
 import '../Login/login_screen1.dart';
 import 'Widgets/profile_drawer.dart';
@@ -18,6 +20,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   bool showProfileDrawer = false;
   late AnimationController _controller;
   late Animation<Offset> _slideAnimation;
+  final GlobalKey _fabKey = GlobalKey();
 
   @override
   void initState() {
@@ -29,6 +32,16 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     _slideAnimation = Tween<Offset>(begin: Offset(0, 1), end: Offset(0, 0.3)).animate(_controller);
 
     _fetchUserData();
+    // Trigger showcase only once using SharedPreferences
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('hasSeenEmergencyWalkthrough');
+      final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
+      if (!hasSeenWalkthrough && mounted) {
+        ShowCaseWidget.of(context)?.startShowCase([_fabKey]);
+        await prefs.setBool('hasSeenEmergencyWalkthrough', true);
+      }
+    });
   }
 
   // Method to fetch user data and refresh avatar image
@@ -130,17 +143,21 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               slideAnimation: _slideAnimation,
               showProfileDrawer: showProfileDrawer,
             ),
+
           ],
         ),
       ),
       bottomNavigationBar: CustomBottomNavBar(),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: Showcase(
+    key: _fabKey,
+    description: 'Tap to access Emergency Assistance.',
+    child: FloatingActionButton(
         onPressed: () {
           Navigator.push(context, MaterialPageRoute(builder: (context) => EmergencyPage()));
         },
         child: Icon(Icons.add),
         backgroundColor: Colors.redAccent,
-      ),
+      ),),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }

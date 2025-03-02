@@ -138,7 +138,7 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.teal,
         title: Row(
           children: [
             const Icon(Icons.calendar_today, size: 20),
@@ -160,7 +160,7 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Colors.blue, Colors.blue.shade700],
+              colors: [Colors.teal, Colors.teal.shade700],
             ),
           ),
         ),
@@ -383,12 +383,12 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Colors.blue,
+              primary: Colors.teal,
               onPrimary: Colors.white,
               onSurface: Colors.black87,
             ),
             textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(foregroundColor: Colors.blue),
+              style: TextButton.styleFrom(foregroundColor: Colors.teal),
             ),
           ),
           child: child!,

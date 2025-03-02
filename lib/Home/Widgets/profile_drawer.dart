@@ -151,6 +151,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     if (!widget.showProfileDrawer) return SizedBox.shrink();
@@ -163,38 +164,53 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
           height: MediaQuery.of(context).size.height * 0.7,
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(20),
-              topRight: Radius.circular(20),
-            ),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black26,
-                blurRadius: 10,
-                offset: Offset(0, -5),
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 12,
+                offset: Offset(0, -6),
               ),
             ],
           ),
-          padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          padding: EdgeInsets.all(20),
           child: FutureBuilder<DocumentSnapshot>(
             future: _userDataFuture,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return Center(child: CircularProgressIndicator());
+                return Center(
+                  child: CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                  ),
+                );
               }
 
               if (snapshot.hasError) {
                 return Center(
-                  child: Text('Error loading user data: ${snapshot.error}'),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red, size: 40),
+                      SizedBox(height: 8),
+                      Text(
+                        'Error: ${snapshot.error}',
+                        style: TextStyle(color: Colors.redAccent),
+                        textAlign: TextAlign.center,
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => _userDataFuture = _fetchUserData()),
+                        child: Text('Retry', style: TextStyle(color: Colors.blue)),
+                      ),
+                    ],
+                  ),
                 );
               }
 
               if (!snapshot.hasData) {
-                return Center(child: Text('No user data found.'));
+                return Center(child: Text('No user data found.', style: TextStyle(color: Colors.grey)));
               }
 
               var userData = snapshot.data!.data() as Map<String, dynamic>;
-
               String? userImageUrl = userData['User Pic'];
               String? firstName = userData['Fname'];
               String? lastName = userData['Lname'];
@@ -210,93 +226,142 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                 _lastNameController.text = lastName ?? '';
               }
 
-              return Column(
-                mainAxisAlignment: MainAxisAlignment.start,
-                children: [
-                  Align(
-                    alignment: Alignment.topRight,
-                    child: TextButton(
-                      onPressed: () {
-                        if (_isEditing) {
-                          _updateUserData();
-                        } else {
-                          setState(() {
-                            _isEditing = true;
-                          });
-                        }
-                      },
-                      child: Text(
-                        _isEditing ? 'Save' : 'Edit',
-                        style: TextStyle(color: Colors.blue),
-                      ),
-                    ),
-                  ),
-                  GestureDetector(
-                    onTap: _isEditing ? _pickImage : null,
-                    child: CircleAvatar(
-                      radius: 40,
-                      backgroundImage: _imageFile != null
-                          ? FileImage(_imageFile!)
-                          : (userImageUrl != null && userImageUrl.isNotEmpty
-                          ? NetworkImage(userImageUrl)
-                          : null) as ImageProvider<Object>?,
-                      child: (_imageFile == null && (userImageUrl == null || userImageUrl.isEmpty))
-                          ? Icon(Icons.person, size: 40)
-                          : null,
-                    ),
-                  ),
-                  SizedBox(height: 10),
-                  if (_isEditing)
-                    ...[
-                      TextField(
-                        controller: _firstNameController,
-                        decoration: InputDecoration(labelText: 'First Name'),
-                      ),
-                      TextField(
-                        controller: _lastNameController,
-                        decoration: InputDecoration(labelText: 'Last Name'),
-                      ),
-                      TextField(
-                        controller: _mobileController,
-                        decoration: InputDecoration(labelText: 'Mobile Number'),
-                        keyboardType: TextInputType.phone,
-                      ),
-                      TextField(
-                        controller: _regionController,
-                        decoration: InputDecoration(labelText: 'Region'),
-                      ),
-                      TextField(
-                        controller: _emailController,
-                        decoration: InputDecoration(labelText: 'Email'),
-                        keyboardType: TextInputType.emailAddress,
-                      ),
-                    ]
-                  else
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Text('$firstName $lastName', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        SizedBox(width: 8),
-                        Text('-', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                        SizedBox(width: 8),
-                        Text('$region region', style: TextStyle(fontSize: 10)),
-                        SizedBox(width: 1),
-                        Text('||', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                        SizedBox(width: 1),
-                        Text('$email', style: TextStyle(fontSize: 10)),
+                        TextButton(
+                          onPressed: () {
+                            if (_isEditing) {
+                              _updateUserData();
+                            } else {
+                              setState(() => _isEditing = true);
+                            }
+                          },
+                          child: Text(
+                            _isEditing ? 'Save' : 'Edit',
+                            style: TextStyle(color: Colors.teal, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ],
                     ),
-                  SizedBox(height: 10),
-                  if (!_isEditing)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _buildInfoBox(
+                    GestureDetector(
+                      onTap: _isEditing ? _pickImage : null,
+                      child: Stack(
+                        alignment: Alignment.bottomRight,
+                        children: [
+                          CircleAvatar(
+                            radius: 50,
+                            backgroundColor: Colors.grey[200],
+                            backgroundImage: _imageFile != null
+                                ? FileImage(_imageFile!)
+                                : (userImageUrl != null && userImageUrl.isNotEmpty
+                                ? NetworkImage(userImageUrl)
+                                : null) as ImageProvider<Object>?,
+                            child: (_imageFile == null && (userImageUrl == null || userImageUrl.isEmpty))
+                                ? Icon(Icons.person, size: 50, color: Colors.grey)
+                                : null,
+                          ),
+                          if (_isEditing)
+                            Container(
+                              padding: EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.teal,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.edit, color: Colors.white, size: 16),
+                            ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    AnimatedSwitcher(
+                      duration: Duration(milliseconds: 300),
+                      child: _isEditing
+                          ? Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Column(
+                            children: [
+                              TextFormField(
+                                controller: _firstNameController,
+                                decoration: InputDecoration(
+                                  labelText: 'First Name',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                              SizedBox(height: 12),
+                              TextFormField(
+                                controller: _lastNameController,
+                                decoration: InputDecoration(
+                                  labelText: 'Last Name',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                              SizedBox(height: 12),
+                              TextFormField(
+                                controller: _mobileController,
+                                decoration: InputDecoration(
+                                  labelText: 'Mobile Number',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                keyboardType: TextInputType.phone,
+                              ),
+                              SizedBox(height: 12),
+                              TextFormField(
+                                controller: _regionController,
+                                decoration: InputDecoration(
+                                  labelText: 'Region',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                              ),
+                              SizedBox(height: 12),
+                              TextFormField(
+                                controller: _emailController,
+                                decoration: InputDecoration(
+                                  labelText: 'Email',
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                          : Column(
+                        children: [
+                          Text(
+                            '$firstName $lastName',
+                            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '$email',
+                            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            '$region region',
+                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    if (!_isEditing)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildInfoBox(
                             Icons.message_outlined,
                             'Bookings',
                             mobileNumber,
                                 () {
-                              // Navigate to AppointmentScreen with the correct userId
                               User? currentUser = FirebaseAuth.instance.currentUser;
                               if (currentUser != null) {
                                 Navigator.push(
@@ -306,49 +371,53 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                                   ),
                                 );
                               }
-                            }
-                        ),
-                        SizedBox(width: 16),
-                        _buildInfoBox(
+                            },
+                          ),
+                          SizedBox(width: 20),
+                          _buildInfoBox(
                             Icons.add_call,
-                            'Reffer a Patient',
+                            'Refer a Patient',
                             region,
-                                () {
-                                  _checkAndNavigate(context);
-                            }
+                                () => _checkAndNavigate(context),
+                          ),
+                        ],
+                      ),
+                    SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            // Handle delete logic here
+                          },
+                          icon: Icon(Icons.delete, size: 18),
+                          label: Text('Delete'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            await FirebaseAuth.instance.signOut();
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (context) => HomePage()),
+                            );
+                          },
+                          icon: Icon(Icons.logout, size: 18),
+                          label: Text('Logout'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.tealAccent,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          ),
                         ),
                       ],
                     ),
-
-                  SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      ElevatedButton(
-                        onPressed: () {
-                          // Handle delete logic here
-                        },
-                        child: Text('Delete'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: () async {
-                          await FirebaseAuth.instance.signOut();
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(builder: (context) => HomePage()),
-                          );
-                        },
-                        child: Text('Logout'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                  ],
+                ),
               );
             },
           ),
@@ -358,34 +427,40 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
   }
 
   Widget _buildInfoBox(IconData icon, String label, String? value, VoidCallback? onTap) {
-    return GestureDetector(
-      onTap: onTap,  // This calls the onTap callback when tapped
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: EdgeInsets.all(8),
+        width: 120,
+        padding: EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: Colors.grey[100],
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.shade200,
-              offset: Offset(1, 1),
-              blurRadius: 4,
+              color: Colors.grey.withOpacity(0.2),
+              blurRadius: 6,
+              offset: Offset(0, 2),
             ),
           ],
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.blueAccent, size: 24),
+            Icon(icon, color: Colors.teal, size: 28),
             SizedBox(height: 8),
             Text(
               label,
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+              textAlign: TextAlign.center,
             ),
             SizedBox(height: 4),
             Text(
-              value ?? 'Not available',
-              style: TextStyle(fontSize: 12, color: Colors.black54),
+              value ?? 'N/A',
+              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

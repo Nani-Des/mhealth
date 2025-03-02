@@ -1,8 +1,6 @@
-// doctor_info_widget.dart
 import 'package:flutter/material.dart';
 import '../Components/booking_helper.dart';
 import 'doctor_availability_calendar.dart';
-
 
 class DoctorInfoWidget extends StatelessWidget {
   final Map<String, dynamic> doctorDetails;
@@ -22,165 +20,192 @@ class DoctorInfoWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            blurRadius: 10,
+            spreadRadius: 5,
+          ),
+        ],
+      ),
+      margin: const EdgeInsets.all(16.0),
+      child: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Doctor Profile Section
+                _buildProfileSection(context),
+                const SizedBox(height: 24),
+
+                // Information Grid
+                _buildInfoGrid(),
+                const SizedBox(height: 24),
+
+                // Contact Info Row
+                _buildContactRow(),
+                const SizedBox(height: 80), // Space for buttons
+              ],
+            ),
+          ),
+
+          // Action Buttons
+          Positioned(
+            bottom: 16,
+            left: 16,
+            right: 16,
+            child: _buildActionButtons(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Profile Section with Avatar and Name
+  Widget _buildProfileSection(BuildContext context) {
+    return Column(
       children: [
-        // Scrollable content
-        SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 100.0),  // Adjust padding for the button area
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Profile Picture and Doctor's Name with Calendar Icon
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Calendar Icon
-                  IconButton(
-                    icon: Icon(Icons.calendar_month, color: Colors.blueAccent,size: 30),
-                    onPressed: () => _showCalendarDialog(context),
-                  ),
-                  SizedBox(width: 5),
-                  // Profile Picture
-                  CircleAvatar(
-                    radius: 50,
-                    backgroundImage: doctorDetails['userPic']?.isNotEmpty ?? false
-                        ? NetworkImage(doctorDetails['userPic'])
-                        : AssetImage('assets/default_avatar.png') as ImageProvider,
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-
-              // Doctor's Name and Status
-              Text(
-                "${doctorDetails['Title'] ?? ''} ${doctorDetails['Fname'] ?? ''} ${doctorDetails['Lname'] ?? ''}",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              Text(
-                doctorDetails['status'] ?? 'Available',
-                style: TextStyle(fontSize: 16, color: Colors.green),
-              ),
-              SizedBox(height: 20),
-
-              // Grid of Information Boxes
-              GridView.count(
-                crossAxisCount: 2,
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                children: [
-                  _buildInfoBox(Icons.local_hospital, 'Hospital', hospitalName),
-                  _buildInfoBox(Icons.business, 'Department', departmentName),
-                  _buildInfoBox(Icons.location_on, 'Region', doctorDetails['Region']),
-                  _buildInfoBox(Icons.work, 'Experience', "${doctorDetails['experience']} years"),
-                ],
-              ),
-              SizedBox(height: 20),
-
-              // Contact Information in Row
-              Row(
-                children: [
-                  Expanded(child: _buildInfoBox(Icons.email, 'Email', doctorDetails['Email'])),
-                  SizedBox(width: 10),
-                  Expanded(child: _buildInfoBox(Icons.phone, 'Mobile', doctorDetails['Mobile Number'])),
-                ],
-              ),
-            ],
+        CircleAvatar(
+          radius: 60,
+          backgroundColor: Colors.grey[200],
+          backgroundImage: doctorDetails['userPic']?.isNotEmpty ?? false
+              ? NetworkImage(doctorDetails['userPic'])
+              : const AssetImage('assets/default_avatar.png') as ImageProvider,
+          child: Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.teal, width: 2),
+            ),
           ),
         ),
-
-        // "Call Doctor" and "Book Appointment" Buttons positioned at the bottom
-        Positioned(
-          bottom: 16,
-          left: 16,
-          right: 16,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // Call Doctor Button
-              Expanded(
-                child: ElevatedButton.icon(
-                  icon: Icon(Icons.call, color: Colors.white),
-                  label: Text('Call Doctor'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  onPressed: () {
-                    String? mobileNumber = doctorDetails['Mobile Number'];
-                    if (mobileNumber != null && mobileNumber.isNotEmpty) {
-                      onCall(mobileNumber);
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Mobile number not available')),
-                      );
-                    }
-                  },
-                ),
-              ),
-              SizedBox(width: 10),  // Space between buttons
-
-              // Book Appointment Button
-              ElevatedButton.icon(
-                icon: Icon(Icons.book_online, color: Colors.white),
-                label: Text('     Book Appointment'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: isReferral
-                      ? Colors.grey.shade400 // Greyed out when isReferral is true
-                      : Colors.greenAccent.shade700,
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  textStyle: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                onPressed: isReferral ? null : () => _showCalendarDialog(context),
-              ),
-              // Blur effect overlay
-              if (isReferral)
-                Positioned.fill(
-                  child: Container(
-                    color: Colors.white.withOpacity(0.5), // Semi-transparent overlay
-                  ),
-                ),
-            ],
+        const SizedBox(height: 12),
+        Text(
+          "${doctorDetails['Title'] ?? ''} ${doctorDetails['Fname'] ?? ''} ${doctorDetails['Lname'] ?? ''}",
+          style: const TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        Text(
+          doctorDetails['status'] ?? 'Available',
+          style: TextStyle(
+            fontSize: 16,
+            color: doctorDetails['status'] == 'Available' ? Colors.green : Colors.red,
+            fontWeight: FontWeight.w500,
           ),
         ),
       ],
     );
   }
 
-  // Helper method to build individual info boxes with an icon, label, and value
+  // Information Grid
+  Widget _buildInfoGrid() {
+    return GridView.count(
+      crossAxisCount: 2,
+      crossAxisSpacing: 12,
+      mainAxisSpacing: 12,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      children: [
+        _buildInfoBox(Icons.local_hospital, 'Hospital', hospitalName),
+        _buildInfoBox(Icons.business, 'Department', departmentName),
+        _buildInfoBox(Icons.location_on, 'Region', doctorDetails['Region']),
+        _buildInfoBox(Icons.work, 'Experience', "${doctorDetails['experience']} years"),
+      ],
+    );
+  }
+
+  // Contact Info Row
+  Widget _buildContactRow() {
+    return Row(
+      children: [
+        Expanded(child: _buildInfoBox(Icons.email, 'Email', doctorDetails['Email'])),
+        const SizedBox(width: 12),
+        Expanded(child: _buildInfoBox(Icons.phone, 'Mobile', doctorDetails['Mobile Number'])),
+      ],
+    );
+  }
+
+  // Info Box Widget
   Widget _buildInfoBox(IconData icon, String label, String? value) {
     return Container(
-      padding: EdgeInsets.all(8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: BorderRadius.circular(6),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200,
-            offset: Offset(1, 1),
-            blurRadius: 4,
-          ),
-        ],
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
       ),
       child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.blueAccent, size: 24),
-          SizedBox(height: 8),
+          Icon(icon, color: Colors.teal, size: 28),
+          const SizedBox(height: 8),
           Text(
             label,
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: Colors.black87),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
           ),
-          SizedBox(height: 4),
+          const SizedBox(height: 4),
           Text(
             value ?? 'Not available',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
+            style: const TextStyle(fontSize: 14, color: Colors.black54),
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
         ],
       ),
+    );
+  }
+
+  // Action Buttons
+  Widget _buildActionButtons(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.call, color: Colors.white),
+            label: const Text('Call Doctor'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.lightBlueAccent,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 4,
+            ),
+            onPressed: () {
+              String? mobileNumber = doctorDetails['Mobile Number'];
+              if (mobileNumber != null && mobileNumber.isNotEmpty) {
+                onCall(mobileNumber);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Mobile number not available')),
+                );
+              }
+            },
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton.icon(
+            icon: const Icon(Icons.calendar_month, color: Colors.white),
+            label: const Text('Book Appointment'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isReferral ? Colors.grey[400] : Colors.tealAccent,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: isReferral ? 0 : 4,
+            ),
+            onPressed: isReferral ? null : () => _showCalendarDialog(context),
+          ),
+        ),
+      ],
     );
   }
 
@@ -188,16 +213,9 @@ class DoctorInfoWidget extends StatelessWidget {
     final String? doctorId = doctorDetails['User ID'];
     final String? hospitalId = doctorDetails['Hospital ID'];
 
-    if (doctorId == null) {
+    if (doctorId == null || hospitalId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Doctor ID is missing')),
-      );
-      return;
-    }
-
-    if (hospitalId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Hospital ID is missing')),
+        SnackBar(content: Text('${doctorId == null ? 'Doctor' : 'Hospital'} ID is missing')),
       );
       return;
     }
@@ -212,7 +230,4 @@ class DoctorInfoWidget extends StatelessWidget {
       },
     );
   }
-
-
-
 }

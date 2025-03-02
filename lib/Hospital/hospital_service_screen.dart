@@ -2,14 +2,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mhealth/Appointments/Referral%20screens/referral_details_page.dart';
-
 import '../Appointments/referral_form.dart';
 import '../Login/login_screen1.dart';
 
 class HospitalServiceScreen extends StatefulWidget {
   final String hospitalId;
 
-  HospitalServiceScreen({required this.hospitalId});
+  const HospitalServiceScreen({required this.hospitalId, Key? key}) : super(key: key);
 
   @override
   _HospitalServiceScreenState createState() => _HospitalServiceScreenState();
@@ -19,14 +18,11 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
   Map<String, List<Map<String, String>>> timetable = {};
   List<Map<String, dynamic>> services = [];
 
-
-
-
   @override
   void initState() {
     super.initState();
     services = [
-      {"title": "Referrals", "icon": "🏥", "page": () => ReferralForm()},
+      {"title": "Refer", "icon": "🏥", "page": () => ReferralForm()},
       {"title": "Consultation", "icon": "🩺", "page": () => ReferralDetailsPage(hospitalId: widget.hospitalId)}, // ✅ Now widget.hospitalId is accessible
       {"title": "Emergency", "icon": "🚑", "page": () => ReferralForm()},
       {"title": "Lab Tests", "icon": "🧪", "page": () => ReferralForm()},
@@ -35,51 +31,6 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
     ];
     _loadServices();
   }
-  void _checkAndNavigate(BuildContext context, int index) async {
-    User? user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      // Redirect to login if user is not signed in
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => LoginScreen1()),
-      );
-      return;
-    }
-
-    // Check user role from Firestore
-    DocumentSnapshot userDoc = await FirebaseFirestore.instance
-        .collection('Users')
-        .doc(user.uid)
-        .get();
-
-    bool isDoctor = userDoc.exists && userDoc['Role'] == true;
-
-    if (index == 0 && !isDoctor) {
-      // Show a message if a non-doctor tries to access "Referrals"
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text("Access Denied"),
-          content: Text("Only doctors can access Referrals."),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text("OK"),
-            ),
-          ],
-        ),
-      );
-      return;
-    }
-
-    // Navigate to the service page
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => services[index]["page"]()),
-    );
-  }
-
 
   Future<void> _loadServices() async {
     try {
@@ -90,29 +41,47 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
           .get();
 
       Map<String, List<Map<String, String>>> fetchedTimetable = {};
-
       for (var doc in serviceSnapshot.docs) {
         var data = doc.data() as Map<String, dynamic>;
-
         for (String day in data['Days']) {
-          if (!fetchedTimetable.containsKey(day)) {
-            fetchedTimetable[day] = [];
-          }
-          fetchedTimetable[day]!.add({
+          fetchedTimetable.putIfAbsent(day, () => []).add({
             "service": data['Service Name'],
-            "time": data['Time']
+            "time": data['Time'],
           });
         }
       }
-
-      setState(() {
-        timetable = fetchedTimetable;
-      });
+      setState(() => timetable = fetchedTimetable);
     } catch (e) {
       print("Error loading services: $e");
     }
   }
 
+  void _checkAndNavigate(BuildContext context, int index) async {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      Navigator.push(context, MaterialPageRoute(builder: (context) =>  LoginScreen1()));
+      return;
+    }
+
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(user.uid).get();
+    bool isDoctor = userDoc.exists && userDoc['Role'] == true;
+
+    if (index == 0 && !isDoctor) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text("Access Denied"),
+          content: const Text("Only doctors can access Referrals."),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK")),
+          ],
+        ),
+      );
+      return;
+    }
+
+    Navigator.push(context, MaterialPageRoute(builder: (context) => services[index]["page"]()));
+  }
 
   void _showServiceTime(String service, String time) {
     showDialog(
@@ -120,12 +89,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
       builder: (context) => AlertDialog(
         title: Text(service),
         content: Text("Available Time: $time"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text("OK"),
-          ),
-        ],
+        actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))],
       ),
     );
   }
@@ -133,31 +97,54 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Hospital Services")),
-      body: Padding(
-        padding: const EdgeInsets.all(10.0),
+      appBar: AppBar(
+        title: const Text("Hospital Services"),
+        flexibleSpace: Container(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Colors.teal, Colors.tealAccent],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        elevation: 4,
+      ),
+      body: Container(
+        color: Colors.grey[100],
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text("Service Timetable", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 10),
+            // Timetable Section
+            const Text(
+              "Service Timetable",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
+            const SizedBox(height: 12),
             Expanded(
               flex: 2,
-              child: ListView.builder(
+              child: timetable.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : ListView.builder(
                 itemCount: timetable.keys.length,
                 itemBuilder: (context, index) {
                   String day = timetable.keys.elementAt(index);
                   return Card(
-                    elevation: 3,
-                    margin: EdgeInsets.symmetric(vertical: 5),
+                    elevation: 2,
+                    margin: const EdgeInsets.symmetric(vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: ExpansionTile(
-                      initiallyExpanded: true,
-                      title: Text(day, style: TextStyle(fontWeight: FontWeight.bold)),
+                      tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      title: Text(
+                        day,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal),
+                      ),
                       children: timetable[day]!.map((serviceData) {
                         return ListTile(
-                          title: Text(serviceData["service"]!),
+                          title: Text(serviceData["service"]!, style: const TextStyle(fontSize: 14)),
                           trailing: IconButton(
-                            icon: Icon(Icons.schedule),
+                            icon: const Icon(Icons.schedule, color: Colors.teal),
                             onPressed: () => _showServiceTime(serviceData["service"]!, serviceData["time"]!),
                           ),
                         );
@@ -167,41 +154,58 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
                 },
               ),
             ),
-            SizedBox(height: 15),
-            Text("Hospital Services", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            SizedBox(height: 10),
+            const Divider(height: 24, thickness: 1, color: Colors.grey),
+
+            // Services Section
+            const Text(
+              "Hospital Services",
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+            ),
+            const SizedBox(height: 12),
             Expanded(
               flex: 3,
               child: GridView.builder(
                 itemCount: services.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: 3,
-                  crossAxisSpacing: 10,
-                  mainAxisSpacing: 10,
-                  childAspectRatio: 1.0,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.85,
                 ),
                 itemBuilder: (context, index) {
                   return GestureDetector(
-                    onTap: () {
-                      _checkAndNavigate(context, index);
-                    },
+                    onTap: () => _checkAndNavigate(context, index),
                     child: Card(
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            services[index]["icon"]!,
-                            style: TextStyle(fontSize: 30),
+                      elevation: 3,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.white, Colors.grey[50]!],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          SizedBox(height: 5),
-                          Text(
-                            services[index]["title"]!,
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              services[index]["icon"]!,
+                              style: TextStyle(fontSize: 30),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              services[index]["title"]!,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.black87,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );

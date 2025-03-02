@@ -3,6 +3,8 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:showcaseview/showcaseview.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // Added for persistence
 
 import 'Widgets/emergency_hompage_content.dart';
 import 'Widgets/first_aid_response_widget1.dart';
@@ -23,6 +25,10 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   bool _showResponsePopup = false;
   String _responseText = "";
 
+  final GlobalKey _micKey = GlobalKey();
+  final GlobalKey _textFieldKey = GlobalKey();
+  final GlobalKey _sendKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -35,6 +41,17 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       begin: const Offset(0.0, 1.0),
       end: const Offset(0.0, 0.0),
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOutBack));
+
+    // Trigger showcase only once using SharedPreferences
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('hasSeenEmergencyWalkthrough');
+      final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
+      if (!hasSeenWalkthrough && mounted) {
+        ShowCaseWidget.of(context)?.startShowCase([_micKey, _textFieldKey, _sendKey]);
+        await prefs.setBool('hasSeenEmergencyWalkthrough', true);
+      }
+    });
   }
 
   @override
@@ -151,14 +168,12 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         child: Stack(
           children: [
             EmergencyHomePageContent(),
-            // Input Area
             Positioned(
               left: 0,
               right: 0,
               bottom: 0,
               child: _buildInputArea(),
             ),
-            // Response Popup
             if (_showResponsePopup)
               SlideTransition(
                 position: _offsetAnimation,
@@ -195,38 +210,50 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           Expanded(
-            child: TextField(
-              controller: _messageController,
-              maxLines: null,
-              decoration: InputDecoration(
-                hintText: "Describe the emergency...",
-                filled: true,
-                fillColor: Colors.grey[100],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                suffixIcon: IconButton(
-                  icon: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: Icon(
-                      _isListening ? Icons.mic : Icons.mic_none,
-                      key: ValueKey(_isListening),
-                      color: Colors.redAccent,
+            child: Showcase(
+              key: _textFieldKey,
+              description: 'Type your emergency query here.',
+              child: TextField(
+                controller: _messageController,
+                maxLines: null,
+                decoration: InputDecoration(
+                  hintText: "Describe the emergency...",
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  suffixIcon: Showcase(
+                    key: _micKey,
+                    description: 'Tap to use voice input for your emergency.',
+                    child: IconButton(
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          _isListening ? Icons.mic : Icons.mic_none,
+                          key: ValueKey(_isListening),
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                      onPressed: _isListening ? _stopListening : _startListening,
                     ),
                   ),
-                  onPressed: _isListening ? _stopListening : _startListening,
                 ),
               ),
             ),
           ),
           const SizedBox(width: 12),
-          FloatingActionButton(
-            onPressed: () => _fetchAndShowResponse(_messageController.text),
-            backgroundColor: Colors.redAccent,
-            elevation: 2,
-            child: const Icon(Icons.send, color: Colors.white),
+          Showcase(
+            key: _sendKey,
+            description: 'Tap to submit your emergency query.',
+            child: FloatingActionButton(
+              onPressed: () => _fetchAndShowResponse(_messageController.text),
+              backgroundColor: Colors.redAccent,
+              elevation: 2,
+              child: const Icon(Icons.send, color: Colors.white),
+            ),
           ),
         ],
       ),

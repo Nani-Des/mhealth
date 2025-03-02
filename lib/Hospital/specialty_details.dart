@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mhealth/Hospital/shift_schedule_Table.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:showcaseview/showcaseview.dart';
 import '../Services/firebase_service.dart';
 import 'doctor_profile.dart';
 import 'hospital_service_screen.dart';
@@ -29,6 +31,9 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
   bool _isDoctorsLoading = false;
   String? _selectedDepartmentId;
 
+  final GlobalKey _servicekey = GlobalKey();
+  final GlobalKey _specialtycalendarKey = GlobalKey();
+
   @override
   void initState() {
     super.initState();
@@ -44,6 +49,16 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
     ).animate(_controller);
 
     _loadHospitalData();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('hasSeenEmergencyWalkthrough');
+      final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
+      if (!hasSeenWalkthrough && mounted) {
+        ShowCaseWidget.of(context)?.startShowCase([_servicekey, _specialtycalendarKey]);
+        await prefs.setBool('hasSeenEmergencyWalkthrough', true);
+      }
+    });
   }
 
   Future<void> _loadHospitalData() async {
@@ -107,8 +122,11 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
           ),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_today, color: Colors.white),
+        Showcase(
+        key: _specialtycalendarKey,
+        description: 'Tap to view the Department Timetable',
+        child: IconButton(
+            icon: const Icon(Icons.calendar_month_rounded, color: Colors.white),
             onPressed: () {
               showDialog(
                 context: context,
@@ -129,6 +147,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
               );
             },
           ),
+        ),
         ],
       ),
       body: _isLoading
@@ -147,15 +166,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                       backgroundImage:
                       NetworkImage(_hospitalDetails['logo'] ?? ''),
                     ),
-                    const SizedBox(width: 16),
-                    Text(
-                      _hospitalDetails['hospitalName'] ?? '',
-                      style: const TextStyle(
-                        color: Colors.teal,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
+
                   ],
                 ),
                 AnimatedBuilder(
@@ -180,6 +191,9 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                           );
                         }
                       },
+                    child: Showcase(
+                    key: _servicekey,
+                    description: 'See Services available on days',
                       child: Container(
                         padding: const EdgeInsets.all(5.0),
                         decoration: BoxDecoration(
@@ -202,6 +216,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                           ],
                         ),
                       ),
+                    ),
                     );
                   },
                 ),
