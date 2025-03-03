@@ -3,6 +3,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';  // Import dotenv
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'directions_model.dart';
 import 'directions_repository.dart';
 import 'place_search_service.dart';
@@ -29,6 +31,9 @@ class _MapScreen1State extends State<MapScreen1> {
   final PlaceSearchService _placeSearchService = PlaceSearchService();
   Position? _currentPosition;
 
+  final GlobalKey _chipKey = GlobalKey();
+  final GlobalKey _hospitalKey = GlobalKey();
+
   @override
   void dispose() {
     _googleMapController.dispose();
@@ -40,6 +45,15 @@ class _MapScreen1State extends State<MapScreen1> {
   void initState() {
     super.initState();
     _getCurrentLocation();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('hasSeenEmergencyWalkthrough');
+      final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
+      if (!hasSeenWalkthrough && mounted) {
+        ShowCaseWidget.of(context)?.startShowCase([_chipKey,_hospitalKey]);
+        await prefs.setBool('hasSeenEmergencyWalkthrough', true);
+      }
+    });
   }
 
   Future<void> _getCurrentLocation() async {
@@ -267,10 +281,14 @@ class _MapScreen1State extends State<MapScreen1> {
                     icon: const Icon(Icons.search),
                     onPressed: () => _searchPlace(_searchController.text),
                   ),
-                  IconButton(
+            Showcase(
+              key: _hospitalKey,
+              description: 'Tap To Locate Nearest Hospital',
+              child: IconButton(
                     icon: const Icon(Icons.local_hospital_sharp),
                     onPressed: _findNearestHospital, // Find nearest hospital
                     color: Colors.redAccent,
+                  ),
                   ),
                 ],
               ),
@@ -297,11 +315,15 @@ class _MapScreen1State extends State<MapScreen1> {
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: Showcase(
+    key: _chipKey,
+    description: 'Tap To Find Nearest CHIP Facility',
+    child: FloatingActionButton(
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         onPressed: _findHealthCenter, // Emergency button to find health center
         child: const Icon(Icons.local_hospital),
+      ),
       ),
     );
   }

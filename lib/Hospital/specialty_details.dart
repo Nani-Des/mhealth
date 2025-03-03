@@ -204,13 +204,13 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                           children: [
                             Icon(Icons.chat_bubble_outline,
                                 color: Colors.white),
-                            SizedBox(width: 5),
+                            SizedBox(width: 10),
                             Text(
                               'Services',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
-                                fontSize: 8,
+                                fontSize: 14,
                               ),
                             ),
                           ],
@@ -313,8 +313,8 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w400,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
           color: isSelected ? Colors.white : Colors.black,
         ),
       ),
