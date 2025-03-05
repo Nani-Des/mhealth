@@ -8,7 +8,11 @@ class OrganizationListView extends StatefulWidget {
   final bool showSearchBar;
   final bool isReferral;
 
-  const OrganizationListView({Key? key, required this.showSearchBar,required this.isReferral}) : super(key: key);
+  const OrganizationListView({
+    Key? key,
+    required this.showSearchBar,
+    required this.isReferral,
+  }) : super(key: key);
 
   @override
   _OrganizationListViewState createState() => _OrganizationListViewState();
@@ -70,7 +74,10 @@ class _OrganizationListViewState extends State<OrganizationListView> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => SpecialtyDetails(hospitalId: hospitalId, isReferral: widget.isReferral,),
+                          builder: (context) => SpecialtyDetails(
+                            hospitalId: hospitalId,
+                            isReferral: widget.isReferral,
+                          ),
                         ),
                       );
                     },
@@ -108,6 +115,28 @@ class HospitalCard extends StatelessWidget {
     required this.isLoggedIn,
   }) : super(key: key);
 
+  // Fetch the average rating or default to 4.5 if no Ratings subcollection exists
+  Future<double> _getAverageRating() async {
+    final ratingsSnapshot = await FirebaseFirestore.instance
+        .collection('Hospital')
+        .doc(hospitalId)
+        .collection('Ratings')
+        .orderBy('timestamp', descending: true)
+        .limit(20)
+        .get();
+
+    if (ratingsSnapshot.docs.isEmpty) {
+      // No Ratings subcollection or no ratings yet, return default
+      return 4.5;
+    } else {
+      double total = 0.0;
+      for (var doc in ratingsSnapshot.docs) {
+        total += doc['rating'] as double;
+      }
+      return total / ratingsSnapshot.docs.length;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Card(
@@ -132,12 +161,33 @@ class HospitalCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 if (isLoggedIn)
-                  Row(
-                    children: [
-                      Icon(Icons.star, color: Colors.orange, size: 16),
-                      SizedBox(width: 5),
-                      Text("4.5", style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold, color: Colors.black87)),
-                    ],
+                  FutureBuilder<double>(
+                    future: _getAverageRating(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return Row(
+                          children: [
+                            Icon(Icons.star, color: Colors.orange, size: 16),
+                            SizedBox(width: 5),
+                            Text("...", style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold, color: Colors.black87)),
+                          ],
+                        );
+                      }
+                      if (snapshot.hasError) {
+                        return Text("Error", style: TextStyle(fontSize: 14.0, color: Colors.red));
+                      }
+                      final rating = snapshot.data ?? 4.5; // Fallback to 4.5 if null
+                      return Row(
+                        children: [
+                          Icon(Icons.star, color: Colors.orange, size: 16),
+                          SizedBox(width: 5),
+                          Text(
+                            rating.toStringAsFixed(1),
+                            style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold, color: Colors.black87),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -172,4 +222,3 @@ class HospitalCard extends StatelessWidget {
     );
   }
 }
-

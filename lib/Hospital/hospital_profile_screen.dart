@@ -14,10 +14,145 @@ class HospitalProfileScreen extends StatefulWidget {
 }
 
 class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
-  double _hospitalRating = 0.0;
+  double _hospitalRating = 0.0; // User's selected rating
+  double _averageRating = 0.0; // Hospital's average rating (based on last 20)
+  int _ratingCount = 0; // Total number of ratings
+  bool _hasRated = false; // Tracks if user has already rated
+  bool _isLoading = true; // Tracks initial data loading
   final TextEditingController _reviewController = TextEditingController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final String? _currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
+ @override
+ void initState() {
+   super.initState();
+   _loadInitialData();
+ }
+
+  // Load initial data (check rating status and fetch average/count)
+  Future<void> _loadInitialData() async {
+    await _checkIfUserHasRated();
+    await _fetchRatingData();
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  // Check if the current user has already rated this hospital
+  Future<void> _checkIfUserHasRated() async {
+    if (_currentUserId == null) return;
+
+    final ratingDoc = await FirebaseFirestore.instance
+        .collection('Hospital')
+        .doc(widget.hospitalId)
+        .collection('Ratings')
+        .doc(_currentUserId)
+        .get();
+
+    if (ratingDoc.exists) {
+      setState(() {
+        _hasRated = true;
+        _hospitalRating = ratingDoc['rating'] as double;
+      });
+    }
+  }
+
+  // Fetch the average rating (last 20) and total rating count
+  Future<void> _fetchRatingData() async {
+    // Get the most recent 20 ratings
+    final ratingsSnapshot = await FirebaseFirestore.instance
+        .collection('Hospital')
+        .doc(widget.hospitalId)
+        .collection('Ratings')
+        .orderBy('timestamp', descending: true) // Most recent first
+        .limit(20) // Only the last 20 ratings
+        .get();
+
+    // Calculate average from the last 20 ratings
+    if (ratingsSnapshot.docs.isNotEmpty) {
+      double total = 0.0;
+      for (var doc in ratingsSnapshot.docs) {
+        total += doc['rating'] as double;
+      }
+      _averageRating = total / ratingsSnapshot.docs.length;
+    } else {
+      _averageRating = 0.0; // No ratings yet
+    }
+
+    // Get the total rating count from the parent document
+    final hospitalRef =
+    FirebaseFirestore.instance.collection('Hospital').doc(widget.hospitalId);
+    final hospitalDoc = await hospitalRef.get();
+
+    if (hospitalDoc.exists) {
+      // Safely access ratingCount, default to 0 if missing
+      final ratingCountValue = hospitalDoc.data()?['ratingCount'];
+      _ratingCount = (ratingCountValue is int) ? ratingCountValue : 0;
+    } else {
+      // Initialize document if it doesn't exist
+      await hospitalRef.set({
+        'ratingCount': 0,
+        'averageRating': 0.0,
+        'lastUpdated': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+      _ratingCount = 0;
+      _averageRating = 0.0;
+    }
+  }
+
+  // Submit the user's rating to Firestore
+  Future<void> _submitRating(double rating) async {
+    if (_currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to rate this hospital')),
+      );
+      return;
+    }
+
+    if (_hasRated) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have already rated this hospital')),
+      );
+      return;
+    }
+
+    // Reference to the Ratings subcollection
+    final ratingsRef = FirebaseFirestore.instance
+        .collection('Hospital')
+        .doc(widget.hospitalId)
+        .collection('Ratings')
+        .doc(_currentUserId);
+
+    // Reference to the parent Hospital document
+    final hospitalRef =
+    FirebaseFirestore.instance.collection('Hospital').doc(widget.hospitalId);
+
+    // Submit the rating
+    await ratingsRef.set({
+      'rating': rating,
+      'timestamp': FieldValue.serverTimestamp(),
+      'userId': _currentUserId,
+    });
+
+    // Update the hospital's metadata
+    await _fetchRatingData(); // Recalculate average from last 20
+    final newCount = _ratingCount + 1;
+
+    await hospitalRef.update({
+      'ratingCount': newCount,
+      'averageRating': _averageRating, // Store the average of last 20
+      'lastUpdated': FieldValue.serverTimestamp(),
+    });
+
+    setState(() {
+      _hasRated = true;
+      _ratingCount = newCount;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Rating submitted successfully!')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -172,7 +307,12 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
     );
   }
 
+
   Widget _buildRatingSection() {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -182,7 +322,10 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Rate this Hospital', style: Theme.of(context).textTheme.titleLarge),
+          Text(
+            'Rate this Hospital',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -201,7 +344,9 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
                     activeColor: Colors.blue,
                     inactiveColor: Colors.grey[300],
                     label: _hospitalRating.toStringAsFixed(1),
-                    onChanged: (value) {
+                    onChanged: _hasRated
+                        ? null // Disable slider if user has rated
+                        : (value) {
                       setState(() {
                         _hospitalRating = value;
                       });
@@ -218,9 +363,27 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
                 ),
                 child: Text(
                   '${_hospitalRating.toStringAsFixed(1)}/5',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                '${_averageRating.toStringAsFixed(1)} ★ ($_ratingCount ratings)',
+                style: const TextStyle(fontSize: 16),
+              ),
+              if (!_hasRated)
+                ElevatedButton(
+                  onPressed: () => _submitRating(_hospitalRating),
+                  child: const Text('Submit'),
+                ),
             ],
           ),
         ],
