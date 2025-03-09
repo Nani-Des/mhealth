@@ -193,10 +193,10 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
     return Scaffold(
       key: scaffoldMessengerKey,
       appBar: AppBar(
-        title: Text('Discussion', style: TextStyle(color: Colors.white)),
+        title: const Text('Discussion', style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.lightBlue,
         elevation: 4,
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Column(
         children: [
@@ -210,7 +210,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),
                   blurRadius: 4,
-                  offset: Offset(0, 2),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -281,7 +281,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                         return Column(
                           children: [
                             Card(
-                              margin: EdgeInsets.symmetric(
+                              margin: const EdgeInsets.symmetric(
                                   vertical: 8, horizontal: 16),
                               elevation: 2,
                               shape: RoundedRectangleBorder(
@@ -361,7 +361,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                             title: Text(
                                               comment['content'] ??
                                                   'No Content',
-                                              style: TextStyle(fontSize: 16),
+                                              style: const TextStyle(fontSize: 16),
                                             ),
                                             subtitle: Padding(
                                               padding: const EdgeInsets.only(
@@ -380,7 +380,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                         IconButton(
                                           icon: ScaleTransition(
                                             scale: _scaleAnimation,
-                                            child: Icon(Icons.reply,
+                                            child: const Icon(Icons.reply,
                                                 color: Colors.lightBlue),
                                           ),
                                           onPressed: () {
@@ -446,12 +446,12 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                   Text(
                     'Replying to $_replyingToUserName: ${_repliedContent!
                         .length > 10
-                        ? _repliedContent!.substring(0, 15) + '...'
+                        ? '${_repliedContent!.substring(0, 15)}...'
                         : _repliedContent}',
                     style: TextStyle(
                         fontWeight: FontWeight.bold, color: Colors.blue[800]),
                   ),
-                  Spacer(),
+                  const Spacer(),
                   IconButton(
                     icon: Icon(Icons.close, color: Colors.grey[600]),
                     onPressed: _cancelReply,
@@ -473,7 +473,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                         BoxShadow(
                           color: Colors.grey.withOpacity(0.2),
                           blurRadius: 4,
-                          offset: Offset(0, 2),
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
@@ -484,10 +484,10 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                       decoration: InputDecoration(
                         hintText: 'Type comment here...',
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(
+                        contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 12),
                         suffixIcon: IconButton(
-                          icon: Icon(Icons.send, color: Colors.lightBlue),
+                          icon: const Icon(Icons.send, color: Colors.lightBlue),
                           onPressed: () async {
                             if (commentController.text.trim().isNotEmpty) {
                               if (currentUserId == null) {
@@ -614,11 +614,11 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                           onPressed: () => Navigator.pop(context, false),
                         ),
                         TextButton(
-                          child: const Text('Yes'),
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.red,
                           ),
                           onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Yes'),
                         ),
                       ],
                     );
@@ -685,8 +685,8 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
+              const Padding(
+                padding: EdgeInsets.all(16.0),
                 child: Text(
                   'Select a Language to Translate',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -704,7 +704,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                     );
                   },
                 );
-              }).toList(),
+              }),
             ],
           ),
         );
@@ -746,7 +746,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
             children: [
               Text(
                 'Translated: $translatedText',
-                style: TextStyle(fontSize: 18),
+                style: const TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 20),
               Row(

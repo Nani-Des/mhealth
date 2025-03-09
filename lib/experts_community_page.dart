@@ -284,11 +284,11 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
                           onPressed: () => Navigator.pop(context, false),
                         ),
                         TextButton(
-                          child: const Text('Yes'),
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.red,
                           ),
                           onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Yes'),
                         ),
                       ],
                     );
@@ -343,8 +343,8 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
+              const Padding(
+                padding: EdgeInsets.all(16.0),
                 child: Text(
                   'Select a Language to Translate',
                   style: TextStyle(
@@ -362,7 +362,7 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
                         postId, entry.key); // Pass only postId and languageCode
                   },
                 );
-              }).toList(),
+              }),
             ],
           ),
         );
@@ -398,7 +398,7 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Translated: $translatedText',
-                style: TextStyle(fontSize: 18),),
+                style: const TextStyle(fontSize: 18),),
               const SizedBox(height: 20),
               // Add spacing between text and buttons
               Row(

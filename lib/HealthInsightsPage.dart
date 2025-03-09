@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:fl_chart/src/chart/bar_chart/bar_chart.dart';
-import 'package:fl_chart/src/chart/bar_chart/bar_chart_data.dart';
-import 'package:fl_chart/src/chart/base/axis_chart/axis_chart_data.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:fl_chart/src/utils/utils.dart';
 
 enum MessageType { private, forum, experts }
 
@@ -222,7 +218,7 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
                       return BarChart(
                         BarChartData(
                           titlesData: FlTitlesData(
-                            bottomTitles: AxisTitles(
+                            bottomTitles: const AxisTitles(
                               sideTitles: SideTitles(showTitles: false),
                             ),
                             leftTitles: AxisTitles(
@@ -238,11 +234,11 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
                                 },
                               ),
                             ),
-                            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                           ),
                           borderData: FlBorderData(show: false),
-                          gridData: FlGridData(
+                          gridData: const FlGridData(
                             show: true,
                             drawVerticalLine: false,
                           ),
@@ -465,11 +461,11 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
       topicCounts[category] = (topicCounts[category] ?? 0) + count;
     }
 
-    healthCategories.keys.forEach((category) {
+    for (var category in healthCategories.keys) {
       if (!topicCounts.containsKey(category)) {
         topicCounts[category] = 0;
       }
-    });
+    }
 
     return topicCounts;
   }

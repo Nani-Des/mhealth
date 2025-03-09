@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
-import 'package:googleapis/streetviewpublish/v1.dart';
 import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
@@ -20,7 +19,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:logging/logging.dart' as logging;
 import 'package:logger/logger.dart' as logger;
 import 'experts_community_page.dart';
 import 'HealthInsightsPage.dart';
@@ -126,11 +124,12 @@ class TranslationService {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   await ensureTestUserExists();
+  await CallService().clearOldNotifications();
   runApp(const MyApp());
 }
 
 Future<void> ensureTestUserExists() async {
-  const String testEmail = "akotomichael255@gmail.com";
+  const String testEmail = "akotomichael992@yahoo.com";
   const String testPassword = "Test1234!";
 
   try {
@@ -201,6 +200,8 @@ class _ChatHomePageState extends State<ChatHomePage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    CallService().initialize(context);
+
 
     _tabController.addListener(() {
       if (mounted) {
@@ -258,12 +259,12 @@ class _ChatHomePageState extends State<ChatHomePage>
           ],
           labelColor: Colors.white, // Selected tab text and icon color
           unselectedLabelColor: Colors.grey[300], // Unselected tab text and icon color
-          indicator: UnderlineTabIndicator(
+          indicator: const UnderlineTabIndicator(
             borderSide: BorderSide(
               color: Colors.white, // Indicator color
               width: 3, // Thicker indicator
             ),
-            insets: const EdgeInsets.symmetric(horizontal: 40), // Wider indicator
+            insets: EdgeInsets.symmetric(horizontal: 40), // Wider indicator
           ),
           indicatorSize: TabBarIndicatorSize.tab,
           labelStyle: const TextStyle(
@@ -636,10 +637,10 @@ class ChatPage extends StatelessWidget {
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   // Return an empty container or a placeholder while loading
-                  return ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.person)), // Placeholder avatar
+                  return const ListTile(
+                    leading: CircleAvatar(child: Icon(Icons.person)), // Placeholder avatar
                     title: Text("Loading...", style: TextStyle(fontWeight: FontWeight.bold)), // Placeholder text
-                    subtitle: const Text("Fetching user details..."), // Placeholder text
+                    subtitle: Text("Fetching user details..."), // Placeholder text
                   );
                 }
                 if (!snapshot.hasData || !snapshot.data!.exists) {
@@ -657,7 +658,7 @@ class ChatPage extends StatelessWidget {
                     backgroundImage: userPic != null ? NetworkImage(userPic) : null,
                     child: userPic == null ? Text(firstName[0].toUpperCase()) : null,
                   ),
-                  title: Text(fullName, style: TextStyle(fontWeight: FontWeight.bold)), // Display full name
+                  title: Text(fullName, style: const TextStyle(fontWeight: FontWeight.bold)), // Display full name
                   subtitle: Row(
                     children: [
                       Expanded(
@@ -678,7 +679,7 @@ class ChatPage extends StatelessWidget {
                   ),
                   onTap: () async {
                     String chatId = chat['chat_id'] ?? await _getOrCreateChatThread(
-                      currentUserId!,
+                      currentUserId,
                       chat[isCurrentUserSender ? 'from_name' : 'to_name'], // Current User Name
                       chat[isCurrentUserSender ? 'from_pic' : 'to_pic'], // Current User Pic
                       otherParticipantId, // Other Participant ID
@@ -693,7 +694,7 @@ class ChatPage extends StatelessWidget {
                           chatId: chatId,
                           toName: fullName,
                           toUid: otherParticipantId,
-                          fromUid: currentUserId!,
+                          fromUid: currentUserId,
                         ),
                       ),
                     );
@@ -769,7 +770,7 @@ class _ForumPageState extends State<ForumPage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => ExpertsCommunityPage(),
+                            builder: (context) => const ExpertsCommunityPage(),
                           ),
                         )
                         : null,
@@ -893,11 +894,11 @@ class _ForumPageState extends State<ForumPage> {
                           onPressed: () => Navigator.pop(context, false),
                         ),
                         TextButton(
-                          child: const Text('Yes'),
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.red,
                           ),
                           onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Yes'),
                         ),
                       ],
                     );
@@ -950,8 +951,8 @@ class _ForumPageState extends State<ForumPage> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
+              const Padding(
+                padding: EdgeInsets.all(16.0),
                 child: Text(
                   'Select a Language to Translate',
                   style: TextStyle(
@@ -969,7 +970,7 @@ class _ForumPageState extends State<ForumPage> {
                         postId, entry.key);
                   },
                 );
-              }).toList(),
+              }),
             ],
           ),
         );
@@ -1002,7 +1003,7 @@ class _ForumPageState extends State<ForumPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Translated: $translatedText',
-                style: TextStyle(fontSize: 18),),
+                style: const TextStyle(fontSize: 18),),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -1362,10 +1363,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
     return Scaffold(
       key: scaffoldMessengerKey,
       appBar: AppBar(
-        title: Text('Discussion', style: TextStyle(color: Colors.white)),
+        title: const Text('Discussion', style: TextStyle(color: Colors.white)),
         backgroundColor: Colors.lightBlue,
         elevation: 4,
-        iconTheme: IconThemeData(color: Colors.white),
+        iconTheme: const IconThemeData(color: Colors.white),
       ),
       body: Column(
         children: [
@@ -1379,7 +1380,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),
                   blurRadius: 4,
-                  offset: Offset(0, 2),
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -1440,7 +1441,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                         return Column(
                           children: [
                             Card(
-                              margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                               elevation: 2,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(12),
@@ -1495,7 +1496,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                                             contentPadding: EdgeInsets.zero,
                                             title: Text(
                                               comment['content'] ?? 'No Content',
-                                              style: TextStyle(fontSize: 16),
+                                              style: const TextStyle(fontSize: 16),
                                             ),
                                             subtitle: Padding(
                                               padding: const EdgeInsets.only(top: 8.0),
@@ -1510,7 +1511,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                                         IconButton(
                                           icon: ScaleTransition(
                                             scale: _scaleAnimation,
-                                            child: Icon(Icons.reply, color: Colors.lightBlue),
+                                            child: const Icon(Icons.reply, color: Colors.lightBlue),
                                           ),
                                           onPressed: () {
                                             _animateReplyButton();
@@ -1563,10 +1564,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
               child: Row(
                 children: [
                   Text(
-                    'Replying to $_replyingToUserName: ${_repliedContent != null && _repliedContent!.isNotEmpty ? _repliedContent!.substring(0, min(_repliedContent!.length, 15)) + '...' : _repliedContent ?? ''}',
+                    'Replying to $_replyingToUserName: ${_repliedContent != null && _repliedContent!.isNotEmpty ? '${_repliedContent!.substring(0, min(_repliedContent!.length, 15))}...' : _repliedContent ?? ''}',
                     style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[800]),
                   ),
-                  Spacer(),
+                  const Spacer(),
                   IconButton(
                     icon: Icon(Icons.close, color: Colors.grey[600]),
                     onPressed: _cancelReply,
@@ -1588,7 +1589,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                         BoxShadow(
                           color: Colors.grey.withOpacity(0.2),
                           blurRadius: 4,
-                          offset: Offset(0, 2),
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
@@ -1599,9 +1600,9 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                       decoration: InputDecoration(
                         hintText: 'Type comment here...',
                         border: InputBorder.none,
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         suffixIcon: IconButton(
-                          icon: Icon(Icons.send, color: Colors.lightBlue),
+                          icon: const Icon(Icons.send, color: Colors.lightBlue),
                           onPressed: () async {
                             if (commentController.text.trim().isNotEmpty) {
                               if (currentUserId == null) {
@@ -1724,11 +1725,11 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                           onPressed: () => Navigator.pop(context, false),
                         ),
                         TextButton(
-                          child: const Text('Yes'),
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.red,
                           ),
                           onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Yes'),
                         ),
                       ],
                     );
@@ -1796,8 +1797,8 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
+              const Padding(
+                padding: EdgeInsets.all(16.0),
                 child: Text(
                   'Select a Language to Translate',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -1815,7 +1816,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                     );
                   },
                 );
-              }).toList(),
+              }),
             ],
           ),
         );
@@ -1858,7 +1859,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
             children: [
               Text(
                 'Translated: $translatedText',
-                style: TextStyle(fontSize: 18),
+                style: const TextStyle(fontSize: 18),
               ),
               const SizedBox(height: 20),
               Row(
@@ -2138,7 +2139,9 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     _playbackTimer?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    _positionSubscriptions.values.forEach((sub) => sub.cancel());
+    for (var sub in _positionSubscriptions.values) {
+      sub.cancel();
+    }
     _playerSubscription?.cancel();
     _player.closePlayer();
 
@@ -2218,11 +2221,11 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                           onPressed: () => Navigator.pop(context, false),
                         ),
                         TextButton(
-                          child: const Text('Yes'),
                           style: TextButton.styleFrom(
                             foregroundColor: Colors.red,
                           ),
                           onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Yes'),
                         ),
                       ],
                     );
@@ -2270,8 +2273,8 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Add a title here
-              Padding(
-                padding: const EdgeInsets.all(16.0), // Add some padding around the title
+              const Padding(
+                padding: EdgeInsets.all(16.0), // Add some padding around the title
                 child: Text(
                   'Select a Language to Translate', // The title text
                   style: TextStyle(
@@ -2289,7 +2292,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                     _translateAndShowResult(message['content'], entry.key);
                   },
                 );
-              }).toList(),
+              }),
             ],
           ),
         );
@@ -2316,7 +2319,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Translated: $translatedText',
-            style: TextStyle(fontSize: 18),),
+            style: const TextStyle(fontSize: 18),),
             const SizedBox(height: 20), // Add spacing between text and buttons
             Row(
               children: [
@@ -2736,7 +2739,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 20, // Increased size
                     child: Icon(Icons.person, size: 24), // Increased icon size
                   ),
@@ -2767,7 +2770,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
             if (!snapshot.hasData || !snapshot.data!.exists) {
               return Row(
                 children: [
-                  CircleAvatar(
+                  const CircleAvatar(
                     radius: 20, // Increased size
                     child: Icon(Icons.person, size: 24), // Increased icon size
                   ),
@@ -2806,7 +2809,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                   CircleAvatar(
                     radius: 20, // Increased size
                     backgroundImage: userPic != null ? NetworkImage(userPic) : null,
-                    child: userPic == null ? Icon(Icons.person, size: 24) : null, // Increased icon size
+                    child: userPic == null ? const Icon(Icons.person, size: 24) : null, // Increased icon size
                   ),
                   const SizedBox(width: 8),
                   Column(
@@ -2889,7 +2892,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                                   maxWidth: MediaQuery.of(context).size.width * 0.7, // Max width for text bubbles
                                 ),
                                 child: CustomPaint(
-                                  size: Size(double.infinity, double.infinity),
+                                  size: const Size(double.infinity, double.infinity),
                               painter: ChatBubblePainter(isSentByUser: isSentByUser),
                               child: Padding(
                                 padding: const EdgeInsets.all(12.0),
@@ -3060,7 +3063,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                 onPressed: () => _playAudio(audioUrl),
               ),
               if (isPlaying)
-                SizedBox(
+                const SizedBox(
                   width: 24,
                   height: 24,
                   child: CircularProgressIndicator(
@@ -3076,7 +3079,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
               children: [
                 // Slider for Scrubbing (Thumb Does Not Move)
                 SliderTheme(
-                  data: SliderThemeData(
+                  data: const SliderThemeData(
                     trackHeight: 2.0,
                     thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6.0),
                   ),
@@ -3128,9 +3131,9 @@ class ChatBubblePainter extends CustomPainter {
 
     final Paint shadowPaint = Paint()
       ..color = Colors.black.withOpacity(0.1)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 6);
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
 
-    final radius = 20.0;
+    const radius = 20.0;
 
     // Adjust the rectangle size to account for internal padding
     final rect = Rect.fromLTWH(
@@ -3148,8 +3151,8 @@ class ChatBubblePainter extends CustomPainter {
         rect,
         topLeft: Radius.circular(isSentByUser ? radius : 0),
         topRight: Radius.circular(isSentByUser ? 0 : radius),
-        bottomLeft: Radius.circular(radius),
-        bottomRight: Radius.circular(radius),
+        bottomLeft: const Radius.circular(radius),
+        bottomRight: const Radius.circular(radius),
       ),
     );
 
@@ -3172,13 +3175,13 @@ class VideoCallScreen extends StatefulWidget {
   final Map<String, dynamic>? offerSdp;
 
   const VideoCallScreen({
-    Key? key,
+    super.key,
     required this.callId,
     required this.remoteName,
     required this.remoteUid,
     required this.isIncoming,
     this.offerSdp,
-  }) : super(key: key);
+  });
 
   @override
   _VideoCallScreenState createState() => _VideoCallScreenState();
@@ -3694,12 +3697,12 @@ class IncomingCallScreen extends StatelessWidget {
   final Map<String, dynamic> offerSdp;
 
   const IncomingCallScreen({
-    Key? key,
+    super.key,
     required this.callId,
     required this.callerName,
     required this.callerUid,
     required this.offerSdp,
-  }) : super(key: key);
+  });
 
   Future<void> _acceptCall(BuildContext context) async {
     // Navigate to the video call screen
@@ -3748,7 +3751,7 @@ class IncomingCallScreen extends StatelessWidget {
               const SizedBox(height: 60),
 
               // Caller avatar
-              CircleAvatar(
+              const CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.blue,
                 child: Icon(Icons.person, size: 80, color: Colors.white),
@@ -3858,8 +3861,11 @@ class CallService {
         .collection('Users')
         .doc(currentUserUid)
         .collection('callNotifications')
+        .orderBy('timestamp', descending: true)
+        .limit(1)
         .snapshots()
         .listen((snapshot) async {
+      print("Received notification snapshot: ${snapshot.docs.length} docs");
       if (snapshot.docs.isNotEmpty) {
         final latestCall = snapshot.docs.first;
         final callData = latestCall.data();
@@ -3881,6 +3887,8 @@ class CallService {
           }
         }
       }
+    },onError: (error) {
+      print("Error in call notification listener: $error");
     });
   }
 
@@ -3895,16 +3903,25 @@ class CallService {
       String callerUid,
       Map<String, dynamic> offerSdp,
       ) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Incoming call from $callerName')),
+    );
     // Check if we're already showing a call screen
     bool isAlreadyShowingCallScreen = false;
+    print("Checking for existing call screens");
     Navigator.of(context).popUntil((route) {
+      print("Route: ${route.settings.name}");
       if (route.settings.name == '/incoming_call' || route.settings.name == '/video_call') {
         isAlreadyShowingCallScreen = true;
+        print("Found existing call screen");
       }
       return true;
     });
 
+    print("isAlreadyShowingCallScreen: $isAlreadyShowingCallScreen");
+
     if (!isAlreadyShowingCallScreen) {
+      print("Showing incoming call screen");
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -3936,5 +3953,24 @@ class CallService {
         ),
       ),
     );
+  }
+
+  Future<void> clearOldNotifications() async {
+    final currentUserUid = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserUid == null) return;
+
+    final batch = FirebaseFirestore.instance.batch();
+    final snapshot = await _firestore
+        .collection('Users')
+        .doc(currentUserUid)
+        .collection('callNotifications')
+        .get();
+
+    for (var doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+
+    await batch.commit();
+    print("Cleared ${snapshot.docs.length} old notifications");
   }
 }
