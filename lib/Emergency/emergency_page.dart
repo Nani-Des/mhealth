@@ -1,11 +1,17 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:showcaseview/showcaseview.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Added for persistence
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:string_similarity/string_similarity.dart';
+import 'package:hive/hive.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
+import 'Widgets/article_detail_page.dart';
 import 'Widgets/emergency_hompage_content.dart';
 import 'Widgets/first_aid_response_widget1.dart';
 
@@ -23,11 +29,16 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
 
   bool _isListening = false;
   bool _showResponsePopup = false;
+  bool _isOffline = false;
+  bool _isLoading = false; // Loading state for progress indicator
   String _responseText = "";
 
   final GlobalKey _micKey = GlobalKey();
   final GlobalKey _textFieldKey = GlobalKey();
   final GlobalKey _sendKey = GlobalKey();
+
+  Map<String, dynamic>? _emergencyData;
+  late Box _translationBox;
 
   @override
   void initState() {
@@ -42,16 +53,44 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       end: const Offset(0.0, 0.0),
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOutBack));
 
-    // Trigger showcase only once using SharedPreferences
+    _translationBox = Hive.box('translations');
+    _loadEmergencyData();
+    _checkConnectivity();
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('hasSeenEmergencyWalkthrough');
       final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
       if (!hasSeenWalkthrough && mounted) {
         ShowCaseWidget.of(context)?.startShowCase([_micKey, _textFieldKey, _sendKey]);
         await prefs.setBool('hasSeenEmergencyWalkthrough', true);
       }
     });
+  }
+
+  Future<void> _loadEmergencyData() async {
+    try {
+      final String response = await rootBundle.loadString('assets/emergency_procedures.json');
+      setState(() {
+        _emergencyData = json.decode(response);
+      });
+    } catch (e) {
+      print('Error loading emergency data: $e');
+    }
+  }
+
+  Future<void> _checkConnectivity() async {
+    var connectivityResult = await (Connectivity().checkConnectivity());
+    setState(() {
+      _isOffline = connectivityResult == ConnectivityResult.none;
+    });
+    if (_isOffline) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Offline Mode: Limited functionality available'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
   }
 
   @override
@@ -90,9 +129,34 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       );
       return;
     }
-    final String response = await _fetchFirstAidResponse(query);
+
+    setState(() {
+      _isLoading = true; // Show progress indicator
+    });
+
+    String response;
+    if (_isOffline) {
+      response = _findClosestMatch(query);
+    } else {
+      // Check cached translation first
+      String? cachedResponse = _translationBox.get(query);
+      if (cachedResponse != null) {
+        response = cachedResponse;
+      } else {
+        response = await _fetchFirstAidResponse(query);
+        if (!response.startsWith("Sorry,")) {
+          await _translationBox.put(query, response); // Cache successful response
+        }
+      }
+    }
+
+    if (response.startsWith("Sorry,")) {
+      response = _findClosestMatch(query);
+    }
+
     setState(() {
       _responseText = response;
+      _isLoading = false; // Hide progress indicator
       _toggleResponsePopup();
     });
     await _flutterTts.speak(response);
@@ -110,15 +174,55 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         options: Options(headers: {'Authorization': 'Bearer $apiKey'}),
         data: {
           'model': 'gpt-4o-mini',
-          'messages': [
-            {'role': 'user', 'content': query},
-          ],
+          'messages': [{'role': 'user', 'content': query}],
         },
       );
       return response.data['choices'][0]['message']['content'];
     } catch (e) {
-      return "Sorry, I couldn't fetch the response. Please try again.";
+      return "Sorry, I couldn't fetch the response.";
     }
+  }
+
+  String _findClosestMatch(String query) {
+    if (_emergencyData == null || _emergencyData!['articles'] == null) {
+      return "No emergency procedures available offline.";
+    }
+
+    final articles = _emergencyData!['articles'] as List<dynamic>;
+    if (articles.isEmpty) {
+      return "No emergency procedures available offline.";
+    }
+
+    String bestMatchTitle = "";
+    String bestMatchContent = "";
+    double highestSimilarity = 0.0;
+
+    for (var article in articles) {
+      final String title = article['title'].toString().toLowerCase();
+      final double similarity = query.toLowerCase().similarityTo(title);
+
+      if (similarity > highestSimilarity) {
+        highestSimilarity = similarity;
+        bestMatchTitle = article['title'];
+        bestMatchContent = article['content'];
+      }
+    }
+
+    if (highestSimilarity < 0.3) {
+      return "I couldn't find a specific match for '$query'. Please try describing the emergency differently.";
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ArticleDetailPage(
+          title: bestMatchTitle,
+          content: bestMatchContent,
+        ),
+      ),
+    );
+
+    return bestMatchContent;
   }
 
   void _toggleResponsePopup() {
@@ -134,12 +238,12 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.redAccent,
-        title: const Row(
+        title: Row(
           children: [
             Icon(Icons.emergency, color: Colors.white),
             SizedBox(width: 8),
             Text(
-              "Emergency Assistance",
+              "Emergency Assistance${_isOffline ? ' (Offline)' : ''}",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -183,6 +287,12 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                     responseText: _responseText,
                     onClose: _toggleResponsePopup,
                   ),
+                ),
+              ),
+            if (_isLoading) // Progress indicator
+              Center(
+                child: CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
                 ),
               ),
           ],
@@ -249,7 +359,11 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
             key: _sendKey,
             description: 'Tap to submit your emergency query.',
             child: FloatingActionButton(
-              onPressed: () => _fetchAndShowResponse(_messageController.text),
+              onPressed: () {
+                String query = _messageController.text;
+                _messageController.clear(); // Clear input immediately
+                _fetchAndShowResponse(query); // Fetch response
+              },
               backgroundColor: Colors.redAccent,
               elevation: 2,
               child: const Icon(Icons.send, color: Colors.white),

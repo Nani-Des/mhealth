@@ -303,15 +303,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
                               ),
-                              SizedBox(height: 12),
-                              TextFormField(
-                                controller: _mobileController,
-                                decoration: InputDecoration(
-                                  labelText: 'Mobile Number',
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                ),
-                                keyboardType: TextInputType.phone,
-                              ),
+
                               SizedBox(height: 12),
                               TextFormField(
                                 controller: _regionController,

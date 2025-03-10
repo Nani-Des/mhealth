@@ -313,7 +313,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
       child: Text(
         title,
         style: TextStyle(
-          fontSize: 14,
+          fontSize: 10,
           fontWeight: FontWeight.w600,
           color: isSelected ? Colors.white : Colors.black,
         ),

@@ -57,39 +57,41 @@ class _OrganizationListViewState extends State<OrganizationListView> {
                 return hospitalName.contains(searchQuery) || city.contains(searchQuery);
               }).toList();
 
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: hospitals.length,
-                itemBuilder: (context, index) {
-                  final hospital = hospitals[index];
-                  final hospitalData = hospital.data() as Map<String, dynamic>;
-                  final backgroundImage = hospitalData['Background Image'] ?? '';
-                  final city = hospitalData['City'] ?? 'Unknown City';
-                  final contact = hospitalData['Contact'] ?? 'No Contact Info';
-                  final hospitalId = hospital.id;
+              return SingleChildScrollView(
+                child: ListView.builder(
+                  shrinkWrap: true, // Ensures the ListView takes only necessary space
+                  physics: BouncingScrollPhysics(), // Enables smooth scrolling
+                  itemCount: hospitals.length,
+                  itemBuilder: (context, index) {
+                    final hospital = hospitals[index];
+                    final hospitalData = hospital.data() as Map<String, dynamic>;
+                    final backgroundImage = hospitalData['Background Image'] ?? '';
+                    final city = hospitalData['City'] ?? 'Unknown City';
+                    final contact = hospitalData['Contact'] ?? 'No Contact Info';
+                    final hospitalId = hospital.id;
 
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => SpecialtyDetails(
-                            hospitalId: hospitalId,
-                            isReferral: widget.isReferral,
+                    return GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => SpecialtyDetails(
+                              hospitalId: hospitalId,
+                              isReferral: widget.isReferral,
+                            ),
                           ),
-                        ),
-                      );
-                    },
-                    child: HospitalCard(
-                      backgroundImage: backgroundImage,
-                      city: city,
-                      contact: contact,
-                      isLoggedIn: user != null,
-                      hospitalId: hospitalId,
-                    ),
-                  );
-                },
+                        );
+                      },
+                      child: HospitalCard(
+                        backgroundImage: backgroundImage,
+                        city: city,
+                        contact: contact,
+                        isLoggedIn: user != null,
+                        hospitalId: hospitalId,
+                      ),
+                    );
+                  },
+                ),
               );
             },
           ),
@@ -115,7 +117,6 @@ class HospitalCard extends StatelessWidget {
     required this.isLoggedIn,
   }) : super(key: key);
 
-  // Fetch the average rating or default to 4.5 if no Ratings subcollection exists
   Future<double> _getAverageRating() async {
     final ratingsSnapshot = await FirebaseFirestore.instance
         .collection('Hospital')
@@ -126,7 +127,6 @@ class HospitalCard extends StatelessWidget {
         .get();
 
     if (ratingsSnapshot.docs.isEmpty) {
-      // No Ratings subcollection or no ratings yet, return default
       return 4.5;
     } else {
       double total = 0.0;
@@ -176,7 +176,7 @@ class HospitalCard extends StatelessWidget {
                       if (snapshot.hasError) {
                         return Text("Error", style: TextStyle(fontSize: 14.0, color: Colors.red));
                       }
-                      final rating = snapshot.data ?? 4.5; // Fallback to 4.5 if null
+                      final rating = snapshot.data ?? 4.5;
                       return Row(
                         children: [
                           Icon(Icons.star, color: Colors.orange, size: 16),

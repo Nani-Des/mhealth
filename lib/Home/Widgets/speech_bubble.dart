@@ -37,7 +37,7 @@ class _SpeechBubbleState extends State<SpeechBubble> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.calendar_today, color: Colors.blueAccent),
+            Icon(Icons.favorite, color: Colors.red),
             SizedBox(width: 10),
             AnimatedOpacity(
               opacity: _isVisible ? 1.0 : 0.0,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:mhealth/try.dart';
 import 'package:showcaseview/showcaseview.dart'; // Add this import
 import 'Appointments/referral_form.dart';
 import 'Home/home_page.dart';
@@ -12,6 +13,7 @@ import 'Maps/map_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+  await Hive.openBox('translations');
   await dotenv.load();
   await Firebase.initializeApp(
     options: FirebaseOptions(

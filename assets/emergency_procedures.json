@@ -1,0 +1,17 @@
+{
+  "category": "Emergency Procedures",
+  "articles": [
+    {
+      "title": "CPR",
+      "content": "Cardiopulmonary Resuscitation (CPR) is a life-saving technique used in emergencies when someone's heart stops beating. Steps: 1. Call emergency services. 2. Place hands on center of chest. 3. Push hard and fast at 100-120 compressions per minute."
+    },
+    {
+      "title": "Choking",
+      "content": "Choking occurs when an object blocks the airway. Perform the Heimlich maneuver: 1. Stand behind the person. 2. Make a fist with one hand. 3. Place it above the navel. 4. Grasp fist with other hand and press hard into abdomen with quick upward thrusts."
+    },
+    {
+      "title": "Bleeding",
+      "content": "For severe bleeding: 1. Apply direct pressure to the wound with a clean cloth. 2. Elevate the injured area if possible. 3. Keep pressure until help arrives."
+    }
+  ]
+}
