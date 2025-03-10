@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../Hospital/hospital_page.dart';
 import '../../Hospital/hospital_profile_screen.dart';
 import '../../Hospital/specialty_details.dart';
 
@@ -75,7 +76,7 @@ class _OrganizationListViewState extends State<OrganizationListView> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => SpecialtyDetails(
+                            builder: (context) => HospitalPage(
                               hospitalId: hospitalId,
                               isReferral: widget.isReferral,
                             ),

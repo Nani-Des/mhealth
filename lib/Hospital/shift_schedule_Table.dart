@@ -7,12 +7,10 @@ import 'doctor_profile.dart';
 
 class ShiftScheduleScreen extends StatefulWidget {
   final String hospitalId;
-  final String departmentId;
   final List<Map<String, dynamic>> doctors;
 
   const ShiftScheduleScreen({
     required this.hospitalId,
-    required this.departmentId,
     required this.doctors,
   });
 

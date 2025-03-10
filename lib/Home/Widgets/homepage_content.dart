@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:mhealth/Home/Widgets/speech_bubble.dart';
-import 'package:mhealth/Maps/map_screen.dart';
 import 'doctors_row_item.dart';
 import 'organization_list_view.dart';
 
@@ -52,76 +51,66 @@ class _HomePageContentState extends State<HomePageContent> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 300),
-          child: _showInitialView
-              ? FadeTransition(
-            opacity: _fadeAnimation,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.blueGrey[50]!, Colors.white],
+    return Scaffold(
+      resizeToAvoidBottomInset: true, // Allows content to resize when keyboard appears
+      body: Stack(
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: _showInitialView
+                ? FadeTransition(
+              opacity: _fadeAnimation,
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Colors.blueGrey[50]!, Colors.white],
+                  ),
                 ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 4.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SearchBar1(onPlaceSelected: _onPlaceSelected),
-                    const SizedBox(height: 12),
-                    SpeechBubble(
-                      onPressed: () {
-                        print("See Doctor now! tapped");
-                      },
-                      textStyle: const TextStyle(
-                        fontSize: 15.0,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blueAccent,
+                child: SingleChildScrollView(
+                  // Makes content scrollable
+                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0), // Extra padding for FAB
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SearchBar1(onPlaceSelected: _onPlaceSelected),
+                      const SizedBox(height: 12),
+                      SpeechBubble(
+                        onPressed: () {
+                          print("See Doctor now! tapped");
+                        },
+                        textStyle: const TextStyle(
+                          fontSize: 15.0,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blueAccent,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 12),
-                    DoctorsRowItem(),
-                    const SizedBox(height: 12),
-                    Expanded(
-                      child: OrganizationListView(showSearchBar: false, isReferral: false),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      DoctorsRowItem(),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.5, // Fixed height for OrganizationListView
+                        child: OrganizationListView(showSearchBar: false, isReferral: false),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          )
-              : MapResultsView(
-            key: ValueKey(_selectedPlaceId),
-            placeId: _selectedPlaceId!,
-            placeName: _selectedPlaceName!,
-            onBack: () {
-              setState(() => _showInitialView = true);
-              _animationController.forward(from: 0);
-            },
-          ),
-        ),
-        if (_showInitialView)
-          Positioned(
-            bottom: 20,
-            right: 20,
-            child: FloatingActionButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => MapScreen()),
-                );
+            )
+                : MapResultsView(
+              key: ValueKey(_selectedPlaceId),
+              placeId: _selectedPlaceId!,
+              placeName: _selectedPlaceName!,
+              onBack: () {
+                setState(() => _showInitialView = true);
+                _animationController.forward(from: 0);
               },
-              backgroundColor: Colors.white,
-              elevation: 4,
-              child: const Icon(Icons.map, color: Colors.white),
             ),
           ),
-      ],
+
+        ],
+      ),
     );
   }
 }
@@ -322,6 +311,7 @@ class _MapResultsViewState extends State<MapResultsView> with SingleTickerProvid
   @override
   void dispose() {
     _animationController.dispose();
+    _mapController.dispose(); // Dispose of map controller
     super.dispose();
   }
 

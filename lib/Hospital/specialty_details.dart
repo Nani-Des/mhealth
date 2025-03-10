@@ -121,34 +121,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
             color: Colors.white,
           ),
         ),
-        actions: [
-        Showcase(
-        key: _specialtycalendarKey,
-        description: 'Tap to view the Department Timetable',
-        child: IconButton(
-            icon: const Icon(Icons.calendar_month_rounded, color: Colors.white),
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => Dialog(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: SizedBox(
-                    width: 700,
-                    height: 650,
-                    child: ShiftScheduleScreen(
-                      hospitalId: widget.hospitalId,
-                      departmentId: _selectedDepartmentId!,
-                      doctors: _doctors,
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        ],
+
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
@@ -174,26 +147,26 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                   builder: (context, child) {
                     return GestureDetector(
                       onTap: () {
-                        if (_selectedDepartmentId != null) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  HospitalServiceScreen(
-                                      hospitalId: widget.hospitalId),
+                        showDialog(
+                          context: context,
+                          builder: (context) => Dialog(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                          );
-                        } else {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(
-                                    "Please select a department first")),
-                          );
-                        }
+                            child: SizedBox(
+                              width: 700,
+                              height: 650,
+                              child: ShiftScheduleScreen(
+                                hospitalId: widget.hospitalId,
+                                doctors: _doctors,
+                              ),
+                            ),
+                          ),
+                        );
                       },
                     child: Showcase(
                     key: _servicekey,
-                    description: 'See Services available on days',
+                    description: 'Tap to view the Department Timetable',
                       child: Container(
                         padding: const EdgeInsets.all(5.0),
                         decoration: BoxDecoration(
@@ -206,7 +179,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                                 color: Colors.white),
                             SizedBox(width: 10),
                             Text(
-                              'Services',
+                              'Department Schedule',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontWeight: FontWeight.bold,
@@ -282,7 +255,8 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
           // Pass the selected hospital name back to the previous screen
           Navigator.pop(context, selectedHospitalName);
           // Pop the navigation stack twice
-          Navigator.pop(context, selectedHospitalName);; // First pop to go back to previous page
+          Navigator.pop(context, selectedHospitalName);
+          Navigator.pop(context, selectedHospitalName); // First pop to go back to previous page
 
           // Trigger the method to reset and re-execute the _selectHealthFacility logic
           Future.delayed(Duration(milliseconds: 300), () {
