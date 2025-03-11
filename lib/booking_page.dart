@@ -25,7 +25,10 @@ class _BookingPageState extends State<BookingPage> {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: Text("Bookings", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+          title: Text(
+            "Bookings",
+            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+          ),
           backgroundColor: Colors.teal,
           elevation: 0,
           bottom: TabBar(
@@ -79,7 +82,8 @@ class _BookingPageState extends State<BookingPage> {
         return ListView.builder(
           padding: EdgeInsets.all(16),
           itemCount: requests.length,
-          itemBuilder: (context, index) => _buildAppointmentCard(requests[index], requests[index]['patientId'], true),
+          itemBuilder: (context, index) =>
+              _buildAppointmentCard(requests[index], requests[index]['patientId'], true),
         );
       },
     );
@@ -146,7 +150,8 @@ class _BookingPageState extends State<BookingPage> {
         : ListView.builder(
       padding: EdgeInsets.all(16),
       itemCount: filtered.length,
-      itemBuilder: (context, index) => _buildAppointmentCard(filtered[index], widget.currentUserId, false),
+      itemBuilder: (context, index) =>
+          _buildAppointmentCard(filtered[index], widget.currentUserId, false),
     );
   }
 
@@ -186,7 +191,8 @@ class _BookingPageState extends State<BookingPage> {
                 CircleAvatar(
                   radius: 25,
                   backgroundColor: Colors.teal.withOpacity(0.1),
-                  backgroundImage: userInfo['User Pic'] != null ? NetworkImage(userInfo['User Pic']) : null,
+                  backgroundImage:
+                  userInfo['User Pic'] != null ? NetworkImage(userInfo['User Pic']) : null,
                   child: userInfo['User Pic'] == null ? Icon(Icons.person, color: Colors.teal) : null,
                 ),
                 SizedBox(width: 16),
@@ -290,22 +296,181 @@ class _BookingPageState extends State<BookingPage> {
   void _updateStatus(String userId, Timestamp date, String newStatus) async {
     try {
       DocumentSnapshot doc = await FirebaseFirestore.instance.collection('Bookings').doc(userId).get();
-      if (doc.exists) {
-        List<dynamic> bookings = List.from(doc['Bookings']);
-        int index = bookings.indexWhere((b) => b['date'] == date);
-        if (index != -1) {
-          bookings[index]['status'] = newStatus;
-          await FirebaseFirestore.instance.collection('Bookings').doc(userId).update({'Bookings': bookings});
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Status updated to $newStatus")),
-          );
-        }
-      }
+      if (!doc.exists) return;
+
+      List<dynamic> bookings = List.from(doc['Bookings']);
+      int index = bookings.indexWhere((b) => b['date'] == date);
+      if (index == -1) return;
+
+      // Show dialog to update status and optionally change date/time
+      final updatedBooking = await _showUpdateBookingDialog(context, bookings[index], newStatus);
+      if (updatedBooking == null) return; // User canceled the dialog
+
+      // Update the booking in the list
+      bookings[index] = updatedBooking;
+
+      // Update Firestore
+      await FirebaseFirestore.instance.collection('Bookings').doc(userId).update({
+        'Bookings': bookings,
+      });
+
+      _showModernSnackBar(context, "Status updated to $newStatus");
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to update status: $e")),
-      );
+      _showModernSnackBar(context, "Failed to update status: $e", isError: true);
     }
+  }
+
+  Future<Map<String, dynamic>?> _showUpdateBookingDialog(
+      BuildContext context, Map<String, dynamic> booking, String newStatus) async {
+    DateTime selectedDateTime = booking['date'].toDate();
+    final TextEditingController reasonController = TextEditingController(text: booking['reason']);
+
+    return await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              elevation: 10,
+              child: Padding(
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Accept Booking',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.teal,
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    // Date and Time Picker
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          "Date: ${DateFormat('MMM dd, yyyy HH:mm').format(selectedDateTime)}",
+                          style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                        ),
+                        TextButton(
+                          onPressed: () async {
+                            final newDate = await _selectDateTime(context, selectedDateTime);
+                            if (newDate != null) {
+                              setState(() {
+                                selectedDateTime = newDate;
+                              });
+                            }
+                          },
+                          child: Text('Change', style: TextStyle(color: Colors.teal)),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 16),
+                    // Reason Field
+                    TextField(
+                      controller: reasonController,
+                      maxLines: 3,
+                      decoration: InputDecoration(
+                        hintText: 'Update reason (optional)',
+                        hintStyle: TextStyle(color: Colors.grey[400]),
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      ),
+                    ),
+                    SizedBox(height: 20),
+                    // Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, null),
+                          child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+                        ),
+                        SizedBox(width: 10),
+                        ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(context, {
+                              'doctorId': booking['doctorId'],
+                              'hospitalId': booking['hospitalId'],
+                              'date': Timestamp.fromDate(selectedDateTime),
+                              'status': newStatus,
+                              'reason': reasonController.text.trim().isEmpty
+                                  ? booking['reason']
+                                  : reasonController.text.trim(),
+                            });
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          ),
+                          child: Text('Update', style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<DateTime?> _selectDateTime(BuildContext context, DateTime initialDate) async {
+    // Select Date
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: initialDate,
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: ColorScheme.light(primary: Colors.teal),
+            buttonTheme: ButtonThemeData(textTheme: ButtonTextTheme.primary),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedDate == null) return null;
+
+    // Select Time
+    final TimeOfDay? pickedTime = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initialDate),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: ColorScheme.light(primary: Colors.teal),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedTime == null) return null;
+
+    return DateTime(
+      pickedDate.year,
+      pickedDate.month,
+      pickedDate.day,
+      pickedTime.hour,
+      pickedTime.minute,
+    );
   }
 
   void _confirmDelete(String userId, Timestamp date) {
@@ -346,14 +511,10 @@ class _BookingPageState extends State<BookingPage> {
         List<dynamic> bookings = List.from(doc['Bookings']);
         bookings.removeWhere((booking) => booking['date'] == date);
         await docRef.update({'Bookings': bookings});
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Booking deleted successfully")),
-        );
+        _showModernSnackBar(context, "Booking deleted successfully");
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to delete booking: $e")),
-      );
+      _showModernSnackBar(context, "Failed to delete booking: $e", isError: true);
     }
   }
 
@@ -365,5 +526,27 @@ class _BookingPageState extends State<BookingPage> {
     } catch (e) {
       print("Error updating booking status: $e");
     }
+  }
+
+  void _showModernSnackBar(BuildContext context, String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            SizedBox(width: 10),
+            Expanded(child: Text(message, style: TextStyle(color: Colors.white))),
+          ],
+        ),
+        backgroundColor: isError ? Colors.redAccent : Colors.teal,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: EdgeInsets.all(10),
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mhealth/Hospital/Widgets/custom_nav_bar.dart';
 import 'package:mhealth/Hospital/specialty_details.dart';
 import '../Services/firebase_service.dart';
 import 'hospital_service_screen.dart';
@@ -45,10 +46,17 @@ class _HospitalPageState extends State<HospitalPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Hospital App'),
+        title: Text(
+          _hospitalDetails['hospitalName'] ?? 'Unknown Hospital',
+          style: const TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
         centerTitle: true,
         elevation: 0,
-        backgroundColor: Colors.blue[800],
+        backgroundColor: Colors.teal[800],
         foregroundColor: Colors.white,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(bottom: Radius.circular(20)),
@@ -59,7 +67,7 @@ class _HospitalPageState extends State<HospitalPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.blue[100]!, Colors.blue[50]!, Colors.white],
+            colors: [Colors.teal[100]!, Colors.teal[50]!, Colors.white],
           ),
         ),
         child: Padding(
@@ -109,7 +117,7 @@ class _HospitalPageState extends State<HospitalPage> {
                             title: 'Hospital Services',
                             icon: Icons.medical_services,
                             gradient: LinearGradient(
-                              colors: [Colors.green[700]!, Colors.green[500]!],
+                              colors: [Colors.teal[700]!, Colors.teal[500]!],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -118,10 +126,8 @@ class _HospitalPageState extends State<HospitalPage> {
                                 context,
                                 MaterialPageRoute(
                                   builder: (context) =>
-                                      HospitalServiceScreen(
-                                          hospitalId: widget.hospitalId),
-                                ),
-                              );
+                                      HospitalServiceScreen(hospitalId: widget.hospitalId,isReferral: widget.isReferral)
+                              ));
                             },
                           ),
                         ),
@@ -149,6 +155,7 @@ class _HospitalPageState extends State<HospitalPage> {
           ),
         ),
       ),
+      bottomNavigationBar: widget.isReferral ? null : CustomBottomNavBarHospital(hospitalId: widget.hospitalId),
       floatingActionButton: widget.isReferral
           ? FloatingActionButton(
         onPressed: () {

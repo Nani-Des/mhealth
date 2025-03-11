@@ -3,8 +3,8 @@ import 'package:mhealth/Hospital/shift_schedule_Table.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
 import '../Services/firebase_service.dart';
+import 'Widgets/custom_nav_bar.dart';
 import 'doctor_profile.dart';
-import 'hospital_service_screen.dart';
 
 class SpecialtyDetails extends StatefulWidget {
   final String hospitalId;
@@ -270,10 +270,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
         backgroundColor: Colors.teal,
       )
           : null,
-
-
-
-
+      bottomNavigationBar: widget.isReferral ? null : CustomBottomNavBarHospital(hospitalId: widget.hospitalId),
     );
   }
 

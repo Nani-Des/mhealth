@@ -48,9 +48,6 @@ class DoctorInfoWidget extends StatelessWidget {
                 _buildInfoGrid(),
                 const SizedBox(height: 24),
 
-                // Contact Info Row
-                _buildContactRow(),
-                const SizedBox(height: 80), // Space for buttons
               ],
             ),
           ),
@@ -123,16 +120,7 @@ class DoctorInfoWidget extends StatelessWidget {
     );
   }
 
-  // Contact Info Row
-  Widget _buildContactRow() {
-    return Row(
-      children: [
-        Expanded(child: _buildInfoBox(Icons.email, 'Email', doctorDetails['Email'])),
-        const SizedBox(width: 12),
-        Expanded(child: _buildInfoBox(Icons.phone, 'Mobile', doctorDetails['Mobile Number'])),
-      ],
-    );
-  }
+
 
   // Info Box Widget
   Widget _buildInfoBox(IconData icon, String label, String? value) {

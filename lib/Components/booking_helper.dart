@@ -15,7 +15,6 @@ Future<void> handleBookAppointment(
   final user = FirebaseAuth.instance.currentUser;
 
   if (user == null) {
-    // User is not logged in, navigate to LoginScreen1 and wait for login completion
     final userId = await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => LoginScreen1()),
@@ -31,7 +30,6 @@ Future<void> handleBookAppointment(
       );
     }
   } else {
-    // User is already logged in, proceed with booking
     await _bookAppointment(
       context,
       patientId: user.uid,
@@ -49,47 +47,94 @@ Future<void> _bookAppointment(
       required String hospitalId,
       required DateTime selectedDate,
     }) async {
-  // Prevent a doctor from booking an appointment with themselves
   if (patientId == doctorId) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('You cannot book an appointment with yourself!')),
-    );
+    _showModernSnackBar(context, 'You cannot book an appointment with yourself!', isError: true);
     return;
   }
 
   final TextEditingController reasonController = TextEditingController();
 
-  // Show a dialog to get the reason for booking
-  final bool isConfirmed = await showDialog(
+  // Show modern dialog
+  final bool? isConfirmed = await showDialog<bool>(
     context: context,
+    barrierDismissible: false, // Prevents dismissing by tapping outside
     builder: (context) {
-      return AlertDialog(
-        title: Text('Why do you want to see the Doctor?'),
-        content: TextField(
-          controller: reasonController,
-          maxLines: 3,
-          decoration: InputDecoration(
-            hintText: 'Enter your reason here',
+      return Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        elevation: 10,
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Modern Title
+              Text(
+                'Why visit the Doctor?',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueAccent,
+                ),
+              ),
+              SizedBox(height: 16),
+              // Modern TextField
+              TextField(
+                controller: reasonController,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  hintText: 'Enter your reason here',
+                  hintStyle: TextStyle(color: Colors.grey[400]),
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                ),
+              ),
+              SizedBox(height: 20),
+              // Modern Buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.grey[600],
+                    ),
+                    child: Text('Cancel'),
+                  ),
+                  SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: () {
+                      if (reasonController.text.trim().isEmpty) {
+                        _showModernSnackBar(context, 'Reason is required!', isError: true);
+                        return;
+                      }
+                      Navigator.of(context).pop(true);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                    ),
+                    child: Text(
+                      'Confirm',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (reasonController.text.trim().isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Reason is required!')),
-                );
-                return;
-              }
-              Navigator.of(context).pop(true);
-            },
-            child: Text('Confirm'),
-          ),
-        ],
       );
     },
   );
@@ -99,42 +144,29 @@ Future<void> _bookAppointment(
   final reason = reasonController.text.trim();
 
   try {
-    final selectedTimestamp = Timestamp.fromDate(selectedDate); // Convert to Timestamp
+    final selectedTimestamp = Timestamp.fromDate(selectedDate);
 
-    // Fetch current bookings from Firestore
     final patientDoc = FirebaseFirestore.instance.collection('Bookings').doc(patientId);
     final patientSnapshot = await patientDoc.get();
 
-    // Check if patient has any existing bookings or if document doesn't exist
     if (!patientSnapshot.exists) {
-      // If the document doesn't exist, create an empty 'Bookings' array
-      await patientDoc.set({
-        'Bookings': [],
-      });
+      await patientDoc.set({'Bookings': []});
     }
 
-    // After ensuring the document exists, we fetch the current bookings
     final bookings = patientSnapshot.data()?['Bookings'] ?? [];
 
     for (var booking in bookings) {
-      final existingDate = booking['date']; // This might be a Timestamp or String
-
-      // Ensure existingDate is a Timestamp and then compare
+      final existingDate = booking['date'];
       if (existingDate is Timestamp) {
         if (selectedDate.isAtSameMomentAs(existingDate.toDate())) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('You already have an appointment on this date!')),
-          );
+          _showModernSnackBar(context, 'You already have an appointment on this date!', isError: true);
           return;
         }
       } else if (existingDate is String) {
         try {
-          // If it's a String, parse it into a DateTime (this might require adjusting the format)
           DateTime existingDateTime = DateFormat('yyyy-MM-dd HH:mm:ss').parse(existingDate);
           if (selectedDate.isAtSameMomentAs(existingDateTime)) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('You already have an appointment on this date!')),
-            );
+            _showModernSnackBar(context, 'You already have an appointment on this date!', isError: true);
             return;
           }
         } catch (e) {
@@ -146,22 +178,16 @@ Future<void> _bookAppointment(
     final bookingData = {
       'doctorId': doctorId,
       'hospitalId': hospitalId,
-      'date': selectedTimestamp, // Store Timestamp
-      'status': 'Pending', // Default status
-      'reason': reason, // Store the reason for booking
+      'date': selectedTimestamp,
+      'status': 'Pending',
+      'reason': reason,
     };
 
-    // Update Firestore by adding the booking to the 'Bookings' array
     await patientDoc.update({
       'Bookings': FieldValue.arrayUnion([bookingData]),
     });
 
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Appointment successfully booked!')),
-    );
-
-    // Navigate to the AppointmentDetailsScreen with the user ID
+    _showModernSnackBar(context, 'Appointment successfully booked!');
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -169,10 +195,37 @@ Future<void> _bookAppointment(
       ),
     );
   } catch (e) {
-    // Show error message
     print('Error occurred: $e');
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Failed to book appointment: $e')),
-    );
+    _showModernSnackBar(context, 'Failed to book appointment: $e', isError: true);
   }
+}
+
+// Helper method for modern SnackBar
+void _showModernSnackBar(BuildContext context, String message, {bool isError = false}) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          Icon(
+            isError ? Icons.error_outline : Icons.check_circle_outline,
+            color: Colors.white,
+          ),
+          SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+      backgroundColor: isError ? Colors.redAccent : Colors.green,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+      ),
+      margin: EdgeInsets.all(10),
+      duration: Duration(seconds: 3),
+    ),
+  );
 }

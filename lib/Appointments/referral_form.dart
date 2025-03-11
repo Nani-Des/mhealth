@@ -7,6 +7,10 @@ import '../Home/Widgets/organization_list_view.dart';
 import 'Referral screens/ReferralSummaryScreen.dart';
 
 class ReferralForm extends StatefulWidget {
+  final String? selectedHealthFacility; // Optional parameter for pre-selected health facility
+
+  const ReferralForm({Key? key, this.selectedHealthFacility}) : super(key: key);
+
   @override
   _ReferralFormState createState() => _ReferralFormState();
 }
@@ -15,7 +19,7 @@ class _ReferralFormState extends State<ReferralForm> {
   final PageController _pageController = PageController();
   final _formKey = GlobalKey<FormState>();
 
-  // Controllers and variables (unchanged)
+  // Controllers and variables
   final TextEditingController _patientRegController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _examinationFindingsController = TextEditingController();
@@ -27,7 +31,7 @@ class _ReferralFormState extends State<ReferralForm> {
   DateTime? _dateOfBirth;
   int? _age;
   late String _serialNumber;
-  String? _selectedHealthFacility;
+  String? _selectedHealthFacility; // This will now be initialized with widget.selectedHealthFacility
   String? _uploadedFileName;
   File? _uploadedFile;
   int _currentPage = 0;
@@ -36,6 +40,7 @@ class _ReferralFormState extends State<ReferralForm> {
   void initState() {
     super.initState();
     _serialNumber = _generateSerialNumber(7);
+    _selectedHealthFacility = widget.selectedHealthFacility; // Initialize with passed value or null
     _pageController.addListener(() {
       setState(() {
         _currentPage = _pageController.page?.round() ?? 0;
@@ -235,14 +240,16 @@ class _ReferralFormState extends State<ReferralForm> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Patient Information", style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
+              Text("Patient Information",
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
               SizedBox(height: 24),
               // Row with Patient Reg No and Serial Number
               Row(
                 children: [
                   Expanded(
                     flex: 2,
-                    child: _buildTextField(_patientRegController, "Patient Reg. No. (Optional)", isRequired: false),
+                    child: _buildTextField(_patientRegController, "Patient Reg. No. (Optional)",
+                        isRequired: false),
                   ),
                   SizedBox(width: 16),
                   Expanded(
@@ -289,7 +296,8 @@ class _ReferralFormState extends State<ReferralForm> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Referee Notes", style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
+              Text("Referee Notes",
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
               SizedBox(height: 24),
               _buildTextField(_examinationFindingsController, "Examination Findings", maxLines: 3),
               SizedBox(height: 16),
@@ -320,7 +328,8 @@ class _ReferralFormState extends State<ReferralForm> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("Select Health Facility", style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
+              Text("Select Health Facility",
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
               SizedBox(height: 32),
               _buildHealthFacilityButton(),
               SizedBox(height: 48),
@@ -332,7 +341,8 @@ class _ReferralFormState extends State<ReferralForm> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, {int maxLines = 1, bool isRequired = true}) {
+  Widget _buildTextField(TextEditingController controller, String label,
+      {int maxLines = 1, bool isRequired = true}) {
     return TextFormField(
       controller: controller,
       maxLines: maxLines,
@@ -427,7 +437,9 @@ class _ReferralFormState extends State<ReferralForm> {
       onPressed: _selectHealthFacility,
       icon: Icon(Icons.local_hospital),
       label: Text(
-        _selectedHealthFacility == null ? "Select Health Facility" : "Selected: $_selectedHealthFacility",
+        _selectedHealthFacility == null
+            ? "Select Health Facility"
+            : "Selected: $_selectedHealthFacility",
         overflow: TextOverflow.ellipsis,
       ),
       style: ElevatedButton.styleFrom(

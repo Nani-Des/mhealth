@@ -3,6 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mhealth/Login/login_screen1.dart';
 
 import '../../Forums/Public/forum.dart';
+import '../../Hospital/general_hospital_page.dart';
+import 'organization_list_view.dart';
 class CustomBottomNavBar extends StatefulWidget {
   @override
   _CustomBottomNavBarState createState() => _CustomBottomNavBarState();
@@ -45,7 +47,7 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
     // Navigate to specific pages based on index
     switch (index) {
       case 0:
-        _navigateBasedOnAuthStatus(context, (userId) => Forum(userId: userId));
+        _navigateBasedOnAuthStatus(context, (userId) => GeneralHospitalPage());
         break;
       case 1:
         _navigateBasedOnAuthStatus(context, (userId) => Forum(userId: userId)); // Replace with appropriate target screen
