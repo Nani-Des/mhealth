@@ -414,7 +414,7 @@ class _BookingPageState extends State<BookingPage> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           ),
-                          child: Text('Update', style: TextStyle(color: Colors.white)),
+                          child: Text('Confirm', style: TextStyle(color: Colors.white)),
                         ),
                       ],
                     ),

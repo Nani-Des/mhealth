@@ -90,7 +90,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
               children: [
                 statusLabel('Requests', Colors.orange),
                 statusLabel('Appointments', Colors.purple),
-                statusLabel('Pending', Colors.blue),
+                statusLabel('Pending', Colors.teal),
                 statusLabel('Active', Colors.green),
                 statusLabel('Terminated', Colors.red),
               ],

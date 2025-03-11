@@ -11,7 +11,7 @@ class ArticleDetailPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Colors.teal,
         title: Text(
           title,
           style: const TextStyle(
@@ -27,7 +27,7 @@ class ArticleDetailPage extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Colors.blueAccent, Colors.blueAccent.shade700],
+              colors: [Colors.teal, Colors.teal.shade700],
             ),
           ),
         ),
@@ -41,7 +41,7 @@ class ArticleDetailPage extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.blueAccent.withOpacity(0.1), Colors.white],
+            colors: [Colors.teal.withOpacity(0.1), Colors.white],
           ),
         ),
         child: Padding(

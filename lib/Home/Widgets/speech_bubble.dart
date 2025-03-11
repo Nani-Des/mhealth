@@ -37,7 +37,7 @@ class _SpeechBubbleState extends State<SpeechBubble> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.favorite, color: Colors.red),
+            Text('👨‍⚕️', style: TextStyle(fontSize: 24)), // Doctor emoji
             SizedBox(width: 10),
             AnimatedOpacity(
               opacity: _isVisible ? 1.0 : 0.0,

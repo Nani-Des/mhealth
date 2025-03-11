@@ -4,7 +4,7 @@ import 'package:mhealth/Login/login_screen1.dart';
 
 import '../../Forums/Public/forum.dart';
 import '../../Hospital/general_hospital_page.dart';
-import 'organization_list_view.dart';
+
 class CustomBottomNavBar extends StatefulWidget {
   @override
   _CustomBottomNavBarState createState() => _CustomBottomNavBarState();
@@ -96,7 +96,7 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
             ],
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
-            selectedItemColor: Colors.blueAccent,
+            selectedItemColor: Colors.teal,
             unselectedItemColor: Colors.grey,
             selectedLabelStyle:
             TextStyle(fontSize: 10.0, fontWeight: FontWeight.bold),

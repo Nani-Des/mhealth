@@ -213,7 +213,7 @@ class HospitalCard extends StatelessWidget {
                         ),
                       );
                     },
-                    child: Text("Reviews", style: TextStyle(color: Colors.blue)),
+                    child: Text("Reviews", style: TextStyle(color: Colors.teal)),
                   ),
               ],
             ),

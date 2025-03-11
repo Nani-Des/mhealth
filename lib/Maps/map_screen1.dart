@@ -209,7 +209,7 @@ class _MapScreen1State extends State<MapScreen1> {
             points: _info!.polylinePoints
                 .map((point) => LatLng(point.latitude, point.longitude)) // Convert PointLatLng to LatLng
                 .toList(),
-            color: Colors.blue,
+            color: Colors.teal,
             width: 5,
           );
         });
@@ -363,7 +363,7 @@ class _MapScreen1State extends State<MapScreen1> {
           points: _info!.polylinePoints
               .map((point) => LatLng(point.latitude, point.longitude)) // Convert PointLatLng to LatLng
               .toList(),
-          color: Colors.blue,
+          color: Colors.teal,
           width: 5,
         );
       });

@@ -161,7 +161,7 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
               ),
-              style: TextButton.styleFrom(foregroundColor: Colors.blue),
+              style: TextButton.styleFrom(foregroundColor: Colors.teal),
               child: const Text('DEST'),
             ),
         ],

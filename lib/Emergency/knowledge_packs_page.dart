@@ -109,7 +109,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.blueAccent,
+        backgroundColor: Colors.tealAccent,
         title: const Row(
           children: [
             Icon(Icons.book, color: Colors.white),
@@ -128,7 +128,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Colors.blueAccent, Colors.blueAccent.shade700],
+              colors: [Colors.tealAccent, Colors.tealAccent.shade700],
             ),
           ),
         ),
@@ -138,7 +138,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.blueAccent.withOpacity(0.1), Colors.white],
+            colors: [Colors.tealAccent.withOpacity(0.1), Colors.white],
           ),
         ),
         child: isLoading
@@ -164,7 +164,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.blueAccent),
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.tealAccent),
           ),
           const SizedBox(height: 16),
           Text(
@@ -199,7 +199,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
         elevation: 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: ExpansionTile(
-          leading: Icon(Icons.folder, color: Colors.blueAccent),
+          leading: Icon(Icons.folder, color: Colors.teal),
           title: Text(
             category,
             style: const TextStyle(
@@ -274,13 +274,13 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.blueAccent.withOpacity(0.1),
+                        color: Colors.teal.withOpacity(0.1),
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
                       ),
                       child: Icon(
                         Icons.article,
                         size: 40,
-                        color: Colors.blueAccent,
+                        color: Colors.teal,
                       ),
                     ),
                     Expanded(
@@ -337,7 +337,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
                     child: Container(
                       padding: const EdgeInsets.all(4),
                       decoration: const BoxDecoration(
-                        color: Colors.green,
+                        color: Colors.lightGreenAccent,
                         shape: BoxShape.circle,
                       ),
                       child: const Icon(

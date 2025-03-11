@@ -83,7 +83,7 @@ class _HomePageContentState extends State<HomePageContent> with SingleTickerProv
                         textStyle: const TextStyle(
                           fontSize: 15.0,
                           fontWeight: FontWeight.bold,
-                          color: Colors.blueAccent,
+                          color: Colors.teal,
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -205,7 +205,7 @@ class _SearchBar1State extends State<SearchBar1> {
             decoration: InputDecoration(
               hintText: 'Search by name...',
               hintStyle: TextStyle(color: Colors.grey[400]),
-              prefixIcon: const Icon(Icons.search, color: Colors.blueAccent),
+              prefixIcon: const Icon(Icons.search, color: Colors.teal),
               suffixIcon: _controller.text.isNotEmpty
                   ? IconButton(
                 icon: Icon(Icons.clear, color: Colors.grey[400]),
@@ -382,7 +382,7 @@ class _MapResultsViewState extends State<MapResultsView> with SingleTickerProvid
                   elevation: 4,
                   borderRadius: BorderRadius.circular(12),
                   child: IconButton(
-                    icon: const Icon(Icons.arrow_back_ios, color: Colors.blueAccent),
+                    icon: const Icon(Icons.arrow_back_ios, color: Colors.teal),
                     onPressed: widget.onBack,
                     padding: const EdgeInsets.all(12),
                   ),

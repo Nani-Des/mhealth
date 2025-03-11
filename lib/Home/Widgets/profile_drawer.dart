@@ -199,7 +199,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                       ),
                       TextButton(
                         onPressed: () => setState(() => _userDataFuture = _fetchUserData()),
-                        child: Text('Retry', style: TextStyle(color: Colors.blue)),
+                        child: Text('Retry', style: TextStyle(color: Colors.teal)),
                       ),
                     ],
                   ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mhealth/Hospital/Widgets/custom_nav_bar.dart';
 import 'package:mhealth/Hospital/specialty_details.dart';
 import '../Services/firebase_service.dart';
+import '../try.dart';
 import 'hospital_service_screen.dart';
 
 class HospitalPage extends StatefulWidget {
@@ -142,7 +143,13 @@ class _HospitalPageState extends State<HospitalPage> {
                               end: Alignment.bottomRight,
                             ),
                             onTap: () {
-                              print('Navigating to Calendar for hospital: ${widget.hospitalId}');
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          CalenderPage(hospitalId: widget.hospitalId)
+                                  ));
+
                             },
                           ),
                         ),

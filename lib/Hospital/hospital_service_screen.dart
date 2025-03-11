@@ -188,7 +188,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Hospital Services"),
+        title: const Text("Services"),
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -208,7 +208,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
           children: [
             const Text(
               "Available Services",
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black87),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
             ),
             const SizedBox(height: 16),
             Expanded(

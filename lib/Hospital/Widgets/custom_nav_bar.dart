@@ -189,7 +189,7 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
             ],
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
-            selectedItemColor: Colors.blueAccent,
+            selectedItemColor: Colors.teal,
             unselectedItemColor: Colors.grey,
             selectedLabelStyle: TextStyle(fontSize: 10.0, fontWeight: FontWeight.bold),
             unselectedLabelStyle: TextStyle(fontSize: 8.0),

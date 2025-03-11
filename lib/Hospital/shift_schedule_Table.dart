@@ -168,7 +168,7 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.blue.shade50, Colors.white],
+            colors: [Colors.teal.shade50, Colors.white],
           ),
         ),
         child: Column(
@@ -184,7 +184,7 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
                   ),
                   Row(
                     children: [
-                      _buildLegendItem('WD', 'Work Day', Colors.green),
+                      _buildLegendItem('WD', 'Work Day', Colors.teal),
                       _buildLegendItem('MS', 'Morning', Colors.blue),
                       _buildLegendItem('AS', 'Afternoon', Colors.orange),
                       _buildLegendItem('NS', 'Night', Colors.purple),
@@ -361,7 +361,7 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
 
   Color _getShiftColor(String shift) {
     switch (shift) {
-      case 'WD': return Colors.green;
+      case 'WD': return Colors.teal;
       case 'MS': return Colors.blue;
       case 'AS': return Colors.orange;
       case 'NS': return Colors.purple;

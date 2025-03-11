@@ -197,7 +197,7 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
                             'See More',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Colors.blue,
+                              color: Colors.teal,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
@@ -281,7 +281,7 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.blue.withOpacity(0.2),
+              color: Colors.teal.withOpacity(0.2),
               spreadRadius: 2,
               blurRadius: 8,
               offset: Offset(0, 4),
@@ -292,7 +292,7 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
         child: Container(
           margin: EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.blue,
+            color: Colors.teal,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(

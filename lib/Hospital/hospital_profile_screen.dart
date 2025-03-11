@@ -341,7 +341,7 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
                     min: 0,
                     max: 5,
                     divisions: 10,
-                    activeColor: Colors.blue,
+                    activeColor: Colors.teal,
                     inactiveColor: Colors.grey[300],
                     label: _hospitalRating.toStringAsFixed(1),
                     onChanged: _hasRated
@@ -358,7 +358,7 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.blue,
+                  color: Colors.teal,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
@@ -419,7 +419,7 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(16),
             ),
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.teal,
             elevation: 2,
           ),
           child: const Text(
@@ -547,7 +547,7 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
                     onPressed: () => _showReplyDialog(context, reviewId),
                     child: const Text(
                       'Reply',
-                      style: TextStyle(color: Colors.blue),
+                      style: TextStyle(color: Colors.teal),
                     ),
                   ),
                 ],
@@ -756,7 +756,7 @@ class _HospitalProfileScreenState extends State<HospitalProfileScreen> {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Colors.teal,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
