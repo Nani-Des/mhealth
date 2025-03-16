@@ -351,7 +351,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                   context,
                   icon: Icons.fire_truck,
                   label: "Fire Service",
-                  number: "911", // Replace with local fire service number
+                  number: "101", // Replace with local fire service number
                   color: Colors.orange.shade700,
                 ),
                 SizedBox(height: 12),
@@ -359,7 +359,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                   context,
                   icon: Icons.local_hospital,
                   label: "Ambulance",
-                  number: "911", // Replace with local ambulance number
+                  number: "112", // Replace with local ambulance number
                   color: Colors.red.shade700,
                 ),
               ],
