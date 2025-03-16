@@ -76,9 +76,6 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
         }),
       );
 
-      print("Response Status Code: ${response.statusCode}");
-      print("Response Body: ${response.body}");
-
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);
         setState(() {
@@ -86,11 +83,9 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
         });
       } else {
         setState(() => translatedText = "Translation failed: ${response.statusCode}");
-        print("Translation failed: ${response.statusCode}\n${response.body}");
       }
     } catch (e) {
       setState(() => translatedText = "Error: ${e.toString()}");
-      print("Error occurred: ${e.toString()}");
     }
 
     setState(() => isLoading = false);
@@ -133,7 +128,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(20), // More rounded corners
+        borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.1),
@@ -145,11 +140,12 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
+        mainAxisSize: MainAxisSize.min, // Use min to take only necessary space
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(),
           const SizedBox(height: 16),
-          Expanded(child: _buildContent()),
+          _buildContent(), // Removed Expanded here
           if (isLoading) _buildLoadingOverlay(),
         ],
       ),
@@ -255,7 +251,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
             style: const TextStyle(
               fontSize: 16,
               color: Colors.black87,
-              height: 1.5, // Improved line spacing
+              height: 1.5,
             ),
             children: translatedText.isNotEmpty
                 ? _formatText(translatedText)
@@ -286,7 +282,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
     List<String> lines = text.split("\n");
 
     for (String line in lines) {
-      if (line.trim().isEmpty) continue; // Skip empty lines
+      if (line.trim().isEmpty) continue;
       if (line.startsWith("- ") || line.startsWith("• ")) {
         spans.add(TextSpan(
           text: "• ${line.substring(2)}\n",

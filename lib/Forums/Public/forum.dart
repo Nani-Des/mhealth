@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../Home/Widgets/custom_bottom_navbar.dart';
 import '../../Hospital/doctor_profile.dart';
 import 'Services/forum_firebase_service.dart';
 import 'Widgets/create_post_dialog.dart';
@@ -91,6 +92,7 @@ class _ForumPageState extends State<Forum> {
             ),
           ),
         ],
+        automaticallyImplyLeading: false,
       ),
       body: ListView.builder(
         itemCount: _posts.length,
@@ -101,6 +103,7 @@ class _ForumPageState extends State<Forum> {
           );
         },
       ),
+      bottomNavigationBar: CustomBottomNavBar(selectedIndex:2),
       floatingActionButton: FloatingActionButton(
         onPressed: _createPost,
         child: Icon(Icons.add),

@@ -123,6 +123,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ),
           SizedBox(width: 16),
         ],
+        automaticallyImplyLeading: false,
       ),
       body: RefreshIndicator(
         onRefresh: _fetchUserData,
@@ -147,7 +148,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           ],
         ),
       ),
-      bottomNavigationBar: CustomBottomNavBar(),
+      bottomNavigationBar: CustomBottomNavBar(selectedIndex:1),
       floatingActionButton: Showcase(
     key: _fabKey,
     description: 'Tap to access Emergency Assistance.',

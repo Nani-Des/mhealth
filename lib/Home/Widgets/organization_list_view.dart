@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../Hospital/hospital_page.dart';
 import '../../Hospital/hospital_profile_screen.dart';
 import '../../Hospital/specialty_details.dart';
+import '../../Login/login_screen1.dart'; // Import the login screen
 
 class OrganizationListView extends StatefulWidget {
   final bool showSearchBar;
@@ -60,8 +61,8 @@ class _OrganizationListViewState extends State<OrganizationListView> {
 
               return SingleChildScrollView(
                 child: ListView.builder(
-                  shrinkWrap: true, // Ensures the ListView takes only necessary space
-                  physics: BouncingScrollPhysics(), // Enables smooth scrolling
+                  shrinkWrap: true,
+                  physics: BouncingScrollPhysics(),
                   itemCount: hospitals.length,
                   itemBuilder: (context, index) {
                     final hospital = hospitals[index];
@@ -87,7 +88,6 @@ class _OrganizationListViewState extends State<OrganizationListView> {
                         backgroundImage: backgroundImage,
                         city: city,
                         contact: contact,
-                        isLoggedIn: user != null,
                         hospitalId: hospitalId,
                       ),
                     );
@@ -107,7 +107,6 @@ class HospitalCard extends StatelessWidget {
   final String city;
   final String contact;
   final String hospitalId;
-  final bool isLoggedIn;
 
   const HospitalCard({
     Key? key,
@@ -115,7 +114,6 @@ class HospitalCard extends StatelessWidget {
     required this.city,
     required this.contact,
     required this.hospitalId,
-    required this.isLoggedIn,
   }) : super(key: key);
 
   Future<double> _getAverageRating() async {
@@ -128,13 +126,32 @@ class HospitalCard extends StatelessWidget {
         .get();
 
     if (ratingsSnapshot.docs.isEmpty) {
-      return 4.5;
+      return 4.5; // Default rating if no reviews
     } else {
       double total = 0.0;
       for (var doc in ratingsSnapshot.docs) {
         total += doc['rating'] as double;
       }
       return total / ratingsSnapshot.docs.length;
+    }
+  }
+
+  void _navigateToReviews(BuildContext context) {
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // If not logged in, redirect to login page
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen1()),
+      );
+    } else {
+      // If logged in, go to the reviews page
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HospitalProfileScreen(hospitalId: hospitalId),
+        ),
+      );
     }
   }
 
@@ -161,35 +178,35 @@ class HospitalCard extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (isLoggedIn)
-                  FutureBuilder<double>(
-                    future: _getAverageRating(),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return Row(
-                          children: [
-                            Icon(Icons.star, color: Colors.orange, size: 16),
-                            SizedBox(width: 5),
-                            Text("...", style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold, color: Colors.black87)),
-                          ],
-                        );
-                      }
-                      if (snapshot.hasError) {
-                        return Text("Error", style: TextStyle(fontSize: 14.0, color: Colors.red));
-                      }
-                      final rating = snapshot.data ?? 4.5;
+                // Always show ratings
+                FutureBuilder<double>(
+                  future: _getAverageRating(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                       return Row(
                         children: [
                           Icon(Icons.star, color: Colors.orange, size: 16),
                           SizedBox(width: 5),
-                          Text(
-                            rating.toStringAsFixed(1),
-                            style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold, color: Colors.black87),
-                          ),
+                          Text("...", style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold, color: Colors.black87)),
                         ],
                       );
-                    },
-                  ),
+                    }
+                    if (snapshot.hasError) {
+                      return Text("Error", style: TextStyle(fontSize: 14.0, color: Colors.red));
+                    }
+                    final rating = snapshot.data ?? 4.5;
+                    return Row(
+                      children: [
+                        Icon(Icons.star, color: Colors.orange, size: 16),
+                        SizedBox(width: 5),
+                        Text(
+                          rating.toStringAsFixed(1),
+                          style: TextStyle(fontSize: 14.0, fontWeight: FontWeight.bold, color: Colors.black87),
+                        ),
+                      ],
+                    );
+                  },
+                ),
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -203,18 +220,11 @@ class HospitalCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                if (isLoggedIn)
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => HospitalProfileScreen(hospitalId: hospitalId),
-                        ),
-                      );
-                    },
-                    child: Text("Reviews", style: TextStyle(color: Colors.teal)),
-                  ),
+                // Always show "Reviews" button, but check login on tap
+                TextButton(
+                  onPressed: () => _navigateToReviews(context),
+                  child: Text("Reviews", style: TextStyle(color: Colors.teal)),
+                ),
               ],
             ),
           ),

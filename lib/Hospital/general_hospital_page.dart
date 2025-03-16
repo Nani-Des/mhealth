@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../Home/Widgets/custom_bottom_navbar.dart';
 import '../Home/Widgets/organization_list_view.dart';
 class GeneralHospitalPage extends StatelessWidget {
   @override
@@ -8,11 +9,13 @@ class GeneralHospitalPage extends StatelessWidget {
         title: const Text('Hospitals'),
         centerTitle: true,
         backgroundColor: Colors.teal,
+        automaticallyImplyLeading: false,
       ),
       body: OrganizationListView(
         showSearchBar: true,
         isReferral: false,
       ),
+      bottomNavigationBar: CustomBottomNavBar(selectedIndex:0),
     );
   }
 }

@@ -24,8 +24,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   final TextEditingController _messageController = TextEditingController();
   final FlutterTts _flutterTts = FlutterTts();
   late stt.SpeechToText _speechToText;
-  late AnimationController _controller;
-  late Animation<Offset> _offsetAnimation;
+
 
   bool _isListening = false;
   bool _showResponsePopup = false;
@@ -44,16 +43,8 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   void initState() {
     super.initState();
     _speechToText = stt.SpeechToText();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 400),
-      vsync: this,
-    );
-    _offsetAnimation = Tween<Offset>(
-      begin: const Offset(0.0, 1.0),
-      end: const Offset(0.0, 0.0),
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOutBack));
 
-    _translationBox = Hive.box('translations');
+     _translationBox = Hive.box('translations');
     _loadEmergencyData();
     _checkConnectivity();
 
@@ -97,7 +88,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   void dispose() {
     _messageController.dispose();
     _flutterTts.stop();
-    _controller.dispose();
     super.dispose();
   }
 
@@ -138,7 +128,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     if (_isOffline) {
       response = _findClosestMatch(query);
     } else {
-      // Check cached translation first
       String? cachedResponse = _translationBox.get(query);
       if (cachedResponse != null) {
         response = cachedResponse;
@@ -157,8 +146,9 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     setState(() {
       _responseText = response;
       _isLoading = false; // Hide progress indicator
-      _toggleResponsePopup();
     });
+
+    _showResponseBottomSheet(); // Show the response in a bottom sheet
     await _flutterTts.speak(response);
   }
 
@@ -185,33 +175,93 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
 
   String _findClosestMatch(String query) {
     if (_emergencyData == null || _emergencyData!['articles'] == null) {
+      print("Debug: No emergency data or articles found.");
       return "No emergency procedures available offline.";
     }
 
     final articles = _emergencyData!['articles'] as List<dynamic>;
     if (articles.isEmpty) {
+      print("Debug: Articles list is empty.");
       return "No emergency procedures available offline.";
     }
 
     String bestMatchTitle = "";
     String bestMatchContent = "";
-    double highestSimilarity = 0.0;
+    double highestScore = 0.0;
+
+    // Clean and tokenize the query
+    final cleanQuery = query.toLowerCase().trim();
+    final allWords = cleanQuery.split(RegExp(r'\s+'));
+
+    // Define stop words
+    const stopWords = {
+      'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your',
+      'yours', 'he', 'him', 'his', 'she', 'her', 'hers', 'it', 'its', 'they',
+      'them', 'their', 'theirs', 'what', 'which', 'who', 'whom', 'this', 'that',
+      'these', 'those', 'am', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+      'have', 'has', 'had', 'having', 'do', 'does', 'did', 'doing', 'a', 'an',
+      'the', 'and', 'but', 'if', 'or', 'because', 'as', 'until', 'while', 'of',
+      'at', 'by', 'for', 'with', 'about', 'to', 'in', 'on', 'from'
+    };
+
+    // Extract keywords from query
+    final keywords = allWords.where((word) => !stopWords.contains(word)).toList();
+    final keywordQuery = keywords.isNotEmpty ? keywords.join(' ') : cleanQuery;
+    print("Debug: Query entered: '$cleanQuery' -> Keywords: $keywords");
 
     for (var article in articles) {
       final String title = article['title'].toString().toLowerCase();
-      final double similarity = query.toLowerCase().similarityTo(title);
+      final String keywordsFromData = article['keywords'].toString().toLowerCase();
 
-      if (similarity > highestSimilarity) {
-        highestSimilarity = similarity;
+      // Split keywords on commas and trim whitespace
+      final keywordList = keywordsFromData.split(',').map((k) => k.trim()).toList();
+      final combinedText = "$title, ${keywordList.join(', ')}"; // Combine with comma separation
+
+      // Split combined text into individual terms for overlap check
+      final textWords = combinedText.split(RegExp(r',\s*')).map((w) => w.trim()).toList();
+
+      // Calculate similarity using extracted keywords
+      final double similarity = keywordQuery.similarityTo(combinedText);
+
+      // Calculate word overlap score with keywords
+      final int matchingWords = keywords.where((word) => textWords.any((tw) => tw.contains(word))).length;
+      final double overlapScore = keywords.isNotEmpty ? matchingWords / keywords.length : 0.0;
+
+      // Combine scores: 70% similarity, 30% overlap
+      final double combinedScore = (0.7 * similarity) + (0.3 * overlapScore);
+      print("Debug: Comparing '$keywordQuery' to '$combinedText' -> Similarity: $similarity, Overlap: $overlapScore, Combined: $combinedScore");
+
+      if (combinedScore > highestScore) {
+        highestScore = combinedScore;
         bestMatchTitle = article['title'];
         bestMatchContent = article['content'];
       }
     }
 
-    if (highestSimilarity < 0.3) {
-      return "I couldn't find a specific match for '$query'. Please try describing the emergency differently.";
+    print("Debug: Highest score: $highestScore for '$bestMatchTitle'");
+
+    // Dynamic threshold
+    final double threshold = keywords.length <= 2 ? 0.2 : 0.3;
+    if (highestScore < threshold) {
+      print("Debug: Score $highestScore below threshold $threshold");
+      if (keywords.any((word) => ["pain", "hurt", "ache", "tight"].contains(word))) {
+        bestMatchTitle = "Chest Pain";
+        bestMatchContent = articles.firstWhere((a) => a['title'] == "Chest Pain")['content'];
+        print("Debug: Fallback to 'Chest Pain' for pain-related keywords");
+      } else if (keywords.any((word) => ["bleed", "bleeding", "blood", "cut"].contains(word))) {
+        bestMatchTitle = "Severe Bleeding";
+        bestMatchContent = articles.firstWhere((a) => a['title'] == "Severe Bleeding")['content'];
+        print("Debug: Fallback to 'Severe Bleeding' for bleeding-related keywords");
+      } else if (keywords.any((word) => ["breathe", "breathing", "air"].contains(word))) {
+        bestMatchTitle = "Choking";
+        bestMatchContent = articles.firstWhere((a) => a['title'] == "Choking")['content'];
+        print("Debug: Fallback to 'Choking' for breathing-related keywords");
+      } else {
+        return "I couldn't find a specific match for '$query'. Please try describing the emergency into words";
+      }
     }
 
+    print("Debug: Navigating to '$bestMatchTitle'");
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -225,11 +275,30 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     return bestMatchContent;
   }
 
-  void _toggleResponsePopup() {
-    setState(() {
-      _showResponsePopup = !_showResponsePopup;
-      _showResponsePopup ? _controller.forward() : _controller.reverse();
-    });
+  void _showResponseBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (BuildContext context) {
+        return Container(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: FirstAidResponseWidget1(
+                responseText: _responseText,
+                onClose: () => Navigator.pop(context),
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -243,7 +312,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
             Icon(Icons.emergency, color: Colors.white),
             SizedBox(width: 8),
             Text(
-              "Emergency Assistance${_isOffline ? ' (Offline)' : ''}",
+              "Emergency ${_isOffline ? ' (Offline)' : ''}",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -260,6 +329,13 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.call, color: Colors.white),
+            onPressed: () => print("Call emergency services"), // Implement emergency call
+            tooltip: "Call Emergency",
+          ),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -273,26 +349,29 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           children: [
             EmergencyHomePageContent(),
             Positioned(
-              left: 0,
-              right: 0,
+              left: 20,
+              right: 20,
               bottom: 0,
               child: _buildInputArea(),
             ),
-            if (_showResponsePopup)
-              SlideTransition(
-                position: _offsetAnimation,
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: FirstAidResponseWidget1(
-                    responseText: _responseText,
-                    onClose: _toggleResponsePopup,
-                  ),
-                ),
-              ),
-            if (_isLoading) // Progress indicator
+            if (_isLoading)
               Center(
-                child: CircularProgressIndicator(
-                  valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+                child: Container(
+                  padding: EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(15),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+                      ),
+                      SizedBox(height: 10),
+                      Text("Processing...", style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
                 ),
               ),
           ],

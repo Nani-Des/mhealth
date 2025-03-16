@@ -4,10 +4,11 @@ import 'package:hive/hive.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mhealth/try.dart';
-import 'package:showcaseview/showcaseview.dart'; // Add this import
+import 'package:showcaseview/showcaseview.dart';
 import 'Appointments/referral_form.dart';
 import 'Home/home_page.dart';
 import 'Maps/map_screen.dart';
+import 'package:geolocator/geolocator.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,7 +25,26 @@ void main() async {
     ),
   );
 
+  // Request location permission before app loads
+  await _requestLocationPermission();
+
   runApp(const MyApp());
+}
+
+Future<void> _requestLocationPermission() async {
+  LocationPermission permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) {
+      print('Location permissions denied');
+      return;
+    }
+  }
+  if (permission == LocationPermission.deniedForever) {
+    print('Location permissions permanently denied');
+    return;
+  }
+  print('Location permissions granted');
 }
 
 class MyApp extends StatelessWidget {
@@ -39,8 +59,8 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.white),
           useMaterial3: true,
         ),
-        home: HomePage(),
-        debugShowCheckedModeBanner: false, // Optional: removes debug banner
+        home: HomePage(), // No need to pass permissionsGranted
+        debugShowCheckedModeBanner: false,
       ),
     );
   }

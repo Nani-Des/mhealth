@@ -25,7 +25,7 @@ class LoginScreen1 extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 34.0,
                   fontWeight: FontWeight.bold,
-                  color: Colors.tealAccent,
+                  color: Colors.teal,
                 ),
               ),
               const SizedBox(height: 3.0),
@@ -55,7 +55,7 @@ class LoginScreen1 extends StatelessWidget {
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     padding: EdgeInsets.symmetric(horizontal: 80.0, vertical: 15.0),
-                    backgroundColor: Colors.tealAccent,
+                    backgroundColor: Colors.teal,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(30.0),
                     ),
@@ -84,7 +84,7 @@ class LoginScreen1 extends StatelessWidget {
                   child: Text(
                     'Don\'t have an account? Register',
                     style: TextStyle(
-                      color: Colors.tealAccent,
+                      color: Colors.teal,
                       fontSize: 16.0,
                     ),
                   ),
@@ -108,7 +108,7 @@ class LoginScreen1 extends StatelessWidget {
       obscureText: obscureText,
       decoration: InputDecoration(
         labelText: labelText,
-        prefixIcon: Icon(icon, color: Colors.tealAccent),
+        prefixIcon: Icon(icon, color: Colors.teal),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
         ),

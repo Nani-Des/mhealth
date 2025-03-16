@@ -7,6 +7,10 @@ class RegistrationService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
   static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
+  // Default profile picture URL
+  static const String defaultProfilePic =
+      'https://firebasestorage.googleapis.com/v0/b/mhealth-6191e.appspot.com/o/assets%2Fplaceholder.png?alt=media&token=3350f551-d18e-44ed-939a-095b8a66a2a7';
+
   /// Registers a user and returns the user ID upon successful registration.
   static Future<String?> registerUser(
       BuildContext context,
@@ -24,10 +28,10 @@ class RegistrationService {
 
       User? user = userCredential.user;
       if (user != null) {
-        // Prompt user for additional information such as phone number
+        // Prompt user for additional information including optional image
         await PhoneNumberDialog.showPhoneNumberDialog(
           context,
-              (phoneNumber, countryCode, region) async {
+              (phoneNumber, countryCode, region, imageUrl) async {
             // Save user details to Firestore
             await _firestore.collection('Users').doc(user.uid).set({
               'Role': false,
@@ -38,7 +42,7 @@ class RegistrationService {
               'Mobile Number': '$countryCode $phoneNumber',
               'Region': region,
               'Status': true,
-              'User Pic' : 'https://firebasestorage.googleapis.com/v0/b/mhealth-6191e.appspot.com/o/assets%2Fplaceholder.png?alt=media&token=3350f551-d18e-44ed-939a-095b8a66a2a7',
+              'User Pic': imageUrl ?? defaultProfilePic, // Use uploaded image or default
               'CreatedAt': Timestamp.now(),
             });
 
@@ -47,7 +51,6 @@ class RegistrationService {
         );
 
         // Now, proceed to sign in the user automatically after registration
-        // Call the _signInUser method to handle the login
         await _signInUser(context, email, password);
 
         // Return the User ID after login

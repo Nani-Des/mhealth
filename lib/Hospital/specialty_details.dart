@@ -114,7 +114,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
         backgroundColor: Colors.teal,
         elevation: 0,
         title: Text(
-          _hospitalDetails['hospitalName'] ?? 'Unknown Hospital',
+          _hospitalDetails['hospitalName'] ?? 'Loading Hospital..',
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -250,7 +250,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
       floatingActionButton: widget.isReferral
           ? FloatingActionButton(
         onPressed: () {
-          String selectedHospitalName = _hospitalDetails['hospitalName'] ?? 'Unknown Hospital';
+          String selectedHospitalName = _hospitalDetails['hospitalName'] ?? 'Loading Hospital..';
 
           // Pass the selected hospital name back to the previous screen
           Navigator.pop(context, selectedHospitalName);

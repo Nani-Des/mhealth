@@ -88,7 +88,7 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
         _navigateBasedOnAuthStatus(
           context,
               (userId) => ReferralForm(
-            selectedHealthFacility: hospitalName ?? "Unknown Hospital",
+            selectedHealthFacility: hospitalName ?? "Loading Hospital..",
           ),
         );
         break;
@@ -190,7 +190,7 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
             currentIndex: _selectedIndex,
             onTap: _onItemTapped,
             selectedItemColor: Colors.teal,
-            unselectedItemColor: Colors.grey,
+            unselectedItemColor: Colors.teal,
             selectedLabelStyle: TextStyle(fontSize: 10.0, fontWeight: FontWeight.bold),
             unselectedLabelStyle: TextStyle(fontSize: 8.0),
             backgroundColor: Colors.transparent,

@@ -3,6 +3,7 @@ import 'package:mhealth/Hospital/Widgets/custom_nav_bar.dart';
 import 'package:mhealth/Hospital/specialty_details.dart';
 import '../Services/firebase_service.dart';
 import '../try.dart';
+import 'Widgets/calender_page.dart';
 import 'hospital_service_screen.dart';
 
 class HospitalPage extends StatefulWidget {
@@ -48,7 +49,7 @@ class _HospitalPageState extends State<HospitalPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          _hospitalDetails['hospitalName'] ?? 'Unknown Hospital',
+          _hospitalDetails['hospitalName'] ?? 'Loading Hospital..',
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -147,7 +148,7 @@ class _HospitalPageState extends State<HospitalPage> {
                                   context,
                                   MaterialPageRoute(
                                       builder: (context) =>
-                                          CalenderPage(hospitalId: widget.hospitalId)
+                                          CalenderPage(hospitalId: widget.hospitalId,isReferral: widget.isReferral)
                                   ));
 
                             },
@@ -167,7 +168,7 @@ class _HospitalPageState extends State<HospitalPage> {
           ? FloatingActionButton(
         onPressed: () {
           String selectedHospitalName =
-              _hospitalDetails['hospitalName'] ?? 'Unknown Hospital';
+              _hospitalDetails['hospitalName'] ?? 'Loading Hospital..';
           Navigator.pop(context, selectedHospitalName);
           Navigator.pop(context, selectedHospitalName);
 

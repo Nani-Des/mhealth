@@ -1,19 +1,30 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:mhealth/Home/home_page.dart';
 import 'package:mhealth/Login/login_screen1.dart';
 
 import '../../Forums/Public/forum.dart';
 import '../../Hospital/general_hospital_page.dart';
 
 class CustomBottomNavBar extends StatefulWidget {
+  final int selectedIndex;
+
+  // Constructor to accept selectedIndex
+  CustomBottomNavBar({Key? key, required this.selectedIndex}) : super(key: key);
+
   @override
   _CustomBottomNavBarState createState() => _CustomBottomNavBarState();
 }
 
 class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
-  int _selectedIndex = 0;
-
+  late int _selectedIndex;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedIndex = widget.selectedIndex; // Initialize with passed index
+  }
 
   // Check if user is signed in
   Future<void> _navigateBasedOnAuthStatus(BuildContext context, Widget Function(String) targetScreen) async {
@@ -21,9 +32,8 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
     String? userId;
 
     if (currentUser != null) {
-      userId = currentUser.uid; // Get the user ID if signed in
+      userId = currentUser.uid;
     } else {
-      // Navigate to LoginScreen1 and wait for the user ID after login
       userId = await Navigator.push<String>(
         context,
         MaterialPageRoute(builder: (context) => LoginScreen1()),
@@ -31,7 +41,6 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
     }
 
     if (userId != null) {
-      // Navigate to the target screen with the userId
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => targetScreen(userId!)),
@@ -44,16 +53,15 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
       _selectedIndex = index;
     });
 
-    // Navigate to specific pages based on index
     switch (index) {
       case 0:
         _navigateBasedOnAuthStatus(context, (userId) => GeneralHospitalPage());
         break;
       case 1:
-        _navigateBasedOnAuthStatus(context, (userId) => Forum(userId: userId)); // Replace with appropriate target screen
+        _navigateBasedOnAuthStatus(context, (userId) => HomePage());
         break;
       case 2:
-        _navigateBasedOnAuthStatus(context, (userId) => Forum(userId: userId)); // Replace with appropriate target screen
+        _navigateBasedOnAuthStatus(context, (userId) => Forum(userId: userId));
         break;
     }
   }
@@ -80,14 +88,14 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
             ],
           ),
           child: BottomNavigationBar(
-            items: <BottomNavigationBarItem>[
+            items: const [
               BottomNavigationBarItem(
                 icon: Icon(Icons.local_hospital),
                 label: 'Hospitals',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.medical_services),
-                label: 'Forum',
+                label: 'Home',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.settings),
