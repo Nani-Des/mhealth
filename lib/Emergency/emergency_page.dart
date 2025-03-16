@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:string_similarity/string_similarity.dart';
 import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'Widgets/article_detail_page.dart';
 import 'Widgets/emergency_hompage_content.dart';
@@ -300,6 +301,120 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       },
     );
   }
+  Future<void> _makePhoneCall(String phoneNumber) async {
+    final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
+    if (await canLaunchUrl(phoneUri)) {
+      await launchUrl(phoneUri);
+    } else {
+      print('Could not launch $phoneNumber');
+    }
+  }
+  void _showEmergencyOptions(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 10,
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.all(60.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.emergency, color: Colors.redAccent, size: 28),
+                    SizedBox(width: 12),
+                    Text(
+                      "Emergency Services",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.redAccent,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: 20),
+                _buildOptionButton(
+                  context,
+                  icon: Icons.local_police,
+                  label: "Police",
+                  number: "911", // Replace with local police number
+                  color: Colors.blue.shade700,
+                ),
+                SizedBox(height: 12),
+                _buildOptionButton(
+                  context,
+                  icon: Icons.fire_truck,
+                  label: "Fire Service",
+                  number: "911", // Replace with local fire service number
+                  color: Colors.orange.shade700,
+                ),
+                SizedBox(height: 12),
+                _buildOptionButton(
+                  context,
+                  icon: Icons.local_hospital,
+                  label: "Ambulance",
+                  number: "911", // Replace with local ambulance number
+                  color: Colors.red.shade700,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+// Assuming _buildOptionButton is defined as:
+  Widget _buildOptionButton(
+      BuildContext context, {
+        required IconData icon,
+        required String label,
+        required String number,
+        required Color color,
+      }) {
+    return GestureDetector(
+      onTap: () {
+        _makePhoneCall(number); // Assuming this is defined elsewhere
+        Navigator.pop(context);
+      },
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 30),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: color.withOpacity(0.3),
+              blurRadius: 6,
+              offset: Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white, size: 24),
+            SizedBox(width: 12),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +427,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
             Icon(Icons.emergency, color: Colors.white),
             SizedBox(width: 8),
             Text(
-              "Emergency ${_isOffline ? ' (Offline)' : ''}",
+              "Emergency Assistant ${_isOffline ? ' (Offline)' : ''}",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -332,8 +447,8 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         actions: [
           IconButton(
             icon: Icon(Icons.call, color: Colors.white),
-            onPressed: () => print("Call emergency services"), // Implement emergency call
-            tooltip: "Call Emergency",
+            onPressed: () => _showEmergencyOptions(context),
+            tooltip: "Call Emergency Services",
           ),
         ],
       ),
@@ -347,13 +462,16 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         ),
         child: Stack(
           children: [
+            // Main content (scrollable)
             EmergencyHomePageContent(),
+            // Input area positioned at the bottom, adjusted for keyboard
             Positioned(
               left: 20,
               right: 20,
-              bottom: 0,
+              bottom:20,
               child: _buildInputArea(),
             ),
+            // Loading overlay
             if (_isLoading)
               Center(
                 child: Container(

@@ -15,17 +15,24 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
   Map<String, List<Map<String, dynamic>>> categorizedArticles = {};
   bool isLoading = true;
   late Box<String> knowledgePackBox;
+  late Box<String> archivedArticlesBox;
   late Map<String, List<Map<String, dynamic>>> localArticles;
+  bool showArchived = false;
 
   @override
   void initState() {
     super.initState();
-    initializeHive();
-    loadAllArticles();
+    _initializeData(); // Call a method to handle async initialization
+  }
+
+  Future<void> _initializeData() async {
+    await initializeHive(); // Wait for Hive boxes to be initialized
+    await loadAllArticles(); // Then load articles
   }
 
   Future<void> initializeHive() async {
     knowledgePackBox = await Hive.openBox<String>('knowledge_packs');
+    archivedArticlesBox = await Hive.openBox<String>('archived_articles');
   }
 
   Future<void> loadAllArticles() async {
@@ -78,9 +85,9 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
 
   Future<void> saveArticleOffline(String title, String content) async {
     await knowledgePackBox.put(title, content);
-    setState(() {}); // Refresh UI to reflect download status
+    setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Article downloaded for offline use!")),
+      SnackBar(content: Text("Downloaded: $title", style: TextStyle(color: Colors.white)), backgroundColor: Colors.teal),
     );
   }
 
@@ -98,28 +105,77 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
     return null;
   }
 
+  Future<void> toggleArchiveArticle(String title, String content) async {
+    if (archivedArticlesBox.containsKey(title)) {
+      await archivedArticlesBox.delete(title);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Unarchived: $title", style: TextStyle(color: Colors.white)), backgroundColor: Colors.orange),
+      );
+    } else {
+      await archivedArticlesBox.put(title, content);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Archived: $title", style: TextStyle(color: Colors.white)), backgroundColor: Colors.teal),
+      );
+    }
+    setState(() {});
+  }
+
+  Map<String, List<Map<String, dynamic>>> getFilteredArticles() {
+    if (!showArchived) {
+      return categorizedArticles;
+    }
+    final Map<String, List<Map<String, dynamic>>> archived = {};
+    for (var category in categorizedArticles.keys) {
+      final articles = categorizedArticles[category]!
+          .where((article) => archivedArticlesBox.containsKey(article['title']))
+          .toList();
+      if (articles.isNotEmpty) {
+        archived[category] = articles;
+      }
+    }
+    return archived;
+  }
+
   @override
   void dispose() {
     knowledgePackBox.close();
+    archivedArticlesBox.close();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Show a loading screen until initialization is complete
+    if (isLoading) {
+      return Scaffold(
+        body: _buildLoadingState(),
+      );
+    }
+
+    final filteredArticles = getFilteredArticles();
+    final archivedCount = archivedArticlesBox.length;
+
     return Scaffold(
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.tealAccent,
-        title: const Row(
+        elevation: 2,
+        backgroundColor: Colors.teal,
+        title: Row(
           children: [
             Icon(Icons.book, color: Colors.white),
             SizedBox(width: 8),
-            Text(
-              "Knowledge Packs",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  showArchived ? "Archived Packs" : "Knowledge Packs",
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20),
+                ),
+                if (archivedCount > 0)
+                  Text(
+                    "$archivedCount archived",
+                    style: TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+              ],
             ),
           ],
         ),
@@ -128,32 +184,43 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Colors.tealAccent, Colors.tealAccent.shade700],
+              colors: [Colors.teal.shade700, Colors.teal.shade400],
             ),
           ),
         ),
+        actions: [
+          IconButton(
+            icon: Icon(showArchived ? Icons.view_list : Icons.archive, color: Colors.white),
+            onPressed: () => setState(() => showArchived = !showArchived),
+            tooltip: showArchived ? "Show All" : "Show Archived",
+          ),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Colors.tealAccent.withOpacity(0.1), Colors.white],
+            colors: [Colors.teal.shade50, Colors.white],
           ),
         ),
-        child: isLoading
-            ? _buildLoadingState()
-            : categorizedArticles.isEmpty
+        child: filteredArticles.isEmpty
             ? _buildEmptyState()
             : ListView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: categorizedArticles.keys.length,
+          itemCount: filteredArticles.keys.length,
           itemBuilder: (context, index) {
-            final category = categorizedArticles.keys.elementAt(index);
-            final articles = categorizedArticles[category]!;
+            final category = filteredArticles.keys.elementAt(index);
+            final articles = filteredArticles[category]!;
             return _buildCategorySection(category, articles);
           },
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => setState(() => showArchived = !showArchived),
+        backgroundColor: Colors.teal,
+        child: Icon(showArchived ? Icons.view_list : Icons.archive),
+        tooltip: showArchived ? "Show All" : "Show Archived",
       ),
     );
   }
@@ -164,12 +231,12 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.tealAccent),
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
           ),
           const SizedBox(height: 16),
           Text(
             "Loading Knowledge Packs...",
-            style: TextStyle(color: Colors.grey[600], fontSize: 16),
+            style: TextStyle(color: Colors.teal.shade700, fontSize: 16, fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -181,11 +248,16 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.book_outlined, size: 64, color: Colors.grey[400]),
+          Icon(Icons.book_outlined, size: 80, color: Colors.teal.shade200),
           const SizedBox(height: 16),
           Text(
-            "No Knowledge Packs Available",
-            style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+            showArchived ? "No Archived Packs" : "No Knowledge Packs Available",
+            style: TextStyle(fontSize: 20, color: Colors.teal.shade700, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            showArchived ? "Archive some packs to see them here!" : "Check back later for new content.",
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
           ),
         ],
       ),
@@ -194,19 +266,35 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
 
   Widget _buildCategorySection(String category, List<Map<String, dynamic>> articles) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Card(
-        elevation: 4,
+        elevation: 6,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: ExpansionTile(
-          leading: Icon(Icons.folder, color: Colors.teal),
-          title: Text(
-            category,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+          leading: Icon(Icons.folder_open, color: Colors.teal.shade600),
+          title: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                category,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal.shade800,
+                ),
+              ),
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.teal.shade100,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  "${articles.length}",
+                  style: TextStyle(color: Colors.teal.shade800, fontSize: 12),
+                ),
+              ),
+            ],
           ),
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           children: [
@@ -252,102 +340,132 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
         future: getOfflineArticle(article['title']),
         builder: (context, snapshot) {
           final isOffline = snapshot.hasData && snapshot.data != null;
-          return AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  spreadRadius: 2,
-                  blurRadius: 8,
-                  offset: const Offset(0, 4),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.teal.withOpacity(0.1),
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                      ),
-                      child: Icon(
-                        Icons.article,
-                        size: 40,
-                        color: Colors.teal,
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Text(
-                          article['title'],
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
-                          maxLines: 3,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (!isOffline)
-                  Positioned(
-                    bottom: 8,
-                    right: 8,
-                    child: GestureDetector(
-                      onTap: () async {
-                        await saveArticleOffline(article['title'], article['content']);
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.redAccent,
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.redAccent.withOpacity(0.3),
-                              spreadRadius: 2,
-                              blurRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.download,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                      ),
-                    ),
+          final isArchived = archivedArticlesBox.containsKey(article['title']);
+          return AnimatedScale(
+            scale: 1.0,
+            duration: Duration(milliseconds: 200),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.shade100.withOpacity(0.3),
+                    spreadRadius: 2,
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
                   ),
-                if (isOffline)
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.shade50,
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                        ),
+                        child: Icon(
+                          Icons.article,
+                          size: 40,
+                          color: Colors.teal.shade600,
+                        ),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(
+                            article['title'],
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.teal.shade900,
+                            ),
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: const BoxDecoration(
-                        color: Colors.lightGreenAccent,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.offline_pin,
-                        color: Colors.white,
-                        size: 16,
+                    child: Row(
+                      children: [
+                        if (isOffline)
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade400,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(Icons.offline_pin, color: Colors.white, size: 16),
+                          ),
+                        if (!isOffline)
+                          Tooltip(
+                            message: "Download for offline use",
+                            child: GestureDetector(
+                              onTap: () async {
+                                await saveArticleOffline(article['title'], article['content']);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: Colors.redAccent.shade400,
+                                  shape: BoxShape.circle,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.redAccent.withOpacity(0.3),
+                                      spreadRadius: 1,
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                                child: Icon(Icons.download, color: Colors.white, size: 20),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 8,
+                    left: 8,
+                    child: Tooltip(
+                      message: isArchived ? "Unarchive" : "Archive",
+                      child: GestureDetector(
+                        onTap: () async {
+                          await toggleArchiveArticle(article['title'], article['content']);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: isArchived ? Colors.orange.shade600 : Colors.grey.shade600,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: (isArchived ? Colors.orange : Colors.grey).withOpacity(0.3),
+                                spreadRadius: 1,
+                                blurRadius: 4,
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            isArchived ? Icons.unarchive : Icons.archive,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           );
         },

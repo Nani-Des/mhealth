@@ -65,28 +65,15 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
   }
 
   @override
+  @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       child: SizedBox(
         height: MediaQuery.of(context).size.height - kToolbarHeight, // Full height minus AppBar
         child: Column(
           children: [
-            // First Section (10% height)
             Expanded(
-              flex: 1,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildIconWithLabel(Icons.local_police, 'Police', Colors.blue, '911'),
-                  _buildIconWithLabel(Icons.local_fire_department, 'Fire Service', Colors.red, '101'),
-                  _buildIconWithLabel(Icons.local_hospital, 'Ambulance', Colors.red, '112'),
-                ],
-              ),
-            ),
-
-            // Second Section (70% height) - Either SOS or MapScreen1
-            Expanded(
-              flex: 7,
+              flex: 6,
               child: Center(
                 child: GestureDetector(
                   onTap: () {
@@ -167,18 +154,18 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
               ),
             ),
 
-            // Third Section (20% height) - Display categories and articles
+            // Third Section (20% height) - Dipslay categories and articles
             Expanded(
               flex: 2,
               child: Column(
                 children: [
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    padding: const EdgeInsets.all(10.0),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Categories',
+                          'Knowledge Packs',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -217,40 +204,13 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
                 ],
               ),
             ),
-            SizedBox(height: 50), // Space for input area in parent widget
+            Expanded(
+              flex: 2,
+              child: Column(),
+            )
+            // Space for input area in parent widget
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildIconWithLabel(IconData icon, String label, Color color, String phoneNumber) {
-    return GestureDetector(
-      onTap: () async {
-        final Uri launchUri = Uri(
-          scheme: 'tel',
-          path: phoneNumber,
-        );
-        if (await canLaunchUrl(launchUri)) {
-          await launchUrl(launchUri);
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Could not launch dialer for $phoneNumber'),
-            ),
-          );
-        }
-      },
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 30, color: color),
-          SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-          ),
-        ],
       ),
     );
   }
@@ -274,9 +234,9 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
         width: 200,
         height: 200,
         decoration: BoxDecoration(
-          color: Colors.lightBlue[50],
+          color: Colors.lightGreen[50],
           border: Border.all(
-            color: Colors.blue,
+            color: Colors.teal,
             width: 4,
           ),
           boxShadow: [
@@ -314,7 +274,7 @@ class _EmergencyHomePageContentState extends State<EmergencyHomePageContent> wit
                   key: ValueKey<int>(currentIndex),
                   style: TextStyle(
                     color: Colors.white,
-                    fontSize: 12,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
                 ),

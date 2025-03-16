@@ -4,19 +4,19 @@
     "articles": [
       {
         "title": "Hypertension",
-        "content": "High blood pressure is a chronic medical condition..."
+        "content": "High blood pressure, or hypertension, is a chronic medical condition where the force of blood against artery walls is consistently too high. Often called the 'silent killer,' it may show no symptoms until it causes serious complications like heart attack or stroke. Risk factors include stress, poor diet, lack of exercise, and genetics. Management involves lifestyle changes (eg-, reducing salt intake, exercising) and, if needed, medications like ACE inhibitors."
       },
       {
         "title": "Diabetes",
-        "content": "Diabetes is a condition in which your body cannot regulate blood sugar properly..."
+        "content": "Diabetes is a chronic condition where the body struggles to regulate blood sugar levels due to insufficient insulin production (Type 1) or insulin resistance (Type 2). Symptoms include excessive thirst, frequent urination, fatigue, and slow-healing wounds. Left unmanaged, it can lead to complications like kidney failure, nerve damage, or vision loss. Treatment includes diet control, exercise, monitoring blood sugar, and insulin or oral medications."
       },
       {
-        "title": "Diabetes",
-        "content": "Diabetes is a condition in which your body cannot regulate blood sugar properly..."
+        "title": "Asthma",
+        "content": "Asthma is a respiratory condition marked by inflammation and narrowing of the airways, leading to wheezing, shortness of breath, and coughing. Triggers include allergens (pollen, dust), exercise, or cold air. While incurable, it’s manageable with inhalers (bronchodilators or corticosteroids) and avoiding triggers. Severe attacks may require emergency care."
       },
       {
-        "title": "Diabetes",
-        "content": "Diabetes is a condition in which your body cannot regulate blood sugar properly..."
+        "title": "Arthritis",
+        "content": "Arthritis refers to joint inflammation, with osteoarthritis (wear-and-tear) and rheumatoid arthritis (autoimmune) being the most common types. Symptoms include joint pain, stiffness, and swelling, often worsening with age. Treatment focuses on pain relief (eg-, NSAIDs), physical therapy, and, in severe cases, joint replacement surgery."
       }
     ]
   },
@@ -25,11 +25,15 @@
     "articles": [
       {
         "title": "Fractures",
-        "content": "A fracture is a broken bone that occurs when the bone is subjected to excessive force..."
+        "content": "A fracture is a broken bone caused by excessive force, such as from falls, accidents, or sports injuries. Symptoms include intense pain, swelling, and inability to move the affected area. Types range from simple (clean break) to compound (bone piercing skin). Treatment may involve immobilization with casts or, for complex fractures, surgical fixation with pins or plates."
       },
       {
         "title": "Burns",
-        "content": "Burns are injuries to the skin caused by heat, electricity, or chemicals..."
+        "content": "Burns are skin injuries caused by heat, electricity, chemicals, or radiation. They’re classified as first-degree (superficial, eg-, sunburn), second-degree (blisters), or third-degree (deep tissue damage). Immediate care includes cooling the burn with water and covering it lightly. Severe burns require medical attention to prevent infection and promote healing."
+      },
+      {
+        "title": "Sprains and Strains",
+        "content": "Sprains involve stretched or torn ligaments (eg-, twisted ankle), while strains affect muscles or tendons (eg-, pulled hamstring). Symptoms include pain, swelling, and limited movement. Treatment follows the RICE method: Rest, Ice, Compression, Elevation. Severe cases may need physical therapy or surgery."
       }
     ]
   },
@@ -38,11 +42,41 @@
     "articles": [
       {
         "title": "CPR",
-        "content": "Cardiopulmonary Resuscitation (CPR) is a life-saving technique used in emergencies..."
+        "content": "Cardiopulmonary Resuscitation (CPR) is a life-saving technique used when someone’s heart stops beating, often during cardiac arrest. It involves chest compressions (100-120 per minute) and, if trained, rescue breaths. Steps: 1. Check responsiveness and call emergency services. 2. Begin compressions (2 inches deep on chest center). 3. Continue until help arrives or an AED is available."
       },
       {
         "title": "Choking",
-        "content": "Choking occurs when an object blocks the airway, preventing normal breathing..."
+        "content": "Choking occurs when a foreign object, like food, blocks the windpipe, obstructing breathing. Signs include clutching the throat, inability to speak, and turning blue. The Heimlich maneuver is the standard response: 1. Stand behind the person. 2. Perform abdominal thrusts until the blockage is dislodged. Immediate action is critical."
+      },
+      {
+        "title": "Bleeding Control",
+        "content": "Severe bleeding can lead to shock or death if not controlled quickly. Steps: 1. Apply direct pressure with a clean cloth or hands. 2. Elevate the wound if possible. 3. Use a tourniquet only if trained and bleeding persists. Seek emergency help for deep cuts or arterial bleeding (bright red, spurting)."
+      }
+    ]
+  },
+  {
+    "category": "Mental Health",
+    "articles": [
+      {
+        "title": "Anxiety",
+        "content": "Anxiety disorders involve excessive worry or fear that interferes with daily life. Symptoms include restlessness, rapid heartbeat, and difficulty concentrating. Triggers vary widely, from stress to trauma. Treatment includes therapy (eg-, CBT), medications (eg-, SSRIs), and coping strategies like mindfulness or exercise."
+      },
+      {
+        "title": "Depression",
+        "content": "Depression is a mood disorder causing persistent sadness, hopelessness, and loss of interest in activities. Physical signs include fatigue, appetite changes, and sleep issues. It’s linked to chemical imbalances, genetics, or life events. Management involves therapy, antidepressants, and lifestyle adjustments like social support and routine."
+      }
+    ]
+  },
+  {
+    "category": "Infectious Diseases",
+    "articles": [
+      {
+        "title": "Influenza",
+        "content": "Influenza (flu) is a contagious viral infection causing fever, body aches, cough, and fatigue. It spreads through droplets from coughing or sneezing. Annual vaccination is the best prevention, while rest, fluids, and antivirals (eg-, Tamiflu) help recovery. Complications like pneumonia are risks for the elderly or immunocompromised."
+      },
+      {
+        "title": "COVID-19",
+        "content": "COVID-19, caused by the SARS-CoV-2 virus, ranges from mild respiratory symptoms (cough, fever) to severe pneumonia. Spread occurs via droplets or contact. Prevention includes vaccination, masks, and hand hygiene. Treatment varies from home rest to hospitalization for oxygen or antivirals in severe cases."
       }
     ]
   }
