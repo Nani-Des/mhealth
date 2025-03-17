@@ -3196,16 +3196,47 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   bool _isCameraOff = false;
   bool _isSpeakerOn = true;
   bool _isConnected = false;
+  bool _isRemoteVideoReceived = false; // Added flag to track remote video
   Timer? _callTimer;
   Duration _callDuration = Duration.zero;
   StreamSubscription? _callSubscription;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  String remoteUserFullName = '';
 
   @override
   void initState() {
     super.initState();
     _initRenderers();
     _setupCall();
+
+    // If this is an incoming call, fetch the caller's full name
+    if (widget.isIncoming) {
+      _fetchRemoteUserName();
+    } else {
+      // For outgoing calls, use the name we already have
+      remoteUserFullName = widget.remoteName;
+    }
+  }
+
+  Future<void> _fetchRemoteUserName() async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(widget.remoteUid)
+          .get();
+
+      if (userDoc.exists) {
+        final fname = userDoc.data()?['Fname'] ?? '';
+        final lname = userDoc.data()?['Lname'] ?? '';
+        final fullName = '$fname $lname'.trim();
+
+        setState(() {
+          remoteUserFullName = fullName.isNotEmpty ? fullName : widget.remoteName;
+        });
+      }
+    } catch (e) {
+      print('Error fetching remote user name: $e');
+    }
   }
 
   Future<void> _initRenderers() async {
@@ -3236,12 +3267,25 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         _peerConnection!.addTrack(track, _localStream!);
       });
 
-      // Listen for remote tracks
+      // Listen for remote streams (not just tracks)
+      _peerConnection!.onAddStream = (MediaStream stream) {
+        print('Remote stream added: ${stream.id}');
+        _remoteRenderer.srcObject = stream;
+        setState(() {
+          _isConnected = true;
+          _isRemoteVideoReceived = true;
+        });
+        _startCallTimer();
+      };
+
+      // Also keep the onTrack handler as a fallback
       _peerConnection!.onTrack = (RTCTrackEvent event) {
+        print('Remote track added: ${event.track.kind}');
         if (event.streams.isNotEmpty) {
           _remoteRenderer.srcObject = event.streams[0];
           setState(() {
             _isConnected = true;
+            _isRemoteVideoReceived = true;
           });
           _startCallTimer();
         }
@@ -3269,25 +3313,42 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     final config = {
       'iceServers': [
         {'urls': 'stun:stun.l.google.com:19302'},
+        {'urls': 'stun:stun1.l.google.com:19302'},
+        {'urls': 'stun:stun2.l.google.com:19302'},
         {
           'urls': 'turn:numb.viagenie.ca',
           'username': 'webrtc@live.com',
           'credential': 'muazkh'
         }
-      ]
+      ],
+      'sdpSemantics': 'unified-plan' // Explicitly use unified plan for compatibility
     };
 
-    final pc = await createPeerConnection(config, {
-      'mandatory': {},
+    final constraints = {
+      'mandatory': {
+        'OfferToReceiveAudio': true,
+        'OfferToReceiveVideo': true,
+      },
       'optional': [
         {'DtlsSrtpKeyAgreement': true},
       ],
-    });
+    };
+
+    final pc = await createPeerConnection(config, constraints);
 
     // Setup ICE handling
     pc.onIceCandidate = (candidate) {
       if (candidate.candidate != null) {
         _addIceCandidate(candidate);
+      }
+    };
+
+    pc.onIceConnectionState = (state) {
+      print('ICE connection state: $state');
+      if (state == RTCIceConnectionState.RTCIceConnectionStateConnected) {
+        print("ICE Connection Established!");
+      } else if (state == RTCIceConnectionState.RTCIceConnectionStateFailed) {
+        print("ICE Connection Failed!");
       }
     };
 
@@ -3302,6 +3363,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           state == RTCPeerConnectionState.RTCPeerConnectionStateClosed) {
         setState(() {
           _isConnected = false;
+          _isRemoteVideoReceived = false; // Reset video flag on disconnection
         });
       }
     };
@@ -3310,13 +3372,17 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   }
 
   Future<void> _initOutgoingCall() async {
-    // Create offer
-    final offer = await _peerConnection!.createOffer({
+    // Create offer with explicit constraints
+    final offerConstraints = {
       'offerToReceiveAudio': true,
       'offerToReceiveVideo': true,
-    });
+    };
+
+    final offer = await _peerConnection!.createOffer(offerConstraints);
+    print('Created offer: ${offer.sdp}');
 
     await _peerConnection!.setLocalDescription(offer);
+    print('Set local description');
 
     // Store the offer in Firestore
     await _firestore.collection('calls').doc(widget.callId).set({
@@ -3327,6 +3393,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       'status': 'pending',
       'timestamp': FieldValue.serverTimestamp(),
     });
+    print('Stored offer in Firestore');
 
     // Also notify the user by adding a document to their notifications collection
     await _firestore.collection('Users').doc(widget.remoteUid).collection('callNotifications').doc(widget.callId).set({
@@ -3336,30 +3403,38 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
       'timestamp': FieldValue.serverTimestamp(),
       'type': 'video',
     });
+    print('Added call notification');
   }
 
   Future<void> _handleIncomingCall() async {
     if (widget.offerSdp != null) {
+      print('Received offer SDP: ${widget.offerSdp}');
       final offer = RTCSessionDescription(
         widget.offerSdp!['sdp'],
         widget.offerSdp!['type'],
       );
 
       await _peerConnection!.setRemoteDescription(offer);
+      print('Set remote description from offer');
 
-      // Create answer
-      final answer = await _peerConnection!.createAnswer({
+      // Create answer with explicit constraints
+      final answerConstraints = {
         'offerToReceiveAudio': true,
         'offerToReceiveVideo': true,
-      });
+      };
+
+      final answer = await _peerConnection!.createAnswer(answerConstraints);
+      print('Created answer: ${answer.sdp}');
 
       await _peerConnection!.setLocalDescription(answer);
+      print('Set local description for answer');
 
       // Send answer back
       await _firestore.collection('calls').doc(widget.callId).update({
         'answer': answer.toMap(),
         'status': 'accepted',
       });
+      print('Sent answer to Firestore');
     }
   }
 
@@ -3375,11 +3450,13 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
 
       if (data['status'] == 'accepted' && !widget.isIncoming && data.containsKey('answer')) {
         // Process answer if we're the caller
+        print('Received answer from Firestore: ${data['answer']}');
         final answer = RTCSessionDescription(
           data['answer']['sdp'],
           data['answer']['type'],
         );
         await _peerConnection!.setRemoteDescription(answer);
+        print('Set remote description from answer');
       } else if (data['status'] == 'rejected') {
         _endCall();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3389,18 +3466,20 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         _endCall();
       }
 
-      // Check for ICE candidates
+      // Process ICE candidates
       if (data.containsKey('candidates')) {
         for (var candidateData in data['candidates']) {
           if (candidateData['isProcessed'] == false) {
+            print('Processing ICE candidate: ${candidateData['candidate']}');
             final candidate = RTCIceCandidate(
               candidateData['candidate'],
               candidateData['sdpMid'],
               candidateData['sdpMLineIndex'],
             );
             await _peerConnection!.addCandidate(candidate);
+            print('Added ICE candidate');
 
-            // Mark as processed (this is a Firebase limitation workaround)
+            // Mark as processed
             await _firestore.collection('calls').doc(widget.callId).update({
               'candidates': FieldValue.arrayRemove([candidateData]),
             });
@@ -3410,10 +3489,14 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
           }
         }
       }
-    });
+    },
+        onError: (error) {
+          print('Error listening for call updates: $error');
+        });
   }
 
   Future<void> _addIceCandidate(RTCIceCandidate candidate) async {
+    print('Adding ICE candidate: ${candidate.candidate}');
     await _firestore.collection('calls').doc(widget.callId).update({
       'candidates': FieldValue.arrayUnion([{
         'candidate': candidate.candidate,
@@ -3422,6 +3505,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         'isProcessed': false,
       }]),
     });
+    print('Added ICE candidate to Firestore');
   }
 
   void _startCallTimer() {
@@ -3435,7 +3519,12 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   Future<String> _getCurrentUserName() async {
     final userId = FirebaseAuth.instance.currentUser!.uid;
     final userDoc = await FirebaseFirestore.instance.collection('Users').doc(userId).get();
-    return userDoc.data()?['Name'] ?? 'Unknown User';
+
+    final fname = userDoc.data()?['Fname'] ?? '';
+    final lname = userDoc.data()?['Lname'] ?? '';
+    final fullName = '$fname $lname'.trim();
+
+    return fullName.isNotEmpty ? fullName : 'Unknown User';
   }
 
   void _toggleMicrophone() {
@@ -3529,7 +3618,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
         child: Stack(
           children: [
             // Remote video (full screen)
-            _isConnected
+            _isConnected && _isRemoteVideoReceived
                 ? RTCVideoView(
               _remoteRenderer,
               objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
@@ -3541,7 +3630,11 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                   const CircularProgressIndicator(color: Colors.white),
                   const SizedBox(height: 16),
                   Text(
-                    widget.isIncoming ? 'Connecting...' : 'Calling ${widget.remoteName}...',
+                    _isConnected
+                        ? "Connected but waiting for video..."
+                        : widget.isIncoming
+                        ? 'Connecting...'
+                        : 'Calling ${widget.remoteName}...',
                     style: const TextStyle(color: Colors.white, fontSize: 18),
                   ),
                 ],
@@ -3577,6 +3670,32 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
               ),
             ),
 
+            // Debug info overlay
+            Positioned(
+              top: 60,
+              left: 16,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Connection: ${_isConnected ? "Yes" : "No"}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    Text(
+                      'Video: ${_isRemoteVideoReceived ? "Yes" : "No"}',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
             // Call info at the top
             Positioned(
               top: 16,
@@ -3585,7 +3704,7 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.remoteName,
+                    remoteUserFullName.isNotEmpty ? remoteUserFullName : widget.remoteName,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
@@ -3690,7 +3809,8 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   }
 }
 
-class IncomingCallScreen extends StatelessWidget {
+
+class IncomingCallScreen extends StatefulWidget {
   final String callId;
   final String callerName;
   final String callerUid;
@@ -3704,17 +3824,68 @@ class IncomingCallScreen extends StatelessWidget {
     required this.offerSdp,
   });
 
+  @override
+  State<IncomingCallScreen> createState() => _IncomingCallScreenState();
+}
+
+class _IncomingCallScreenState extends State<IncomingCallScreen> {
+  String? profileImageUrl;
+  String callerFullName = '';
+  bool isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchCallerInfo();
+  }
+
+  Future<void> _fetchCallerInfo() async {
+    try {
+      // Fetch the caller's profile info from Firestore
+      final userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(widget.callerUid)
+          .get();
+
+      if (userDoc.exists) {
+        setState(() {
+          // Get profile image URL
+          profileImageUrl = userDoc.data()?['User Pic'];
+
+          // Update caller name using Fname and Lname
+          final fname = userDoc.data()?['Fname'] ?? '';
+          final lname = userDoc.data()?['Lname'] ?? '';
+          callerFullName = '$fname $lname'.trim();
+          if (callerFullName.isEmpty) {
+            callerFullName = widget.callerName; // Fallback to passed name
+          }
+
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error fetching caller profile: $e');
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
+
   Future<void> _acceptCall(BuildContext context) async {
     // Navigate to the video call screen
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => VideoCallScreen(
-          callId: callId,
-          remoteName: callerName,
-          remoteUid: callerUid,
+          callId: widget.callId,
+          remoteName: widget.callerName,
+          remoteUid: widget.callerUid,
           isIncoming: true,
-          offerSdp: offerSdp,
+          offerSdp: widget.offerSdp,
         ),
       ),
     );
@@ -3722,7 +3893,7 @@ class IncomingCallScreen extends StatelessWidget {
 
   Future<void> _rejectCall(BuildContext context) async {
     // Update call status in Firestore
-    await FirebaseFirestore.instance.collection('calls').doc(callId).update({
+    await FirebaseFirestore.instance.collection('calls').doc(widget.callId).update({
       'status': 'rejected',
       'endedAt': FieldValue.serverTimestamp(),
     });
@@ -3733,7 +3904,7 @@ class IncomingCallScreen extends StatelessWidget {
         .collection('Users')
         .doc(currentUserUid)
         .collection('callNotifications')
-        .doc(callId)
+        .doc(widget.callId)
         .delete();
 
     Navigator.pop(context);
@@ -3750,18 +3921,29 @@ class IncomingCallScreen extends StatelessWidget {
             children: [
               const SizedBox(height: 60),
 
-              // Caller avatar
-              const CircleAvatar(
+              // Caller avatar with profile image
+              isLoading
+                  ? const CircleAvatar(
                 radius: 60,
                 backgroundColor: Colors.blue,
-                child: Icon(Icons.person, size: 80, color: Colors.white),
+                child: CircularProgressIndicator(color: Colors.white),
+              )
+                  : CircleAvatar(
+                radius: 60,
+                backgroundColor: Colors.blue,
+                backgroundImage: profileImageUrl != null && profileImageUrl!.isNotEmpty
+                    ? NetworkImage(profileImageUrl!)
+                    : null,
+                child: profileImageUrl == null || profileImageUrl!.isEmpty
+                    ? const Icon(Icons.person, size: 80, color: Colors.white)
+                    : null,
               ),
 
               const SizedBox(height: 24),
 
               // Caller name
               Text(
-                callerName,
+                callerFullName.isNotEmpty ? callerFullName : widget.callerName,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 28,

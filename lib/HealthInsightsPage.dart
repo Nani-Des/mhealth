@@ -149,35 +149,60 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(8.0),
-        child: SegmentedButton<MessageType>(
-          segments: const [
-            ButtonSegment(
-              value: MessageType.private,
-              label: Text('Private'),
-              icon: Icon(Icons.chat),
-            ),
-            ButtonSegment(
-              value: MessageType.forum,
-              label: Text('Forum'),
-              icon: Icon(Icons.forum),
-            ),
-            ButtonSegment(
-              value: MessageType.experts,
-              label: Text('Experts'),
-              icon: Icon(Icons.medical_services),
-            ),
-          ],
-          selected: {_selectedType},
-          onSelectionChanged: (Set<MessageType> selected) {
-            setState(() {
-              _selectedType = selected.first;
-              _animationController.reset();
-              _animationController.forward();
-            });
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Use responsive width to determine layout
+            final isSmallScreen = constraints.maxWidth < 350;
+
+            return SegmentedButton<MessageType>(
+              segments: [
+                ButtonSegment(
+                  value: MessageType.private,
+                  // On small screens, show only icons if needed
+                  label: Text(isSmallScreen ? '' : 'Private'),
+                  icon: const Icon(Icons.chat),
+                ),
+                ButtonSegment(
+                  value: MessageType.forum,
+                  label: Text(isSmallScreen ? '' : 'Forum'),
+                  icon: const Icon(Icons.forum),
+                ),
+                ButtonSegment(
+                  value: MessageType.experts,
+                  label: Text(isSmallScreen ? '' : 'Experts'),
+                  icon: const Icon(Icons.medical_services),
+                ),
+              ],
+              selected: {_selectedType},
+              onSelectionChanged: (Set<MessageType> selected) {
+                setState(() {
+                  _selectedType = selected.first;
+                  _animationController.reset();
+                  _animationController.forward();
+                });
+              },
+            );
           },
         ),
       ),
     );
+  }
+
+// Helper methods for option 3
+  IconData _getIconForType(MessageType type) {
+    switch (type) {
+      case MessageType.private: return Icons.chat;
+      case MessageType.forum: return Icons.forum;
+      case MessageType.experts: return Icons.medical_services;
+    }
+  }
+
+  String _getLabelForType(MessageType type) {
+    switch (type) {
+      case MessageType.private: return 'Private';
+      case MessageType.forum: return 'Forum';
+      case MessageType.experts: return 'Experts';
+    }
   }
 
   Widget _buildHealthTopicsChart() {
