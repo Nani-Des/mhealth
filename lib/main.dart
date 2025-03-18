@@ -22,6 +22,7 @@
   import 'package:logger/logger.dart' as logger;
   import 'experts_community_page.dart';
   import 'HealthInsightsPage.dart';
+
   
   
   class TranslationService {
@@ -404,7 +405,7 @@
                       final userFname = user['Fname'] ?? 'Unknown';
                       final userLname = user['Lname'] ?? '';
                       final fullName = "$userFname $userLname";
-                      final userPhone = user['Mobile Number'] ?? 'No Phone';
+                      //final userPhone = user['Mobile Number'] ?? 'No Phone';
                       final userPic = user['User Pic'] ?? '';
                       final isOnline = user['Status'] ?? false;
   
@@ -414,7 +415,7 @@
                           child: userPic.isEmpty ? Text(userFname[0]) : null,
                         ),
                         title: Text(fullName),
-                        subtitle: Text(userPhone),
+                        //subtitle: Text(userPhone),
                         trailing: isOnline
                             ? const Icon(Icons.circle, color: Colors.green, size: 12)
                             : null,
@@ -1300,6 +1301,9 @@
     // Animation controller for the reply button
     late AnimationController _animationController;
     late Animation<double> _scaleAnimation;
+
+    // Cache for user data
+    final Map<String, Map<String, dynamic>> _userDataCache = {};
   
     @override
     void initState() {
@@ -1316,6 +1320,21 @@
           curve: Curves.easeInOut,
         ),
       );
+
+      // Fetch and cache user data
+      _fetchAndCacheUserData();
+    }
+
+    Future<void> _fetchAndCacheUserData() async {
+      try {
+        // Fetch all users from Firestore
+        final usersSnapshot = await FirebaseFirestore.instance.collection('Users').get();
+        for (final userDoc in usersSnapshot.docs) {
+          _userDataCache[userDoc.id] = userDoc.data() as Map<String, dynamic>;
+        }
+      } catch (e) {
+        print('Error fetching user data: $e');
+      }
     }
   
     @override
@@ -1359,7 +1378,9 @@
     @override
     Widget build(BuildContext context) {
       final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
-  
+      // Add a cache map for user data
+      final Map<String, Map<String, dynamic>> userDataCache = {};
+
       return Scaffold(
         key: scaffoldMessengerKey,
         appBar: AppBar(
@@ -1390,6 +1411,7 @@
               ),
             ),
             Expanded(
+              // Use StreamBuilder with keepAlive to prevent rebuilding
               child: StreamBuilder<QuerySnapshot>(
                 stream: FirebaseFirestore.instance
                     .collection('ForumPosts')
@@ -1404,43 +1426,52 @@
                   if (!snapshot.hasData) {
                     return const Center(child: CircularProgressIndicator());
                   }
-  
+
                   final comments = snapshot.data!.docs;
-  
-                  return ListView.builder(
-                    controller: _scrollController,
-                    itemCount: comments.length,
-                    itemBuilder: (context, index) {
-                      final comment = comments[index].data() as Map<String, dynamic>;
-                      final userId = comment['userId'];
-                      final commentId = comments[index].id;
-                      final repliedTo = comment['repliedTo'] ?? '';
-                      final repliedContent = comment['repliedContent'] ?? '';
-                      final timestamp = comment['timestamp'] != null
-                          ? (comment['timestamp'] as Timestamp).toDate()
-                          : DateTime.now();
-  
-                      return FutureBuilder<DocumentSnapshot>(
-                        future: FirebaseFirestore.instance.collection('Users').doc(userId).get(),
-                        builder: (context, userSnapshot) {
-                          if (userSnapshot.connectionState == ConnectionState.waiting) {
-                            return const ListTile(title: Text('Loading...'));
-                          }
-                          if (userSnapshot.hasError || !userSnapshot.hasData || !userSnapshot.data!.exists) {
-                            return ListTile(
-                              title: Text(comment['content'] ?? 'No Content'),
-                              subtitle: const Text('\n Posted by: Unknown User'),
-                            );
-                          }
-  
-                          final userData = userSnapshot.data!.data() as Map<String, dynamic>?;
+
+                  // Pre-fetch all user data at once to avoid multiple FutureBuilders
+                  final Set<String> userIds = {};
+                  for (var comment in comments) {
+                    final data = comment.data() as Map<String, dynamic>;
+                    userIds.add(data['userId'] as String);
+                    if (data['repliedTo'] != null && data['repliedTo'].isNotEmpty) {
+                      userIds.add(data['repliedTo'] as String);
+                    }
+                  }
+
+                  return FutureBuilder<void>(
+                    // Pre-fetch all user data
+                    future: _fetchUserData(userIds, userDataCache),
+                    builder: (context, fetchSnapshot) {
+                      if (fetchSnapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+
+                      return ListView.builder(
+                        controller: _scrollController,
+                        // Enable caching of items that are off-screen
+                        cacheExtent: 1000, // Cache more items than default
+                        itemCount: comments.length,
+                        itemBuilder: (context, index) {
+                          final comment = comments[index].data() as Map<String, dynamic>;
+                          final userId = comment['userId'];
+                          final commentId = comments[index].id;
+                          final repliedTo = comment['repliedTo'] ?? '';
+                          final repliedContent = comment['repliedContent'] ?? '';
+                          final timestamp = comment['timestamp'] != null
+                              ? (comment['timestamp'] as Timestamp).toDate()
+                              : DateTime.now();
+
+                          // Use cached user data instead of FutureBuilder
+                          final userData = userDataCache[userId];
                           final fname = userData?['Fname'] ?? 'Unknown';
                           final lname = userData?['Lname'] ?? 'User';
                           final fullName = '$fname $lname';
-  
+
                           return Column(
                             children: [
                               Card(
+                                key: ValueKey('comment_$commentId'), // Add a key for better list management
                                 margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                                 elevation: 2,
                                 shape: RoundedRectangleBorder(
@@ -1451,44 +1482,13 @@
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      if (repliedTo.isNotEmpty)
-                                        FutureBuilder<DocumentSnapshot>(
-                                          future: FirebaseFirestore.instance.collection('Users').doc(repliedTo).get(),
-                                          builder: (context, repliedUserSnapshot) {
-                                            if (repliedUserSnapshot.connectionState == ConnectionState.waiting) {
-                                              return const ListTile(title: Text('Loading...'));
-                                            }
-                                            if (repliedUserSnapshot.hasError || !repliedUserSnapshot.hasData || !repliedUserSnapshot.data!.exists) {
-                                              return const SizedBox.shrink();
-                                            }
-  
-                                            final repliedUserData = repliedUserSnapshot.data!.data() as Map<String, dynamic>?;
-                                            final repliedFname = repliedUserData?['Fname'] ?? 'Unknown';
-                                            final repliedLname = repliedUserData?['Lname'] ?? 'User';
-                                            final repliedToName = '$repliedFname $repliedLname';
-  
-                                            return Container(
-                                              padding: const EdgeInsets.all(8.0),
-                                              margin: const EdgeInsets.only(bottom: 8.0),
-                                              decoration: BoxDecoration(
-                                                color: Colors.grey[200],
-                                                borderRadius: BorderRadius.circular(8),
-                                              ),
-                                              child: InkWell(
-                                                onTap: () {
-                                                  _scrollToMessage(comment['repliedToCommentId'], comments);
-                                                },
-                                                child: Text(
-                                                  'Replying to $repliedToName: ${_truncateText(repliedContent, 15)}',
-                                                  style: TextStyle(
-                                                    color: Colors.blue[800],
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ),
+                                      if (repliedTo.isNotEmpty) _buildReplyWidget(
+                                          repliedTo,
+                                          repliedContent,
+                                          userDataCache,
+                                          comment['repliedToCommentId'] ?? '', // Fixed: Provide empty string as fallback
+                                          comments
+                                      ),
                                       Row(
                                         children: [
                                           Expanded(
@@ -1611,7 +1611,7 @@
                                   );
                                   return;
                                 }
-  
+
                                 DocumentSnapshot userSnapshot = await FirebaseFirestore.instance.collection('Users').doc(currentUserId).get();
                                 if (!userSnapshot.exists) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -1619,11 +1619,11 @@
                                   );
                                   return;
                                 }
-  
+
                                 final userData = userSnapshot.data() as Map<String, dynamic>;
                                 final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
                                 final userRegion = userData['Region'] ?? 'Unknown Region';
-  
+
                                 // Prepare the comment data
                                 Map<String, dynamic> commentData = {
                                   'content': commentController.text,
@@ -1631,28 +1631,28 @@
                                   'username': fullName,
                                   'timestamp': FieldValue.serverTimestamp(),
                                 };
-  
+
                                 // Add reply details if replying to a comment
                                 if (_replyingToUserId != null) {
                                   commentData['repliedTo'] = _replyingToUserId;
                                   commentData['repliedContent'] = _repliedContent;
                                   commentData['repliedToCommentId'] = _replyingToCommentId;
                                 }
-  
+
                                 // Add the comment to Firestore
                                 await FirebaseFirestore.instance
                                     .collection('ForumPosts')
                                     .doc(widget.postId)
                                     .collection('comments')
                                     .add(commentData);
-  
+
                                 // Process the message for health insights (for both regular comments and replies)
                                 await _processMessageForHealthInsights(
                                   commentController.text, // Process the reply content
                                   currentUserId,
                                   userRegion,
                                 );
-  
+
                                 // Clear the comment controller and reply state
                                 commentController.clear();
                                 setState(() {
@@ -1674,6 +1674,62 @@
               ),
             ),
           ],
+        ),
+      );
+    }
+
+// Add this helper method to fetch all user data at once
+    Future<void> _fetchUserData(Set<String> userIds, Map<String, Map<String, dynamic>> cache) async {
+      List<Future> futures = [];
+
+      for (String userId in userIds) {
+        if (!cache.containsKey(userId)) {
+          futures.add(
+              FirebaseFirestore.instance.collection('Users').doc(userId).get().then((snapshot) {
+                if (snapshot.exists) {
+                  cache[userId] = snapshot.data() as Map<String, dynamic>;
+                } else {
+                  cache[userId] = {'Fname': 'Unknown', 'Lname': 'User'};
+                }
+              }).catchError((error) {
+                cache[userId] = {'Fname': 'Unknown', 'Lname': 'User'};
+              })
+          );
+        }
+      }
+
+      if (futures.isNotEmpty) {
+        await Future.wait(futures);
+      }
+    }
+
+// Add this helper method for the reply widget
+    Widget _buildReplyWidget(String repliedTo, String repliedContent, Map<String, Map<String, dynamic>> userDataCache, String repliedToCommentId, List<QueryDocumentSnapshot> comments) {
+      final repliedUserData = userDataCache[repliedTo];
+      final repliedFname = repliedUserData?['Fname'] ?? 'Unknown';
+      final repliedLname = repliedUserData?['Lname'] ?? 'User';
+      final repliedToName = '$repliedFname $repliedLname';
+
+      return Container(
+        padding: const EdgeInsets.all(8.0),
+        margin: const EdgeInsets.only(bottom: 8.0),
+        decoration: BoxDecoration(
+          color: Colors.grey[200],
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: InkWell(
+          onTap: () {
+            if (repliedToCommentId.isNotEmpty) {
+              _scrollToMessage(repliedToCommentId, comments);
+            }
+          },
+          child: Text(
+            'Replying to $repliedToName: ${_truncateText(repliedContent, 15)}',
+            style: TextStyle(
+              color: Colors.blue[800],
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ),
       );
     }
@@ -2081,56 +2137,90 @@
     final FlutterSoundPlayer _player = FlutterSoundPlayer();
     final FlutterSoundRecorder _recorder = FlutterSoundRecorder();
     String? _audioPath;
-  
+    String? _cachedUserPic;
+    bool? _cachedIsOnline;
+    bool _isLoadingUserData = true;
+
+
     bool _isRecording = false;
     Duration _recordingDuration = Duration.zero;
     Timer? _recordingTimer;
-  
+
     // Track currently playing audio URL
     String? _currentlyPlayingUrl;
-  
+
     // Track playback state for each audio message
     final Map<String, bool> _audioPlaybackStates = {};
     final Map<String, Duration> _audioPlaybackDurations = {};
     final Map<String, Duration> _audioTotalDurations = {};
     Timer? _playbackTimer;
-  
+
     // Track current audio position for each message
     final Map<String, Duration> _currentPositions = {};
-    final Map<String, StreamSubscription<PlaybackDisposition>> _positionSubscriptions = {};
+    final Map<String,
+        StreamSubscription<PlaybackDisposition>> _positionSubscriptions = {};
     final Map<String, Duration> _durations = {};
-  
+
     // Add ScrollController for scroll-to-bottom functionality
     final ScrollController _scrollController = ScrollController();
     bool _showScrollToBottomButton = false;
-  
+
     // Use a GlobalKey to ensure the context remains valid
     final GlobalKey<_ChatThreadDetailsPageState> _pageKey = GlobalKey();
-  
+
     // Subscription for position updates
     StreamSubscription? _playerSubscription;
-  
+
     @override
     void initState() {
       super.initState();
       _player.openPlayer();
       _recorder.openRecorder();
       Permission.microphone.request();
-  
+
+      _fetchAndCacheUserData();
+
       _initializePlayer();
-  
+
       // Add scroll listener
       _scrollController.addListener(_onScroll);
-  
+
       // Initialize call service to listen for incoming calls
       CallService().initialize(context);
     }
-  
+
+    Future<void> _fetchAndCacheUserData() async {
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(widget.toUid)
+            .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>?;
+          setState(() {
+            _cachedUserPic = userData?['User Pic'];
+            _cachedIsOnline = userData?['Status'] ?? false;
+            _isLoadingUserData = false;
+          });
+        } else {
+          setState(() {
+            _isLoadingUserData = false;
+          });
+        }
+      } catch (e) {
+        print('Error fetching user data: $e');
+        setState(() {
+          _isLoadingUserData = false;
+        });
+      }
+    }
+
     Future<void> _initializePlayer() async {
       await _player.openPlayer();
       await _player.setLogLevel(logger.Level.info); // Use logger.Level
     }
-  
+
     @override
     void dispose() {
       _recorder.closeRecorder();
@@ -2144,13 +2234,13 @@
       }
       _playerSubscription?.cancel();
       _player.closePlayer();
-  
+
       // Dispose the call service
       CallService().dispose();
-  
+
       super.dispose();
     }
-  
+
     void _onVideoCallPressed() {
       // Request camera and microphone permissions
       Future.wait([
@@ -2164,18 +2254,20 @@
           // If permissions are denied, show a message
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Camera and microphone permissions are required for video calls'),
+              content: Text(
+                  'Camera and microphone permissions are required for video calls'),
               duration: Duration(seconds: 3),
             ),
           );
         }
       });
     }
-  
-  
+
+
     void _onScroll() {
       // Show the FAB if the user has scrolled up more than 100 pixels
-      if (_scrollController.position.pixels < _scrollController.position.maxScrollExtent - 100) {
+      if (_scrollController.position.pixels <
+          _scrollController.position.maxScrollExtent - 100) {
         setState(() {
           _showScrollToBottomButton = true;
         });
@@ -2185,7 +2277,7 @@
         });
       }
     }
-  
+
     void _scrollToBottom() {
       // Animate the scroll to the bottom
       _scrollController.animateTo(
@@ -2194,7 +2286,7 @@
         curve: Curves.easeOut,
       );
     }
-  
+
     void _showMessageMenu(QueryDocumentSnapshot<Map<String, dynamic>> message) {
       showModalBottomSheet(
         context: context,
@@ -2207,14 +2299,15 @@
                 onTap: () async {
                   // Close the current menu
                   Navigator.pop(context);
-  
+
                   // Show confirmation dialog
                   final bool shouldDelete = await showDialog(
                     context: context,
                     builder: (BuildContext context) {
                       return AlertDialog(
                         title: const Text('Delete Message'),
-                        content: const Text('Are you sure you want to delete this message?'),
+                        content: const Text(
+                            'Are you sure you want to delete this message?'),
                         actions: [
                           TextButton(
                             child: const Text('No'),
@@ -2231,7 +2324,7 @@
                       );
                     },
                   ) ?? false; // Default to false if dialog is dismissed
-  
+
                   // Delete if user confirmed
                   if (shouldDelete) {
                     await message.reference.delete();
@@ -2245,7 +2338,8 @@
                   Clipboard.setData(ClipboardData(text: message['content']));
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Message copied to clipboard!')),
+                    const SnackBar(
+                        content: Text('Message copied to clipboard!')),
                   );
                 },
               ),
@@ -2262,9 +2356,10 @@
         },
       );
     }
-  
-  
-    void _showTranslationLanguageSelector(QueryDocumentSnapshot<Map<String, dynamic>> message) {
+
+
+    void _showTranslationLanguageSelector(
+        QueryDocumentSnapshot<Map<String, dynamic>> message) {
       showModalBottomSheet(
         context: context,
         builder: (BuildContext context) {
@@ -2274,7 +2369,8 @@
               children: [
                 // Add a title here
                 const Padding(
-                  padding: EdgeInsets.all(16.0), // Add some padding around the title
+                  padding: EdgeInsets.all(16.0),
+                  // Add some padding around the title
                   child: Text(
                     'Select a Language to Translate', // The title text
                     style: TextStyle(
@@ -2299,8 +2395,9 @@
         },
       );
     }
-  
-    Future<void> _translateAndShowResult(String text, String languageCode) async {
+
+    Future<void> _translateAndShowResult(String text,
+        String languageCode) async {
       try {
         print('Translating: "$text" to "$languageCode"');
         final translatedText = await TranslationService.translateText(
@@ -2308,10 +2405,11 @@
           targetLanguage: languageCode,
         );
         print('Translation Success: $translatedText');
-  
+
         // Declare the controller as a late variable
-        late final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller;
-  
+        late final ScaffoldFeatureController<SnackBar,
+            SnackBarClosedReason> controller;
+
         // Create the SnackBar content
         final snackBar = SnackBar(
           content: Column(
@@ -2319,8 +2417,9 @@
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Translated: $translatedText',
-              style: const TextStyle(fontSize: 18),),
-              const SizedBox(height: 20), // Add spacing between text and buttons
+                style: const TextStyle(fontSize: 18),),
+              const SizedBox(height: 20),
+              // Add spacing between text and buttons
               Row(
                 children: [
                   TextButton(
@@ -2350,9 +2449,10 @@
               ),
             ],
           ),
-          duration: const Duration(days: 365), // Keep the SnackBar open indefinitely
+          duration: const Duration(
+              days: 365), // Keep the SnackBar open indefinitely
         );
-  
+
         // Assign the controller after showing the SnackBar
         controller = ScaffoldMessenger.of(context).showSnackBar(snackBar);
       } catch (e) {
@@ -2362,8 +2462,8 @@
         );
       }
     }
-  
-  
+
+
     Future _playAudio(String audioUrl) async {
       try {
         print('Attempting to play audio: $audioUrl');
@@ -2376,7 +2476,7 @@
           });
           return;
         }
-  
+
         if (_currentlyPlayingUrl == audioUrl && !_player.isPlaying) {
           print('Resuming paused audio');
           await _player.resumePlayer();
@@ -2386,7 +2486,7 @@
           });
           return;
         }
-  
+
         // Stop any currently playing audio
         if (_player.isPlaying) {
           print('Stopping previous audio');
@@ -2399,7 +2499,7 @@
             });
           }
         }
-  
+
         print('Starting new audio playback');
         await _player.startPlayer(
           fromURI: audioUrl,
@@ -2409,14 +2509,15 @@
             _onPlaybackComplete(audioUrl);
           },
         );
-  
+
         // Start listening to progress
         _startListeningToProgress(audioUrl);
-  
+
         setState(() {
           _currentlyPlayingUrl = audioUrl;
           _audioPlaybackStates[audioUrl] = true;
-          _audioPlaybackDurations[audioUrl] = Duration.zero; // Reset playback position
+          _audioPlaybackDurations[audioUrl] =
+              Duration.zero; // Reset playback position
         });
       } catch (e) {
         print('Error playing audio: $e');
@@ -2425,7 +2526,7 @@
         );
       }
     }
-  
+
     void _startListeningToProgress(String audioUrl) {
       print('Starting progress listener for $audioUrl');
       _playerSubscription?.cancel(); // Cancel any existing subscription
@@ -2433,8 +2534,10 @@
             (event) {
           if (mounted) {
             setState(() {
-              _audioPlaybackDurations[audioUrl] = event.position; // Update current position
-              _audioTotalDurations[audioUrl] = event.duration; // Update total duration
+              _audioPlaybackDurations[audioUrl] =
+                  event.position; // Update current position
+              _audioTotalDurations[audioUrl] =
+                  event.duration; // Update total duration
             });
           }
         },
@@ -2443,7 +2546,7 @@
         },
       );
     }
-  
+
     void _onPlaybackComplete(String audioUrl) {
       print('Playback complete for $audioUrl');
       if (mounted) {
@@ -2455,20 +2558,23 @@
       }
       _playerSubscription?.cancel();
     }
-  
+
     Future<void> _startRecording() async {
       try {
         final status = await Permission.microphone.request();
         if (status.isGranted) {
           final dir = await getApplicationDocumentsDirectory();
-          _audioPath = '${dir.path}/${DateTime.now().millisecondsSinceEpoch}.aac';
-          await _recorder.startRecorder(toFile: _audioPath, codec: Codec.aacADTS);
-  
+          _audioPath = '${dir.path}/${DateTime
+              .now()
+              .millisecondsSinceEpoch}.aac';
+          await _recorder.startRecorder(
+              toFile: _audioPath, codec: Codec.aacADTS);
+
           setState(() {
             _isRecording = true;
             _recordingDuration = Duration.zero;
           });
-  
+
           _recordingTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
             setState(() {
               _recordingDuration += const Duration(seconds: 1);
@@ -2486,20 +2592,20 @@
         );
       }
     }
-  
+
     Future<void> _stopRecordingAndUpload() async {
       if (_recorder.isRecording) {
         _recordingTimer?.cancel();
         await _recorder.stopRecorder();
-  
+
         setState(() {
           _isRecording = false;
           _recordingDuration = Duration.zero;
         });
-  
+
         if (_audioPath != null) {
           final file = File(_audioPath!);
-  
+
           // Check if the file exists
           if (!await file.exists()) {
             print('Error: Audio file does not exist at $_audioPath');
@@ -2508,7 +2614,7 @@
             );
             return;
           }
-  
+
           // Check if the file is empty
           if (await file.length() == 0) {
             print('Error: Audio file is empty at $_audioPath');
@@ -2517,41 +2623,43 @@
             );
             return;
           }
-  
+
           print('Audio file exists at $_audioPath');
           print('File size: ${await file.length()} bytes');
-  
-          final fileName = 'audio_${const Uuid().v4()}.aac'; // Use UUID for unique filenames
+
+          final fileName = 'audio_${const Uuid()
+              .v4()}.aac'; // Use UUID for unique filenames
           final storagePath = 'chat_files/audio/$fileName';
-  
+
           try {
             // Upload the audio file to Firebase Storage
             final storageRef = FirebaseStorage.instanceFor(
               bucket: 'mhealth-6191e.appspot.com', // Replace with your bucket name
             ).ref().child(storagePath);
-  
+
             final uploadTask = storageRef.putFile(
               file,
               SettableMetadata(contentType: 'audio/aac'), // Set MIME type
             );
-  
+
             // Monitor upload progress
             uploadTask.snapshotEvents.listen((taskSnapshot) {
-              final progress = (taskSnapshot.bytesTransferred / taskSnapshot.totalBytes) * 100;
+              final progress = (taskSnapshot.bytesTransferred /
+                  taskSnapshot.totalBytes) * 100;
               print('Upload progress: $progress%');
               // Update UI with progress if needed
             });
-  
+
             // Wait for the upload to complete
             await uploadTask;
-  
+
             // Get the download URL
             final fileUrl = await storageRef.getDownloadURL();
             print('Audio uploaded successfully. Download URL: $fileUrl');
-  
+
             // Format the duration for display
             final formattedDuration = _formatDuration(_recordingDuration);
-  
+
             // Add the audio message to Firestore
             await _firestore
                 .collection('ChatMessages')
@@ -2563,22 +2671,26 @@
               'timestamp': FieldValue.serverTimestamp(),
               'type': 'audio',
               'file_url': fileUrl,
-              'audio_duration': _recordingDuration.inSeconds, // Save the audio duration
+              'audio_duration': _recordingDuration.inSeconds,
+              // Save the audio duration
               'status': 'sent',
             });
-  
+
             // Update the last message in the chat thread
-            await _firestore.collection('ChatMessages').doc(widget.chatId).update({
-              'last_msg': '🎤 Voice Message', // Include microphone icon and duration
+            await _firestore.collection('ChatMessages')
+                .doc(widget.chatId)
+                .update({
+              'last_msg': '🎤 Voice Message',
+              // Include microphone icon and duration
               'last_time': FieldValue.serverTimestamp(),
             });
-  
+
             // Clear the audio path and delete the local file
             setState(() {
               _audioPath = null;
             });
             await file.delete();
-  
+
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
                 content: Text('Voice recording sent!'),
@@ -2587,7 +2699,8 @@
           } catch (e) {
             print('Error uploading audio: $e');
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to upload audio: ${e.toString()}')),
+              SnackBar(
+                  content: Text('Failed to upload audio: ${e.toString()}')),
             );
           }
         } else {
@@ -2598,10 +2711,12 @@
         }
       }
     }
-  
+
     void _sendMessage() async {
-      if (_messageController.text.trim().isEmpty) return;
-  
+      if (_messageController.text
+          .trim()
+          .isEmpty) return;
+
       String messageText = _messageController.text.trim();
       final message = {
         'content': messageText,
@@ -2611,32 +2726,34 @@
         'type': 'text',
         'status': 'sent',
       };
-  
+
       // Store message in Firestore
       await _firestore
           .collection('ChatMessages')
           .doc(widget.chatId)
           .collection('messages')
           .add(message);
-  
+
       // Update last message details
       await _firestore.collection('ChatMessages').doc(widget.chatId).update({
         'last_msg': messageText,
         'last_time': FieldValue.serverTimestamp(),
       });
-  
+
       // Clear the message input
       _messageController.clear();
-  
+
       // Process the message for health insights
       await _processMessageForHealthInsights(messageText, widget.fromUid);
     }
-  
-    Future<void> _processMessageForHealthInsights(String messageText, String userId) async {
+
+    Future<void> _processMessageForHealthInsights(String messageText,
+        String userId) async {
       // Fetch user's region from the Users collection
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(userId).get();
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection(
+          'Users').doc(userId).get();
       String userRegion = userDoc['Region'] ?? 'Unknown';
-  
+
       // Define health categories and keywords
       final Map<String, List<String>> healthCategories = {
         'symptoms': [
@@ -2650,43 +2767,80 @@
           'sickle cell', 'tuberculosis', 'HIV', 'hepatitis', 'stroke'
         ],
         'treatments': [
-          'medication', 'therapy', 'surgery', 'exercise', 'diet',
-          'vaccination', 'rehabilitation', 'counseling', 'prescription', 'supplement',
-          'traditional medicine', 'herbs', 'physiotherapy', 'immunization', 'antibiotics'
+          'medication',
+          'therapy',
+          'surgery',
+          'exercise',
+          'diet',
+          'vaccination',
+          'rehabilitation',
+          'counseling',
+          'prescription',
+          'supplement',
+          'traditional medicine',
+          'herbs',
+          'physiotherapy',
+          'immunization',
+          'antibiotics'
         ],
         'lifestyle': [
-          'nutrition', 'fitness', 'sleep', 'stress', 'wellness',
-          'meditation', 'diet', 'exercise', 'hydration', 'mindfulness',
-          'traditional food', 'local diet', 'community', 'family health', 'work-life'
+          'nutrition',
+          'fitness',
+          'sleep',
+          'stress',
+          'wellness',
+          'meditation',
+          'diet',
+          'exercise',
+          'hydration',
+          'mindfulness',
+          'traditional food',
+          'local diet',
+          'community',
+          'family health',
+          'work-life'
         ],
         'preventive': [
-          'screening', 'checkup', 'vaccination', 'prevention', 'hygiene',
-          'immunization', 'monitoring', 'assessment', 'testing', 'evaluation',
-          'sanitation', 'clean water', 'mosquito nets', 'hand washing', 'nutrition'
+          'screening',
+          'checkup',
+          'vaccination',
+          'prevention',
+          'hygiene',
+          'immunization',
+          'monitoring',
+          'assessment',
+          'testing',
+          'evaluation',
+          'sanitation',
+          'clean water',
+          'mosquito nets',
+          'hand washing',
+          'nutrition'
         ],
       };
-  
+
       // Convert message text to lowercase for case-insensitive matching
       String lowerCaseMessage = messageText.toLowerCase();
-  
+
       // Identify matched categories
       Map<String, int> matchedCategories = {};
       healthCategories.forEach((category, keywords) {
         for (String keyword in keywords) {
           if (lowerCaseMessage.contains(keyword)) {
-            matchedCategories[category] = (matchedCategories[category] ?? 0) + 1;
+            matchedCategories[category] =
+                (matchedCategories[category] ?? 0) + 1;
           }
         }
       });
-  
+
       // Debugging output
       print("Matched Categories: $matchedCategories");
-  
+
       // Update HealthInsights collection
       for (String category in matchedCategories.keys) {
         int count = matchedCategories[category]!;
         String messageType = 'private'; // Adjust based on the type of message
-  
+
         // Query for an existing document with the same category, region, and messageType
         QuerySnapshot querySnapshot = await FirebaseFirestore.instance
             .collection('HealthInsights')
@@ -2695,14 +2849,15 @@
             .where('messageType', isEqualTo: messageType)
             .limit(1) // Limit the query to one result
             .get();
-  
+
         if (querySnapshot.docs.isNotEmpty) {
           // Document exists, increment the count field
           DocumentReference docRef = querySnapshot.docs.first.reference;
           await docRef.update({
             'count': FieldValue.increment(count),
           });
-          print("Updated existing document for category: $category, region: $userRegion, messageType: $messageType");
+          print(
+              "Updated existing document for category: $category, region: $userRegion, messageType: $messageType");
         } else {
           // Document does not exist, create a new one
           await FirebaseFirestore.instance.collection('HealthInsights').add({
@@ -2712,36 +2867,115 @@
             'messageType': messageType,
             'timestamp': FieldValue.serverTimestamp(),
           });
-          print("Created new document for category: $category, region: $userRegion, messageType: $messageType");
+          print(
+              "Created new document for category: $category, region: $userRegion, messageType: $messageType");
         }
       }
-  
+
       print("Processed message for health insights: $matchedCategories");
     }
-  
-  
-  
+
+
     String _formatDuration(Duration duration) {
       String twoDigits(int n) => n.toString().padLeft(2, '0');
       String minutes = twoDigits(duration.inMinutes.remainder(60));
       String seconds = twoDigits(duration.inSeconds.remainder(60));
       return '$minutes:$seconds';
     }
-  
+
     @override
     Widget build(BuildContext context) {
       return Scaffold(
+          appBar: AppBar(
+            leadingWidth: 30,
+            title: _isLoadingUserData
+                ? Row(
+              children: [
+                const CircleAvatar(
+                  radius: 20,
+                  child: Icon(Icons.person, size: 24),
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.toName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Text(
+                      "Loading...",
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+                : Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundImage: _cachedUserPic != null
+                      ? NetworkImage(_cachedUserPic!)
+                      : null,
+                  child: _cachedUserPic == null
+                      ? const Icon(Icons.person, size: 24)
+                      : null,
+                ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.toName,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      _cachedIsOnline == true ? "Active now" : "Offline",
+                      style: const TextStyle(
+                        fontSize: 13,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            backgroundColor: Colors.lightBlue,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.video_call, color: Colors.white),
+                onPressed: _onVideoCallPressed,
+              ),
+            ],
+          ),
+
+    /*@override
+    Widget build(BuildContext context) {
+      return Scaffold(
         appBar: AppBar(
-          leadingWidth: 30, // Reduce the leading width to bring everything closer to back button
+          leadingWidth: 30,
+          // Reduce the leading width to bring everything closer to back button
           title: FutureBuilder<DocumentSnapshot>(
-            future: FirebaseFirestore.instance.collection('Users').doc(widget.toUid).get(),
+            future: FirebaseFirestore.instance.collection('Users').doc(
+                widget.toUid).get(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return Row(
                   children: [
                     const CircleAvatar(
                       radius: 20, // Increased size
-                      child: Icon(Icons.person, size: 24), // Increased icon size
+                      child: Icon(
+                          Icons.person, size: 24), // Increased icon size
                     ),
                     const SizedBox(width: 8),
                     Column(
@@ -2766,13 +3000,14 @@
                   ],
                 );
               }
-  
+
               if (!snapshot.hasData || !snapshot.data!.exists) {
                 return Row(
                   children: [
                     const CircleAvatar(
                       radius: 20, // Increased size
-                      child: Icon(Icons.person, size: 24), // Increased icon size
+                      child: Icon(
+                          Icons.person, size: 24), // Increased icon size
                     ),
                     const SizedBox(width: 8),
                     Column(
@@ -2797,19 +3032,23 @@
                   ],
                 );
               }
-  
+
               final userData = snapshot.data!.data() as Map<String, dynamic>?;
               final userPic = userData?['User Pic'];
               final isOnline = userData?['Status'] ?? false;
-  
+
               return Padding(
-                padding: const EdgeInsets.only(left: 0), // Reduce left padding to move closer to back button
+                padding: const EdgeInsets.only(left: 0),
+                // Reduce left padding to move closer to back button
                 child: Row(
                   children: [
                     CircleAvatar(
                       radius: 20, // Increased size
-                      backgroundImage: userPic != null ? NetworkImage(userPic) : null,
-                      child: userPic == null ? const Icon(Icons.person, size: 24) : null, // Increased icon size
+                      backgroundImage: userPic != null
+                          ? NetworkImage(userPic)
+                          : null,
+                      child: userPic == null ? const Icon(
+                          Icons.person, size: 24) : null, // Increased icon size
                     ),
                     const SizedBox(width: 8),
                     Column(
@@ -2826,7 +3065,8 @@
                           isOnline ? "Active now" : "Offline",
                           style: const TextStyle(
                             fontSize: 13,
-                            color: Colors.black, // Changed to black regardless of status
+                            color: Colors
+                                .black, // Changed to black regardless of status
                           ),
                         ),
                       ],
@@ -2843,7 +3083,7 @@
               onPressed: _onVideoCallPressed,
             ),
           ],
-        ),
+        ),*/
         body: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -2866,21 +3106,25 @@
                           .snapshots(),
                       builder: (context, snapshot) {
                         if (snapshot.hasError) {
-                          return Center(child: Text('Error: ${snapshot.error}'));
+                          return Center(child: Text('Error: ${snapshot
+                              .error}'));
                         }
                         if (!snapshot.hasData) {
-                          return const Center(child: CircularProgressIndicator());
+                          return const Center(
+                              child: CircularProgressIndicator());
                         }
-  
+
                         final messages = snapshot.data!.docs;
-  
+
                         return ListView.builder(
-                          controller: _scrollController, // Attach the ScrollController
+                          controller: _scrollController,
+                          // Attach the ScrollController
                           itemCount: messages.length,
                           itemBuilder: (context, index) {
                             final message = messages[index];
-                            final isSentByUser = message['from_uid'] == widget.fromUid;
-  
+                            final isSentByUser = message['from_uid'] ==
+                                widget.fromUid;
+
                             return GestureDetector(
                               onLongPress: () => _showMessageMenu(message),
                               child: Align(
@@ -2889,48 +3133,65 @@
                                     : Alignment.centerLeft,
                                 child: ConstrainedBox(
                                   constraints: BoxConstraints(
-                                    maxWidth: MediaQuery.of(context).size.width * 0.7, // Max width for text bubbles
+                                    maxWidth: MediaQuery
+                                        .of(context)
+                                        .size
+                                        .width *
+                                        0.7, // Max width for text bubbles
                                   ),
                                   child: CustomPaint(
-                                    size: const Size(double.infinity, double.infinity),
-                                painter: ChatBubblePainter(isSentByUser: isSentByUser),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(12.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      if (message['type'] == 'text') ...[
-                                        Text(
-                                          message['content'] ?? '', // Fallback to an empty string if 'content' is null
-                                          softWrap: true, // Allow text to wrap to the next line
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w400, // Make the text bold
-                                            fontSize: 15, // Optional: Set a font size for better readability
-                                            color: isSentByUser ? Colors.black87 : Colors.black87, // Optional: Adjust text color based on sender
+                                    size: const Size(
+                                        double.infinity, double.infinity),
+                                    painter: ChatBubblePainter(
+                                        isSentByUser: isSentByUser),
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(12.0),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment
+                                            .start,
+                                        children: [
+                                          if (message['type'] == 'text') ...[
+                                            Text(
+                                              message['content'] ?? '',
+                                              // Fallback to an empty string if 'content' is null
+                                              softWrap: true,
+                                              // Allow text to wrap to the next line
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w400,
+                                                // Make the text bold
+                                                fontSize: 15,
+                                                // Optional: Set a font size for better readability
+                                                color: isSentByUser ? Colors
+                                                    .black87 : Colors
+                                                    .black87, // Optional: Adjust text color based on sender
+                                              ),
+                                            ),
+                                          ] else
+                                            if (message['type'] == 'audio') ...[
+                                              _buildAudioMessage(
+                                                  message.data()),
+                                            ],
+                                          const SizedBox(height: 5),
+                                          Align(
+                                            alignment: Alignment.bottomRight,
+                                            child: Text(
+                                              message['timestamp'] != null
+                                                  ? DateFormat.jm().format(
+                                                (message['timestamp'] as Timestamp)
+                                                    .toDate(),
+                                              )
+                                                  : 'Sending...',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: Colors
+                                                    .grey[800], // Deep grey color to match the send icon
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ] else if (message['type'] == 'audio') ...[
-                                        _buildAudioMessage(message.data()),
-                                      ],
-                                      const SizedBox(height: 5),
-                                      Align(
-                                        alignment: Alignment.bottomRight,
-                                        child: Text(
-                                          message['timestamp'] != null
-                                              ? DateFormat.jm().format(
-                                            (message['timestamp'] as Timestamp).toDate(),
-                                          )
-                                              : 'Sending...',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.grey[800], // Deep grey color to match the send icon
-                                          ),
-                                        ),
+                                        ],
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                ),
-                              ),
                                 ),
                               ),
                             );
@@ -2973,9 +3234,11 @@
                         child: Column(
                           children: [
                             LinearProgressIndicator(
-                              value: _recordingDuration.inSeconds / 60, // Max 60 seconds
+                              value: _recordingDuration.inSeconds / 60,
+                              // Max 60 seconds
                               backgroundColor: Colors.grey[300],
-                              valueColor: const AlwaysStoppedAnimation<Color>(Colors.blue),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                  Colors.blue),
                             ),
                             Text(
                               'Recording: ${_recordingDuration.inSeconds}s',
@@ -2988,45 +3251,52 @@
                         icon: const Icon(Icons.send, color: Colors.blue),
                         onPressed: _stopRecordingAndUpload,
                       ),
-                    ] else ...[
-                      GestureDetector(
-                        onTap: _startRecording,
-                        child: const Icon(
-                          Icons.mic,
-                          color: Colors.blue,
+                    ] else
+                      ...[
+                        GestureDetector(
+                          onTap: _startRecording,
+                          child: const Icon(
+                            Icons.mic,
+                            color: Colors.blue,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 8), // Add space between microphone and text box
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(30), // Oval shape
-                          ),
-                          constraints: const BoxConstraints(
-                            maxHeight: 120, // Maximum height for the text box
-                          ),
-                          child: SingleChildScrollView(
-                            // Enable scrolling for multi-line text
-                            child: TextField(
-                              controller: _messageController,
-                              decoration: const InputDecoration(
-                                hintText: 'Type a message...',
-                                border: InputBorder.none, // Remove default border
-                                contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        const SizedBox(width: 8),
+                        // Add space between microphone and text box
+                        Expanded(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(
+                                  30), // Oval shape
+                            ),
+                            constraints: const BoxConstraints(
+                              maxHeight: 120, // Maximum height for the text box
+                            ),
+                            child: SingleChildScrollView(
+                              // Enable scrolling for multi-line text
+                              child: TextField(
+                                controller: _messageController,
+                                decoration: const InputDecoration(
+                                  hintText: 'Type a message...',
+                                  border: InputBorder.none,
+                                  // Remove default border
+                                  contentPadding: EdgeInsets.symmetric(
+                                      horizontal: 16, vertical: 12),
+                                ),
+                                maxLines: null, // Allow multiple lines
+                                keyboardType: TextInputType
+                                    .multiline, // Enable multi-line input
                               ),
-                              maxLines: null, // Allow multiple lines
-                              keyboardType: TextInputType.multiline, // Enable multi-line input
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8), // Add space between text box and send button
-                      IconButton(
-                        icon: const Icon(Icons.send),
-                        onPressed: _sendMessage,
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        // Add space between text box and send button
+                        IconButton(
+                          icon: const Icon(Icons.send),
+                          onPressed: _sendMessage,
+                        ),
+                      ],
                   ],
                 ),
               ),
@@ -3035,84 +3305,53 @@
         ),
       );
     }
-  
+
     Widget _buildAudioMessage(Map message) {
       final audioUrl = message['file_url'] as String;
-      final isPlaying = _audioPlaybackStates[audioUrl] == true;
-      final position = _audioPlaybackDurations[audioUrl] ?? Duration.zero;
-      final duration = _audioTotalDurations[audioUrl] ?? Duration.zero;
-  
-      return Container(
-        padding: const EdgeInsets.all(8.0),
-        decoration: BoxDecoration(
-          color: Colors.grey[200],
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Play/Pause Button with Playback Indicator
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                IconButton(
-                  icon: Icon(
-                    isPlaying ? Icons.pause : Icons.play_arrow,
-                    color: Colors.blue,
-                  ),
-                  onPressed: () => _playAudio(audioUrl),
+      final isPlaying = _currentlyPlayingUrl == audioUrl && _player.isPlaying;
+
+      return GestureDetector(
+        onTap: () => _playAudio(audioUrl),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Speech Bubble with Play/Pause Icon
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                if (isPlaying)
-                  const SizedBox(
-                    width: 24,
-                    height: 24,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation(Colors.white),
-                    ),
-                  ),
-              ],
-            ),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Slider for Scrubbing (Thumb Does Not Move)
-                  SliderTheme(
-                    data: const SliderThemeData(
-                      trackHeight: 2.0,
-                      thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6.0),
-                    ),
-                    child: Slider(
-                      value: position.inMilliseconds.toDouble(),
-                      max: duration.inMilliseconds > 0
-                          ? duration.inMilliseconds.toDouble()
-                          : 1.0, // Default to 1 if duration is 0
-                      min: 0,
-                      onChanged: (value) async {
-                        if (_player.isPlaying || _currentlyPlayingUrl == audioUrl) {
-                          print('Seeking to: ${Duration(milliseconds: value.toInt())}');
-                          await _player.seekToPlayer(Duration(milliseconds: value.toInt()));
-                          if (mounted) {
-                            setState(() {
-                              _audioPlaybackDurations[audioUrl] =
-                                  Duration(milliseconds: value.toInt());
-                            });
-                          }
-                        }
-                      },
-                    ),
-                  ),
-                  // Removed Timing Display
-                ],
+                child: Icon(
+                  isPlaying ? Icons.pause : Icons.play_arrow,
+                  color: Colors.white,
+                  size: 16,
+                ),
               ),
-            ),
-          ],
+
+              const SizedBox(width: 8),
+
+              // Optional Label (e.g., "Tap to Play")
+              Text(
+                'Tap to Play',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
   }
-  
   
   class ChatBubblePainter extends CustomPainter {
     final bool isSentByUser; // Determines if the message is sent or received
