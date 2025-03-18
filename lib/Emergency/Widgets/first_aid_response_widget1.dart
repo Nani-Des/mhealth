@@ -19,11 +19,12 @@ class FirstAidResponseWidget1 extends StatefulWidget {
 }
 
 class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
-  String translatedText = "";
+  String displayText = "";
   String selectedLanguage = "ak";
   bool isLoading = false;
   bool isSpeaking = false;
   late FlutterTts flutterTts;
+  bool isTranslated = false;
 
   final Map<String, String> languageMap = {
     "Twi (Akan)": "ak",
@@ -36,6 +37,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
   void initState() {
     super.initState();
     flutterTts = FlutterTts();
+    displayText = widget.responseText;
   }
 
   String _sanitizeTextForTranslation(String text) {
@@ -45,19 +47,32 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
         .replaceAll("**", "");
   }
 
+  String _sanitizeTextForSpeech(String text) {
+    return text
+        .replaceAll(RegExp(r'#{1,}', multiLine: true), '')
+        .replaceAll("**", "")
+        .replaceAll("<br>", " ");
+  }
+
   String _restoreFormatting(String text) {
     return text.replaceAll("<br>", "\n");
   }
 
   Future<void> translateText() async {
     if (widget.responseText.trim().isEmpty) {
-      setState(() => translatedText = "Error: No text to translate.");
+      setState(() {
+        displayText = "Error: No text to translate.";
+        isTranslated = false;
+      });
       return;
     }
 
     String? apiKey = dotenv.env['GOOGLE_TRANSLATE_API_KEY'];
     if (apiKey == null || apiKey.isEmpty) {
-      setState(() => translatedText = "Error: Missing API key.");
+      setState(() {
+        displayText = "Error: Missing API key.";
+        isTranslated = false;
+      });
       return;
     }
 
@@ -78,14 +93,23 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
 
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);
+        final translatedText = _restoreFormatting(responseBody['data']['translations'][0]['translatedText']);
+        print("Translated text: $translatedText"); // Debug full translated text
         setState(() {
-          translatedText = _restoreFormatting(responseBody['data']['translations'][0]['translatedText']);
+          displayText = translatedText;
+          isTranslated = true;
         });
       } else {
-        setState(() => translatedText = "Translation failed: ${response.statusCode}");
+        setState(() {
+          displayText = "Translation failed: ${response.statusCode}";
+          isTranslated = false;
+        });
       }
     } catch (e) {
-      setState(() => translatedText = "Error: ${e.toString()}");
+      setState(() {
+        displayText = "Error: ${e.toString()}";
+        isTranslated = false;
+      });
     }
 
     setState(() => isLoading = false);
@@ -98,7 +122,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
       return;
     }
 
-    String textToSpeak = translatedText.isNotEmpty ? translatedText : widget.responseText;
+    String textToSpeak = displayText;
     String languageCode = selectedLanguage;
 
     final Map<String, String> ttsLanguageMap = {
@@ -108,16 +132,11 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
       "en": "en-US"
     };
 
-    if (ttsLanguageMap.containsKey(languageCode)) {
-      await flutterTts.setLanguage(ttsLanguageMap[languageCode]!);
-    } else {
-      await flutterTts.setLanguage("en-US");
-    }
-
+    await flutterTts.setLanguage(ttsLanguageMap[languageCode] ?? "en-US");
     await flutterTts.setSpeechRate(0.5);
     await flutterTts.setPitch(1.0);
 
-    int result = await flutterTts.speak(textToSpeak);
+    int result = await flutterTts.speak(_sanitizeTextForSpeech(textToSpeak));
     if (result == 1) {
       setState(() => isSpeaking = true);
     }
@@ -125,6 +144,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
 
   @override
   Widget build(BuildContext context) {
+    print("Building widget with displayText: $displayText"); // Debug full build
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -140,12 +160,12 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
       ),
       padding: const EdgeInsets.all(20),
       child: Column(
-        mainAxisSize: MainAxisSize.min, // Use min to take only necessary space
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildHeader(),
           const SizedBox(height: 16),
-          _buildContent(), // Removed Expanded here
+          _buildContent(),
           if (isLoading) _buildLoadingOverlay(),
         ],
       ),
@@ -166,28 +186,14 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.medical_services, color: Colors.white, size: 24),
-              SizedBox(width: 4),
-              Text(
-                "First Aid",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 10,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
           Row(
             children: [
               _buildLanguageDropdown(),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _buildActionButton(Icons.translate, translateText),
-              const SizedBox(width: 8),
-              _buildActionButton(isSpeaking ? Icons.volume_off : Icons.volume_up, _toggleSpeech),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
+              _buildActionButton(isSpeaking ? Icons.volume_up : Icons.volume_off, _toggleSpeech),
+              const SizedBox(width: 6),
               _buildActionButton(Icons.close, widget.onClose),
             ],
           ),
@@ -208,11 +214,11 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
         underline: const SizedBox(),
         dropdownColor: Colors.redAccent,
         icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
-        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
         items: languageMap.entries.map((entry) {
           return DropdownMenuItem<String>(
             value: entry.value,
-            child: Text(entry.key),
+            child: Text(entry.key, style: TextStyle(fontSize: 10)),
           );
         }).toList(),
         onChanged: (value) {
@@ -231,14 +237,15 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
         shape: BoxShape.circle,
       ),
       child: IconButton(
-        icon: Icon(icon, color: Colors.white),
+        icon: Icon(icon, color: Colors.white, size: 20),
         onPressed: onPressed,
-        splashRadius: 20,
+        splashRadius: 15,
       ),
     );
   }
 
   Widget _buildContent() {
+    print("Rebuilding content with text: $displayText"); // Debug content rebuild
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -249,13 +256,11 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
         child: RichText(
           text: TextSpan(
             style: const TextStyle(
-              fontSize: 16,
+              fontSize: 12,
               color: Colors.black87,
               height: 1.5,
             ),
-            children: translatedText.isNotEmpty
-                ? _formatText(translatedText)
-                : _formatText(widget.responseText),
+            children: _formatText(displayText),
           ),
         ),
       ),
@@ -282,19 +287,48 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
     List<String> lines = text.split("\n");
 
     for (String line in lines) {
-      if (line.trim().isEmpty) continue;
-      if (line.startsWith("- ") || line.startsWith("• ")) {
+      if (line.trim().isEmpty) {
+        spans.add(TextSpan(text: "\n")); // Preserve empty lines
+        continue;
+      }
+
+      if (line.startsWith(RegExp(r'^\d+\.\s'))) {
         spans.add(TextSpan(
-          text: "• ${line.substring(2)}\n",
-          style: const TextStyle(fontWeight: FontWeight.w600),
+          text: "$line\n",
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
         ));
-      } else if (line.startsWith("#")) {
+      } else if (line.startsWith("- ") || line.startsWith("• ")) {
+        String content = line.substring(2).trim();
         spans.add(TextSpan(
-          text: "${line.replaceAll("#", "")}\n",
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          text: "• $content\n",
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.black54,
+          ),
+        ));
+      } else if (line.contains(RegExp(r'^#{1,3}\s'))) { // Match any ###, ##, or # followed by space
+        String content = line.replaceAll(RegExp(r'^#{1,3}\s+'), "").trim();
+        spans.add(TextSpan(
+          text: "$content\n",
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.redAccent,
+          ),
         ));
       } else {
-        spans.add(TextSpan(text: "$line\n"));
+        spans.add(TextSpan(
+          text: "$line\n",
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.black87,
+          ),
+        ));
       }
     }
 

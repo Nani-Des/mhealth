@@ -176,21 +176,21 @@ class _DoctorAvailabilityCalendarState
             children: [
               Text(
                 'Selected Date: ${DateFormat('yyyy-MM-dd').format(day)}',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal),
               ),
               SizedBox(height: 8),
               Text(
                 'Working Period:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal),
               ),
               Text(
                 timingText,
-                style: TextStyle(fontSize: 14),
+                style: TextStyle(fontSize: 14, color: Colors.teal),
               ),
               SizedBox(height: 16),
               Text(
                 'Guide:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal),
               ),
               Text(
                 'Book an appointment now for convenience!',

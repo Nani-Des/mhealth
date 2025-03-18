@@ -29,7 +29,7 @@ class CredentialsButton extends StatelessWidget {
             buttonText,
             style: TextStyle(
               color: isConfirmLater ? semiGrey : white,
-              fontSize: 16,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),

@@ -54,7 +54,7 @@ class DoctorInfoWidget extends StatelessWidget {
 
           // Action Buttons
           Positioned(
-            bottom: 16,
+            bottom: 0,
             left: 16,
             right: 16,
             child: _buildActionButtons(context),
@@ -87,14 +87,14 @@ class DoctorInfoWidget extends StatelessWidget {
           style: const TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.bold,
-            color: Colors.black87,
+            color: Colors.teal,
           ),
           textAlign: TextAlign.center,
         ),
         Text(
           doctorDetails['status'] ?? 'Available',
           style: TextStyle(
-            fontSize: 16,
+            fontSize: 12,
             color: doctorDetails['status'] == 'Available' ? Colors.green : Colors.red,
             fontWeight: FontWeight.w500,
           ),
@@ -179,11 +179,11 @@ class DoctorInfoWidget extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 4),
         Expanded(
           child: ElevatedButton.icon(
             icon: const Icon(Icons.calendar_month, color: Colors.white),
-            label: const Text('Book Appointment'),
+            label: const Text('Book'),
             style: ElevatedButton.styleFrom(
               backgroundColor: isReferral ? Colors.grey[400] : Colors.tealAccent,
               padding: const EdgeInsets.symmetric(vertical: 14),

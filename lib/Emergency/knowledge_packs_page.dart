@@ -168,7 +168,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
               children: [
                 Text(
                   showArchived ? "Archived Packs" : "Knowledge Packs",
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 20),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14),
                 ),
                 if (archivedCount > 0)
                   Text(
@@ -236,7 +236,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
           const SizedBox(height: 16),
           Text(
             "Loading Knowledge Packs...",
-            style: TextStyle(color: Colors.teal.shade700, fontSize: 16, fontWeight: FontWeight.w500),
+            style: TextStyle(color: Colors.teal.shade700, fontSize: 14, fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -252,7 +252,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
           const SizedBox(height: 16),
           Text(
             showArchived ? "No Archived Packs" : "No Knowledge Packs Available",
-            style: TextStyle(fontSize: 20, color: Colors.teal.shade700, fontWeight: FontWeight.bold),
+            style: TextStyle(fontSize: 14, color: Colors.teal.shade700, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
           Text(
@@ -278,7 +278,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
               Text(
                 category,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Colors.teal.shade800,
                 ),

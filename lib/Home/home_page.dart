@@ -104,7 +104,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
           'Do you have Health needs?',
           style: TextStyle(
               color: Colors.teal,
-              fontSize: 22,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
           ),
         ),

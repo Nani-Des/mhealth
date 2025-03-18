@@ -160,12 +160,16 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         return "API key is missing. Please check the environment variables.";
       }
 
+      // Prefix to add to every user query
+      const String prefix = "Provide clear, step-by-step first-aid instructions for the following situation in a gradual and simple manner. Use easy-to-understand language, avoid complex medical jargon: ";
+      final String modifiedQuery = prefix + query;
+
       final response = await Dio().post(
         'https://api.openai.com/v1/chat/completions',
         options: Options(headers: {'Authorization': 'Bearer $apiKey'}),
         data: {
           'model': 'gpt-4o-mini',
-          'messages': [{'role': 'user', 'content': query}],
+          'messages': [{'role': 'user', 'content': modifiedQuery}],
         },
       );
       return response.data['choices'][0]['message']['content'];
@@ -330,7 +334,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                     Text(
                       "Emergency Services",
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 8,
                         fontWeight: FontWeight.w700,
                         color: Colors.redAccent,
                         letterSpacing: 0.5,
@@ -384,7 +388,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         Navigator.pop(context);
       },
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 30),
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(12),
@@ -404,7 +408,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
               label,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: 14,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -427,7 +431,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
             Icon(Icons.emergency, color: Colors.white),
             SizedBox(width: 8),
             Text(
-              "Emergency Assistant ${_isOffline ? ' (Offline)' : ''}",
+              "Emergency${_isOffline ? ' (Offline)' : ''}",
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: Colors.white,
@@ -466,8 +470,8 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
             EmergencyHomePageContent(),
             // Input area positioned at the bottom, adjusted for keyboard
             Positioned(
-              left: 20,
-              right: 20,
+              left: 15,
+              right: 15,
               bottom:20,
               child: _buildInputArea(),
             ),
@@ -525,6 +529,10 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                 maxLines: null,
                 decoration: InputDecoration(
                   hintText: "Describe the emergency...",
+                  hintStyle: const TextStyle(
+                    fontSize: 12, // Change this value to adjust the size (default is usually 14-16)
+                    color: Colors.grey, // Optional: adjust color if needed
+                  ),
                   filled: true,
                   fillColor: Colors.grey[100],
                   border: OutlineInputBorder(

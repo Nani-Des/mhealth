@@ -126,7 +126,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 12,
             fontWeight: FontWeight.bold,
             color: isSelected ? color : Colors.black,
           ),
@@ -143,7 +143,7 @@ class _AppointmentScreenState extends State<AppointmentScreen> {
         padding: const EdgeInsets.all(8.0),
         child: Text(
           'No $sectionLabel',
-          style: TextStyle(fontSize: 16, fontStyle: FontStyle.italic),
+          style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
         ),
       );
     }

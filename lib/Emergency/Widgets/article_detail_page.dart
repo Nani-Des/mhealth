@@ -17,7 +17,7 @@ class ArticleDetailPage extends StatelessWidget {
           style: const TextStyle(
             fontWeight: FontWeight.bold,
             color: Colors.white,
-            fontSize: 20,
+            fontSize: 14,
           ),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,

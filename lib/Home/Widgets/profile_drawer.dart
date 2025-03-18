@@ -331,20 +331,29 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                             '$firstName $lastName',
                             style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.teal),
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            '$email',
-                            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                          SizedBox(height: 1),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center, // Added this line
+                            children: [
+                              Text(
+                                '$email',
+                                style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                              ),
+                              Text(
+                                '  ||  ',
+                                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                              ),
+                              Text(
+                                '$region region',
+                                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                              )
+                            ],
                           ),
-                          SizedBox(height: 4),
-                          Text(
-                            '$region region',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                          ),
+
                         ],
                       ),
                     ),
-                    SizedBox(height: 20),
+                    SizedBox(height: 5),
                     if (!_isEditing)
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,

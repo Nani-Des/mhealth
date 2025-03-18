@@ -174,7 +174,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(service),
+        title: Text(service, style: TextStyle(fontStyle:FontStyle.italic,color: Colors.teal)),
         content: Text("Available Time: $time"),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))],
       ),
@@ -246,7 +246,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
                                 crossAxisCount: 3,
                                 crossAxisSpacing: 12,
                                 mainAxisSpacing: 12,
-                                childAspectRatio: 0.85,
+                                childAspectRatio: 0.70,
                               ),
                               itemBuilder: (context, serviceIndex) {
                                 var serviceData = dayServices[serviceIndex];
@@ -271,12 +271,11 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
                                             serviceData['icon'],
                                             style: const TextStyle(fontSize: 30),
                                           ),
-                                          const SizedBox(height: 5),
                                           Flexible(
                                             child: Text(
                                               serviceData['service'],
                                               style: const TextStyle(
-                                                fontSize: 12,
+                                                fontSize: 10,
                                                 fontWeight: FontWeight.w600,
                                                 color: Colors.black87,
                                               ),

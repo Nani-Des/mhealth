@@ -75,7 +75,7 @@ Future<void> _bookAppointment(
               Text(
                 'Why visit the Doctor?',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Colors.tealAccent,
                 ),

@@ -272,7 +272,7 @@ class _ReferralFormState extends State<ReferralForm> {
               SizedBox(height: 16),
               _buildTextField(_nameController, "Name"),
               SizedBox(height: 24),
-              Text("Sex", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              Text("Sex", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               _buildSexSelection(),
               SizedBox(height: 24),
               _buildDateOfBirthField(),

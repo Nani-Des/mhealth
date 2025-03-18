@@ -314,8 +314,8 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
             backgroundImage: userPic.isNotEmpty ? NetworkImage(userPic) : null,
             child: userPic.isEmpty ? Icon(Icons.person) : null,
           ),
-          title: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal)),
-          subtitle: Text(experience),
+          title: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal,fontSize: 14)),
+          subtitle: Text(experience, style: TextStyle(fontSize: 10),),
         ),
       ),
     );

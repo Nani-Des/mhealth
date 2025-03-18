@@ -1,9 +1,8 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'dart:convert'; // For JSON parsing
-import 'package:flutter/services.dart'; // For loading local JSON file
+import 'package:flutter/services.dart';
 import 'dart:async';
-import 'package:url_launcher/url_launcher.dart';
 import '../../Maps/map_screen1.dart';
 import '../knowledge_packs_page.dart';
 import 'article_detail_page.dart'; // For periodic animation updates

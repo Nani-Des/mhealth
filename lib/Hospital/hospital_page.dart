@@ -81,7 +81,7 @@ class _HospitalPageState extends State<HospitalPage> {
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blueGrey,
+                  color: Colors.teal,
                   letterSpacing: 1.2,
                 ),
               ),
@@ -250,7 +250,7 @@ class CardButton extends StatelessWidget {
           ),
           child: Icon(
             icon,
-            size: 36,
+            size: 30,
             color: Colors.white,
           ),
         ),
@@ -262,7 +262,7 @@ class CardButton extends StatelessWidget {
               Text(
                 title,
                 style: const TextStyle(
-                  fontSize: 22,
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                   letterSpacing: 0.5,
@@ -272,7 +272,7 @@ class CardButton extends StatelessWidget {
               Text(
                 'Tap to explore',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: 12,
                   color: Colors.white.withOpacity(0.9),
                 ),
               ),
@@ -300,7 +300,7 @@ class CardButton extends StatelessWidget {
           ),
           child: Icon(
             icon,
-            size: 32,
+            size: 30,
             color: Colors.white,
           ),
         ),
@@ -308,7 +308,7 @@ class CardButton extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 14,
             fontWeight: FontWeight.w600,
             color: Colors.white,
             letterSpacing: 0.5,
