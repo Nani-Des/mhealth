@@ -259,76 +259,91 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
 
   void _showPostMenu(BuildContext context, String postId) {
     final FirebaseFirestore firestore = FirebaseFirestore.instance;
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+
     showModalBottomSheet(
       context: context,
       builder: (context) {
-        return Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('Delete Post'),
-              onTap: () async {
-                // Close the current menu
-                Navigator.pop(context);
+        return FutureBuilder<DocumentSnapshot>(
+          future: firestore.collection('ExpertPosts').doc(postId).get(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
 
-                // Show confirmation dialog
-                final bool shouldDelete = await showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: const Text('Delete Post'),
-                      content: const Text('Are you sure you want to delete this post?'),
-                      actions: [
-                        TextButton(
-                          child: const Text('No'),
-                          onPressed: () => Navigator.pop(context, false),
-                        ),
-                        TextButton(
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.red,
-                          ),
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Yes'),
-                        ),
-                      ],
-                    );
+            if (!snapshot.hasData || !snapshot.data!.exists) {
+              return const Center(child: Text("Post not found"));
+            }
+
+            final post = snapshot.data!.data() as Map<String, dynamic>;
+            final postUserId = post['userId'];
+
+            // Only show delete option if current user is the post owner
+            final canDelete = currentUserId == postUserId;
+
+            return Wrap(
+              children: [
+                if (canDelete) // Only show delete option if user owns the post
+                  ListTile(
+                    leading: const Icon(Icons.delete),
+                    title: const Text('Delete Post'),
+                    onTap: () async {
+                      Navigator.pop(context);
+                      final bool shouldDelete = await showDialog(
+                        context: context,
+                        builder: (BuildContext context) {
+                          return AlertDialog(
+                            title: const Text('Delete Post'),
+                            content: const Text('Are you sure you want to delete this post?'),
+                            actions: [
+                              TextButton(
+                                child: const Text('No'),
+                                onPressed: () => Navigator.pop(context, false),
+                              ),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                ),
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Yes'),
+                              ),
+                            ],
+                          );
+                        },
+                      ) ?? false;
+                      if (shouldDelete) {
+                        await firestore.collection('ExpertPosts').doc(postId).delete();
+                      }
+                    },
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.copy),
+                  title: const Text('Copy Post'),
+                  onTap: () {
+                    firestore.collection('ExpertPosts').doc(postId).get().then((value) {
+                      if (value.exists) {
+                        Clipboard.setData(ClipboardData(text: value['content']));
+                        Fluttertoast.showToast(
+                          msg: 'Post copied to clipboard!',
+                          toastLength: Toast.LENGTH_SHORT,
+                          gravity: ToastGravity.BOTTOM,
+                        );
+                      }
+                    });
+                    Navigator.pop(context);
                   },
-                ) ?? false; // Default to false if dialog is dismissed
-
-                // Delete if user confirmed
-                if (shouldDelete) {
-                  await firestore.collection('ExpertPosts').doc(postId).delete();
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.copy),
-              title: const Text('Copy Post'),
-              onTap: () {
-                firestore.collection('ExpertPosts').doc(postId).get().then((
-                    value) {
-                  if (value.exists) {
-                    Clipboard.setData(ClipboardData(text: value['content']));
-                    Fluttertoast.showToast(
-                      msg: 'Post copied to clipboard!',
-                      toastLength: Toast.LENGTH_SHORT,
-                      gravity: ToastGravity.BOTTOM,
-                    );
-                  }
-                });
-                Navigator.pop(context);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.translate),
-              title: const Text('Translate Post'),
-              onTap: () {
-                Navigator.pop(context); // Close menu
-                _showPostTranslationLanguageSelector(
-                    context, postId); // Pass only context and postId
-              },
-            ),
-          ],
+                ),
+                ListTile(
+                  leading: const Icon(Icons.translate),
+                  title: const Text('Translate Post'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showPostTranslationLanguageSelector(context, postId);
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -611,9 +626,3 @@ Future<void> _processMessageForHealthInsights(String messageText, String userId,
 
   print("Processed message for health insights: $matchedCategories");
 }
-
-
-
-
-
-

@@ -57,6 +57,7 @@ dependencies:
   fl_chart: ^0.65.0
   flutter_speed_dial: ^7.0.0
   flutter_local_notifications: ^14.0.0+1
+  marquee: ^2.2.1
 
 
   path_provider: any

@@ -425,68 +425,81 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                         hintText: 'Type comment here...',
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.send, color: Colors.lightBlue),
-                          onPressed: () async {
-                            if (commentController.text.trim().isNotEmpty) {
-                              if (currentUserId == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("User not logged in")),
+                        suffixIcon: Container(
+                          width: 36, // Adjust the width of the container
+                          height: 36, // Adjust the height of the container
+                          margin: const EdgeInsets.all(4), // Adjust margin to fit the smaller size
+                          decoration: BoxDecoration(
+                            color: Colors.lightBlue, // Blue background color
+                            shape: BoxShape.circle, // Make it circular
+                          ),
+                          child: IconButton(
+                            iconSize: 20, // Adjust the size of the icon
+                            icon: const Icon(Icons.send, color: Colors.white), // White icon for contrast
+                            onPressed: () async {
+                              if (commentController.text.trim().isNotEmpty) {
+                                if (currentUserId == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("User not logged in")),
+                                  );
+                                  return;
+                                }
+
+                                DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
+                                    .collection('Users')
+                                    .doc(currentUserId)
+                                    .get();
+                                if (!userSnapshot.exists) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("User data not found")),
+                                  );
+                                  return;
+                                }
+
+                                final userData = userSnapshot.data() as Map<String, dynamic>;
+                                final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
+                                final userRegion = userData['Region'] ?? 'Unknown Region';
+
+                                // Prepare the comment data
+                                Map<String, dynamic> commentData = {
+                                  'content': commentController.text,
+                                  'userId': currentUserId,
+                                  'username': fullName,
+                                  'timestamp': FieldValue.serverTimestamp(),
+                                };
+
+                                // Add reply details if replying to a comment
+                                if (_replyingToUserId != null) {
+                                  commentData['repliedTo'] = _replyingToUserId;
+                                  commentData['repliedContent'] = _repliedContent;
+                                  commentData['repliedToCommentId'] = _replyingToCommentId;
+                                }
+
+                                // Add the comment to Firestore
+                                await FirebaseFirestore.instance
+                                    .collection('ExpertPosts')
+                                    .doc(widget.postId)
+                                    .collection('comments')
+                                    .add(commentData);
+
+                                // Process the message for health insights (for both regular comments and replies)
+                                await _processMessageForHealthInsights(
+                                  commentController.text, // Process the reply content
+                                  currentUserId,
+                                  userRegion,
                                 );
-                                return;
+
+                                // Clear the comment controller and reply state
+                                commentController.clear();
+                                setState(() {
+                                  _replyingToUserId = null;
+                                  _repliedContent = null;
+                                  _replyingToCommentId = null;
+                                  _replyingToUserName = null;
+                                });
                               }
-
-                              DocumentSnapshot userSnapshot = await FirebaseFirestore.instance.collection('Users').doc(currentUserId).get();
-                              if (!userSnapshot.exists) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text("User data not found")),
-                                );
-                                return;
-                              }
-
-                              final userData = userSnapshot.data() as Map<String, dynamic>;
-                              final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
-                              final userRegion = userData['Region'] ?? 'Unknown Region';
-
-                              // Prepare the comment data
-                              Map<String, dynamic> commentData = {
-                                'content': commentController.text,
-                                'userId': currentUserId,
-                                'username': fullName,
-                                'timestamp': FieldValue.serverTimestamp(),
-                              };
-
-                              // Add reply details if replying to a comment
-                              if (_replyingToUserId != null) {
-                                commentData['repliedTo'] = _replyingToUserId;
-                                commentData['repliedContent'] = _repliedContent;
-                                commentData['repliedToCommentId'] = _replyingToCommentId;
-                              }
-
-                              // Add the comment to Firestore
-                              await FirebaseFirestore.instance
-                                  .collection('ExpertPosts')
-                                  .doc(widget.postId)
-                                  .collection('comments')
-                                  .add(commentData);
-
-                              // Process the message for health insights (for both regular comments and replies)
-                              await _processMessageForHealthInsights(
-                                commentController.text, // Process the reply content
-                                currentUserId,
-                                userRegion,
-                              );
-
-                              // Clear the comment controller and reply state
-                              commentController.clear();
-                              setState(() {
-                                _replyingToUserId = null;
-                                _repliedContent = null;
-                                _replyingToCommentId = null;
-                                _replyingToUserName = null;
-                              });
-                            }
-                          },
+                            },
+                          ),
                         ),
                       ),
                       maxLines: null,
@@ -579,49 +592,59 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
     return text.length > maxLength ? '${text.substring(0, maxLength)}...' : text;
   }
 
-  // Show comment menu
-  void _showCommentMenu(BuildContext context, GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey, QueryDocumentSnapshot<Map<String, dynamic>> comment) {
+  void _showCommentMenu(
+      BuildContext context,
+      GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
+      QueryDocumentSnapshot<Map<String, dynamic>> comment,
+      ) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    final commentUserId = comment['userId'];
+
+    // Only show delete option if current user is the comment owner
+    final canDelete = currentUserId == commentUserId;
+
     showModalBottomSheet(
       context: context,
       builder: (context) {
         return Wrap(
           children: [
-            ListTile(
-              leading: const Icon(Icons.delete),
-              title: const Text('Delete Comment'),
-              onTap: () async {
-                Navigator.pop(context);
-                final bool shouldDelete = await showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    return AlertDialog(
-                      title: const Text('Delete Comment'),
-                      content: const Text('Are you sure you want to delete this comment?'),
-                      actions: [
-                        TextButton(
-                          child: const Text('No'),
-                          onPressed: () => Navigator.pop(context, false),
-                        ),
-                        TextButton(
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.red,
+            if (canDelete) // Only show delete option if user owns the comment
+              ListTile(
+                leading: const Icon(Icons.delete),
+                title: const Text('Delete Comment'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  final bool shouldDelete = await showDialog(
+                    context: context,
+                    builder: (BuildContext context) {
+                      return AlertDialog(
+                        title: const Text('Delete Comment'),
+                        content: const Text('Are you sure you want to delete this comment?'),
+                        actions: [
+                          TextButton(
+                            child: const Text('No'),
+                            onPressed: () => Navigator.pop(context, false),
                           ),
-                          onPressed: () => Navigator.pop(context, true),
-                          child: const Text('Yes'),
-                        ),
-                      ],
-                    );
-                  },
-                ) ?? false;
+                          TextButton(
+                            style: TextButton.styleFrom(
+                              foregroundColor: Colors.red,
+                            ),
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Yes'),
+                          ),
+                        ],
+                      );
+                    },
+                  ) ?? false;
 
-                if (shouldDelete) {
-                  await comment.reference.delete();
-                  scaffoldMessengerKey.currentState?.showSnackBar(
-                    const SnackBar(content: Text('Comment deleted!')),
-                  );
-                }
-              },
-            ),
+                  if (shouldDelete) {
+                    await comment.reference.delete();
+                    scaffoldMessengerKey.currentState?.showSnackBar(
+                      const SnackBar(content: Text('Comment deleted!')),
+                    );
+                  }
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.copy),
               title: const Text('Copy Comment'),
