@@ -24,11 +24,19 @@ class _OrganizationListViewState extends State<OrganizationListView> {
   String searchQuery = "";
   late final Stream<QuerySnapshot> _hospitalsStream;
   final _auth = FirebaseAuth.instance;
+  late ScrollController _scrollController;
 
   @override
   void initState() {
     super.initState();
     _hospitalsStream = FirebaseFirestore.instance.collection('Hospital').snapshots();
+    _scrollController = ScrollController();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -57,26 +65,47 @@ class _OrganizationListViewState extends State<OrganizationListView> {
 
               final hospitals = _filterHospitals(snapshot.data!.docs);
 
-              return SingleChildScrollView(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: hospitals.length,
-                  itemBuilder: (context, index) {
-                    final hospital = hospitals[index];
-                    final hospitalData = hospital.data() as Map<String, dynamic>;
-                    final backgroundImage = hospitalData['Background Image']?.isNotEmpty == true
-                        ? hospitalData['Background Image']
-                        : 'assets/Images/background_default.jpg';
+              return Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.teal,
+                      spreadRadius: 2,
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Scrollbar(
+                  controller: _scrollController,
+                  thumbVisibility: true,// Always show scrollbar
+                  thickness: 8, // Slightly thicker for better visibility
+                  radius: const Radius.circular(12), // Smooth rounded edges
+                  trackVisibility: true, // Show track for modern look
+                  child: ListView.builder(
+                    controller: _scrollController,
+                    shrinkWrap: true,
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.all(8),
+                    itemCount: hospitals.length,
+                    itemBuilder: (context, index) {
+                      final hospital = hospitals[index];
+                      final hospitalData = hospital.data() as Map<String, dynamic>;
+                      final backgroundImage = hospitalData['Background Image']?.isNotEmpty == true
+                          ? hospitalData['Background Image']
+                          : 'assets/Images/background_default.jpg';
 
-                    return HospitalCard(
-                      backgroundImage: backgroundImage,
-                      city: hospitalData['City'] ?? 'Unknown City',
-                      contact: hospitalData['Contact'] ?? 'No Contact Info',
-                      hospitalId: hospital.id,
-                      onTap: () => _navigateToHospitalPage(context, hospital.id),
-                    );
-                  },
+                      return HospitalCard(
+                        backgroundImage: backgroundImage,
+                        city: hospitalData['City'] ?? 'Unknown City',
+                        contact: hospitalData['Contact'] ?? 'No Contact Info',
+                        hospitalId: hospital.id,
+                        onTap: () => _navigateToHospitalPage(context, hospital.id),
+                      );
+                    },
+                  ),
                 ),
               );
             },

@@ -78,7 +78,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
           'Hospital ID': _doctorDetails['hospitalId'], // Pass Hospital ID explicitly
         },
         hospitalName: _hospitalName,
-        departmentName: _departmentName,
+        departmentName: _departmentName, hospitalId: _doctorDetails['hospitalId'],departmentId: _doctorDetails['departmentId'] ?? '',
         onCall: _makePhoneCall,
           isReferral:widget.isReferral
       ),

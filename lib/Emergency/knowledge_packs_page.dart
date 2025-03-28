@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:hive/hive.dart';
-
 import 'Widgets/article_detail_page.dart';
 
 class KnowledgePacksPage extends StatefulWidget {
@@ -11,7 +10,7 @@ class KnowledgePacksPage extends StatefulWidget {
   _KnowledgePacksPageState createState() => _KnowledgePacksPageState();
 }
 
-class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
+class _KnowledgePacksPageState extends State<KnowledgePacksPage> with SingleTickerProviderStateMixin {
   Map<String, List<Map<String, dynamic>>> categorizedArticles = {};
   bool isLoading = true;
   late Box<String> knowledgePackBox;
@@ -19,15 +18,24 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
   late Map<String, List<Map<String, dynamic>>> localArticles;
   bool showArchived = false;
 
+  late AnimationController _progressAnimationController;
+  late Animation<double> _progressAnimation;
+
   @override
   void initState() {
     super.initState();
-    _initializeData(); // Call a method to handle async initialization
+    _initializeData();
+
+    _progressAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 2),
+    )..repeat();
+    _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_progressAnimationController);
   }
 
   Future<void> _initializeData() async {
-    await initializeHive(); // Wait for Hive boxes to be initialized
-    await loadAllArticles(); // Then load articles
+    await initializeHive();
+    await loadAllArticles();
   }
 
   Future<void> initializeHive() async {
@@ -87,7 +95,10 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
     await knowledgePackBox.put(title, content);
     setState(() {});
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Downloaded: $title", style: TextStyle(color: Colors.white)), backgroundColor: Colors.teal),
+      SnackBar(
+        content: Text("Downloaded: $title", style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.teal,
+      ),
     );
   }
 
@@ -109,12 +120,18 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
     if (archivedArticlesBox.containsKey(title)) {
       await archivedArticlesBox.delete(title);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Unarchived: $title", style: TextStyle(color: Colors.white)), backgroundColor: Colors.orange),
+        SnackBar(
+          content: Text("Unarchived: $title", style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.orange,
+        ),
       );
     } else {
       await archivedArticlesBox.put(title, content);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Archived: $title", style: TextStyle(color: Colors.white)), backgroundColor: Colors.teal),
+        SnackBar(
+          content: Text("Archived: $title", style: TextStyle(color: Colors.white)),
+          backgroundColor: Colors.teal,
+        ),
       );
     }
     setState(() {});
@@ -140,12 +157,64 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
   void dispose() {
     knowledgePackBox.close();
     archivedArticlesBox.close();
+    _progressAnimationController.dispose();
     super.dispose();
+  }
+
+  Widget _buildSophisticatedProgressIndicator() {
+    return AnimatedBuilder(
+      animation: _progressAnimationController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: CircularProgressIndicator(
+                value: _progressAnimation.value,
+                strokeWidth: 8,
+                backgroundColor: Colors.teal.withOpacity(0.2),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+              ),
+            ),
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Colors.teal.shade100, Colors.teal.shade300],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  '${(_progressAnimation.value * 100).toInt()}%',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    // Show a loading screen until initialization is complete
     if (isLoading) {
       return Scaffold(
         body: _buildLoadingState(),
@@ -230,9 +299,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
-          ),
+          _buildSophisticatedProgressIndicator(),
           const SizedBox(height: 16),
           Text(
             "Loading Knowledge Packs...",

@@ -14,13 +14,16 @@ class HomePage extends StatefulWidget {
   _HomePageState createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   User? currentUser;
   String? userImageUrl;
   bool showProfileDrawer = false;
   late AnimationController _controller;
   late Animation<Offset> _slideAnimation;
   final GlobalKey _fabKey = GlobalKey();
+
+  late AnimationController _textAnimationController;
+  late Animation<double> _textFadeAnimation;
 
   @override
   void initState() {
@@ -31,11 +34,23 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
     );
     _slideAnimation = Tween<Offset>(begin: Offset(0, 1), end: Offset(0, 0.3)).animate(_controller);
 
+    // Initialize the text animation controller
+    _textAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1200), // Duration of one fade cycle
+    )..repeat(reverse: true); // Repeat the animation indefinitely, reversing direction
+
+    // Define the fade animation (from 0.5 opacity to 1.0)
+    _textFadeAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _textAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
     _fetchUserData();
-    // Trigger showcase only once using SharedPreferences
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('hasSeenEmergencyWalkthrough');
       final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
       if (!hasSeenWalkthrough && mounted) {
         ShowCaseWidget.of(context)?.startShowCase([_fabKey]);
@@ -92,6 +107,7 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   @override
   void dispose() {
     _controller.dispose();
+    _textAnimationController.dispose(); // Dispose the text animation controller
     super.dispose();
   }
 
@@ -103,21 +119,21 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
         title: Text(
           'Do you have Health needs?',
           style: TextStyle(
-              color: Colors.teal,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+            color: Colors.teal,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
           ),
         ),
         backgroundColor: Colors.white,
         actions: [
           GestureDetector(
-            onTap: _onAvatarTap, // Check login status and open profile drawer if logged in
+            onTap: _onAvatarTap,
             child: CircleAvatar(
               backgroundImage: userImageUrl != null && userImageUrl!.isNotEmpty
                   ? NetworkImage(userImageUrl!)
                   : null,
               child: userImageUrl == null || userImageUrl!.isEmpty
-                  ? Icon(Icons.person, color: Colors.teal) // Placeholder icon
+                  ? Icon(Icons.person, color: Colors.teal)
                   : null,
             ),
           ),
@@ -144,21 +160,62 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
               slideAnimation: _slideAnimation,
               showProfileDrawer: showProfileDrawer,
             ),
-
           ],
         ),
       ),
-      bottomNavigationBar: CustomBottomNavBar(selectedIndex:1),
+      bottomNavigationBar: CustomBottomNavBar(selectedIndex: 1),
       floatingActionButton: Showcase(
-    key: _fabKey,
-    description: 'Tap to access Emergency Assistance.',
-    child: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => EmergencyPage()));
-        },
-        child: Icon(Icons.add),
-        backgroundColor: Colors.redAccent,
-      ),),
+        key: _fabKey,
+        description: 'Tap to access Emergency Assistance.',
+        child: GestureDetector(
+          onTap: () {
+            Navigator.push(context, MaterialPageRoute(builder: (context) => EmergencyPage()));
+          },
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                  border: Border.all(color: Colors.redAccent.withOpacity(0.5)),
+                ),
+                child: FadeTransition(
+                  opacity: _textFadeAnimation,
+                  child: Text(
+                    'Emergency >>',
+                    style: TextStyle(
+                      color: Colors.redAccent,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(width: 8),
+              FloatingActionButton(
+                onPressed: () {
+                  // Keep the FAB's onPressed for consistency, but it will also trigger the GestureDetector
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => EmergencyPage()));
+                },
+                child: Icon(Icons.medical_services, color:Colors.white),
+                backgroundColor: Colors.redAccent,
+                elevation: 6,
+                tooltip: 'Emergency Assistance',
+              ),
+            ],
+          ),
+        ),
+      ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
     );
   }

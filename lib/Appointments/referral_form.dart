@@ -332,6 +332,16 @@ class _ReferralFormState extends State<ReferralForm> {
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.teal)),
               SizedBox(height: 32),
               _buildHealthFacilityButton(),
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: TextButton(
+                  onPressed: _selectHealthFacility,
+                  child: Text(
+                    "Change",
+                    style: TextStyle(color: Colors.red, fontSize: 16),
+                  ),
+                ),
+              ),
               SizedBox(height: 48),
               _buildNavigationButtons(isLastPage: true),
             ],
@@ -439,7 +449,7 @@ class _ReferralFormState extends State<ReferralForm> {
       label: Text(
         _selectedHealthFacility == null
             ? "Select Health Facility"
-            : "Selected: $_selectedHealthFacility",
+            : "Suggested: $_selectedHealthFacility",
         overflow: TextOverflow.ellipsis,
       ),
       style: ElevatedButton.styleFrom(

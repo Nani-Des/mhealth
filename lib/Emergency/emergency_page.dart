@@ -11,7 +11,6 @@ import 'package:string_similarity/string_similarity.dart';
 import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import 'Widgets/article_detail_page.dart';
 import 'Widgets/emergency_hompage_content.dart';
 import 'Widgets/first_aid_response_widget1.dart';
@@ -26,11 +25,10 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   final FlutterTts _flutterTts = FlutterTts();
   late stt.SpeechToText _speechToText;
 
-
   bool _isListening = false;
   bool _showResponsePopup = false;
   bool _isOffline = false;
-  bool _isLoading = false; // Loading state for progress indicator
+  bool _isLoading = false;
   String _responseText = "";
 
   final GlobalKey _micKey = GlobalKey();
@@ -40,14 +38,22 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   Map<String, dynamic>? _emergencyData;
   late Box _translationBox;
 
+  late AnimationController _progressAnimationController;
+  late Animation<double> _progressAnimation;
+
   @override
   void initState() {
     super.initState();
     _speechToText = stt.SpeechToText();
-
-     _translationBox = Hive.box('translations');
+    _translationBox = Hive.box('translations');
     _loadEmergencyData();
     _checkConnectivity();
+
+    _progressAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 2),
+    )..repeat();
+    _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_progressAnimationController);
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
@@ -89,6 +95,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   void dispose() {
     _messageController.dispose();
     _flutterTts.stop();
+    _progressAnimationController.dispose();
     super.dispose();
   }
 
@@ -122,7 +129,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     }
 
     setState(() {
-      _isLoading = true; // Show progress indicator
+      _isLoading = true;
     });
 
     String response;
@@ -135,7 +142,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       } else {
         response = await _fetchFirstAidResponse(query);
         if (!response.startsWith("Sorry,")) {
-          await _translationBox.put(query, response); // Cache successful response
+          await _translationBox.put(query, response);
         }
       }
     }
@@ -146,10 +153,10 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
 
     setState(() {
       _responseText = response;
-      _isLoading = false; // Hide progress indicator
+      _isLoading = false;
     });
 
-    _showResponseBottomSheet(); // Show the response in a bottom sheet
+    _showResponseBottomSheet();
     await _flutterTts.speak(response);
   }
 
@@ -160,8 +167,8 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         return "API key is missing. Please check the environment variables.";
       }
 
-      // Prefix to add to every user query
-      const String prefix = "Provide clear, step-by-step first-aid instructions for the following situation in a gradual and simple manner. Use easy-to-understand language, avoid complex medical jargon: ";
+      const String prefix =
+          "Provide clear, step-by-step first-aid instructions for the following situation in a gradual and simple manner. Use easy-to-understand language, avoid complex medical jargon: ";
       final String modifiedQuery = prefix + query;
 
       final response = await Dio().post(
@@ -194,11 +201,8 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     String bestMatchContent = "";
     double highestScore = 0.0;
 
-    // Clean and tokenize the query
     final cleanQuery = query.toLowerCase().trim();
     final allWords = cleanQuery.split(RegExp(r'\s+'));
-
-    // Define stop words
     const stopWords = {
       'i', 'me', 'my', 'myself', 'we', 'our', 'ours', 'ourselves', 'you', 'your',
       'yours', 'he', 'him', 'his', 'she', 'her', 'hers', 'it', 'its', 'they',
@@ -209,7 +213,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       'at', 'by', 'for', 'with', 'about', 'to', 'in', 'on', 'from'
     };
 
-    // Extract keywords from query
     final keywords = allWords.where((word) => !stopWords.contains(word)).toList();
     final keywordQuery = keywords.isNotEmpty ? keywords.join(' ') : cleanQuery;
     print("Debug: Query entered: '$cleanQuery' -> Keywords: $keywords");
@@ -218,21 +221,14 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       final String title = article['title'].toString().toLowerCase();
       final String keywordsFromData = article['keywords'].toString().toLowerCase();
 
-      // Split keywords on commas and trim whitespace
       final keywordList = keywordsFromData.split(',').map((k) => k.trim()).toList();
-      final combinedText = "$title, ${keywordList.join(', ')}"; // Combine with comma separation
-
-      // Split combined text into individual terms for overlap check
+      final combinedText = "$title, ${keywordList.join(', ')}";
       final textWords = combinedText.split(RegExp(r',\s*')).map((w) => w.trim()).toList();
 
-      // Calculate similarity using extracted keywords
       final double similarity = keywordQuery.similarityTo(combinedText);
-
-      // Calculate word overlap score with keywords
       final int matchingWords = keywords.where((word) => textWords.any((tw) => tw.contains(word))).length;
       final double overlapScore = keywords.isNotEmpty ? matchingWords / keywords.length : 0.0;
 
-      // Combine scores: 70% similarity, 30% overlap
       final double combinedScore = (0.7 * similarity) + (0.3 * overlapScore);
       print("Debug: Comparing '$keywordQuery' to '$combinedText' -> Similarity: $similarity, Overlap: $overlapScore, Combined: $combinedScore");
 
@@ -244,8 +240,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     }
 
     print("Debug: Highest score: $highestScore for '$bestMatchTitle'");
-
-    // Dynamic threshold
     final double threshold = keywords.length <= 2 ? 0.2 : 0.3;
     if (highestScore < threshold) {
       print("Debug: Score $highestScore below threshold $threshold");
@@ -305,6 +299,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       },
     );
   }
+
   Future<void> _makePhoneCall(String phoneNumber) async {
     final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
     if (await canLaunchUrl(phoneUri)) {
@@ -313,6 +308,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       print('Could not launch $phoneNumber');
     }
   }
+
   void _showEmergencyOptions(BuildContext context) {
     showDialog(
       context: context,
@@ -347,7 +343,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                   context,
                   icon: Icons.local_police,
                   label: "Police",
-                  number: "911", // Replace with local police number
+                  number: "911",
                   color: Colors.blue.shade700,
                 ),
                 SizedBox(height: 12),
@@ -355,7 +351,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                   context,
                   icon: Icons.fire_truck,
                   label: "Fire Service",
-                  number: "101", // Replace with local fire service number
+                  number: "101",
                   color: Colors.orange.shade700,
                 ),
                 SizedBox(height: 12),
@@ -363,7 +359,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                   context,
                   icon: Icons.local_hospital,
                   label: "Ambulance",
-                  number: "112", // Replace with local ambulance number
+                  number: "112",
                   color: Colors.red.shade700,
                 ),
               ],
@@ -374,7 +370,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     );
   }
 
-// Assuming _buildOptionButton is defined as:
   Widget _buildOptionButton(
       BuildContext context, {
         required IconData icon,
@@ -384,7 +379,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       }) {
     return GestureDetector(
       onTap: () {
-        _makePhoneCall(number); // Assuming this is defined elsewhere
+        _makePhoneCall(number);
         Navigator.pop(context);
       },
       child: Container(
@@ -418,7 +413,57 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     );
   }
 
-
+  Widget _buildSophisticatedProgressIndicator() {
+    return AnimatedBuilder(
+      animation: _progressAnimationController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: CircularProgressIndicator(
+                value: _progressAnimation.value,
+                strokeWidth: 8,
+                backgroundColor: Colors.teal.withOpacity(0.2),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+              ),
+            ),
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Colors.teal.shade100, Colors.teal.shade300],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  '${(_progressAnimation.value * 100).toInt()}%',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -428,15 +473,13 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         backgroundColor: Colors.redAccent,
         title: Row(
           children: [
-            Icon(Icons.emergency, color: Colors.white),
-            SizedBox(width: 8),
-            Text(
-              "Emergency${_isOffline ? ' (Offline)' : ''}",
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
-              ),
+            Icon(
+              _isOffline ? Icons.cloud_off : Icons.cloud_done,
+              color: Colors.white,
+              size: 24,
             ),
+            SizedBox(width: 2),
+
           ],
         ),
         flexibleSpace: Container(
@@ -449,11 +492,100 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           ),
         ),
         actions: [
-          IconButton(
-            icon: Icon(Icons.call, color: Colors.white),
-            onPressed: () => _showEmergencyOptions(context),
-            tooltip: "Call Emergency Services",
+          // Police Button (Blue)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0),
+            child: Tooltip(
+              message: "Call Police (911)",
+              child: GestureDetector(
+                onTap: () => _makePhoneCall("911"),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade700,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.local_police, color: Colors.white, size: 20),
+                      SizedBox(width: 4),
+                      Text(
+                        "Police",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
+          // Fire Service Button (Orange)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0),
+            child: Tooltip(
+              message: "Call Fire Service (101)",
+              child: GestureDetector(
+                onTap: () => _makePhoneCall("101"),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade700,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.fire_truck, color: Colors.white, size: 20),
+                      SizedBox(width: 4),
+                      Text(
+                        "Fire Service",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // Ambulance Button (Red)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6.0),
+            child: Tooltip(
+              message: "Call Ambulance (112)",
+              child: GestureDetector(
+                onTap: () => _makePhoneCall("112"),
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade700,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.local_hospital, color: Colors.white, size: 20),
+                      SizedBox(width: 4),
+                      Text(
+                        "Ambulance",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(width: 8), // Final padding for right edge
         ],
       ),
       body: Container(
@@ -466,16 +598,13 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         ),
         child: Stack(
           children: [
-            // Main content (scrollable)
             EmergencyHomePageContent(),
-            // Input area positioned at the bottom, adjusted for keyboard
             Positioned(
               left: 15,
               right: 15,
-              bottom:20,
+              bottom: 20,
               child: _buildInputArea(),
             ),
-            // Loading overlay
             if (_isLoading)
               Center(
                 child: Container(
@@ -487,11 +616,12 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      CircularProgressIndicator(
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+                      _buildSophisticatedProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(
+                        "Processing Emergency...",
+                        style: TextStyle(color: Colors.white, fontSize: 16),
                       ),
-                      SizedBox(height: 10),
-                      Text("Processing...", style: TextStyle(color: Colors.white)),
                     ],
                   ),
                 ),
@@ -530,8 +660,8 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                 decoration: InputDecoration(
                   hintText: "Describe the emergency...",
                   hintStyle: const TextStyle(
-                    fontSize: 12, // Change this value to adjust the size (default is usually 14-16)
-                    color: Colors.grey, // Optional: adjust color if needed
+                    fontSize: 12,
+                    color: Colors.grey,
                   ),
                   filled: true,
                   fillColor: Colors.grey[100],
@@ -566,8 +696,8 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
             child: FloatingActionButton(
               onPressed: () {
                 String query = _messageController.text;
-                _messageController.clear(); // Clear input immediately
-                _fetchAndShowResponse(query); // Fetch response
+                _messageController.clear();
+                _fetchAndShowResponse(query);
               },
               backgroundColor: Colors.redAccent,
               elevation: 2,

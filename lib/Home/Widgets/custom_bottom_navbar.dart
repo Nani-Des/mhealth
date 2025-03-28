@@ -98,8 +98,8 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
                 label: 'Home',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.settings),
-                label: 'Settings',
+                icon: Icon(Icons.forum_rounded),
+                label: 'Forum',
               ),
             ],
             currentIndex: _selectedIndex,

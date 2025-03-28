@@ -9,16 +9,21 @@ import 'doctor_profile.dart';
 class SpecialtyDetails extends StatefulWidget {
   final String hospitalId;
   final bool isReferral;
+  final String? initialDepartmentId;
   final Function? selectHealthFacility;
 
-  SpecialtyDetails({required this.hospitalId, required this.isReferral, this.selectHealthFacility,});
+  SpecialtyDetails({
+    required this.hospitalId,
+    this.initialDepartmentId,
+    required this.isReferral,
+    this.selectHealthFacility,
+  });
 
   @override
   _SpecialtyDetailsState createState() => _SpecialtyDetailsState();
 }
 
-class _SpecialtyDetailsState extends State<SpecialtyDetails>
-    with SingleTickerProviderStateMixin {
+class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<Color?> _animation;
   FirebaseService _firebaseService = FirebaseService();
@@ -34,9 +39,26 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
   final GlobalKey _servicekey = GlobalKey();
   final GlobalKey _specialtycalendarKey = GlobalKey();
 
+  late AnimationController _textAnimationController;
+  late Animation<double> _textFadeAnimation;
+
+  late AnimationController _progressAnimationController;
+  late Animation<double> _progressAnimation;
+
   @override
   void initState() {
     super.initState();
+    _textAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+
+    _textFadeAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _textAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
 
     _controller = AnimationController(
       duration: const Duration(seconds: 1),
@@ -48,11 +70,17 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
       end: Colors.tealAccent,
     ).animate(_controller);
 
+    _progressAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 2),
+    )..repeat();
+    _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_progressAnimationController);
+
+    _selectedDepartmentId = widget.initialDepartmentId;
     _loadHospitalData();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('hasSeenEmergencyWalkthrough');
       final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
       if (!hasSeenWalkthrough && mounted) {
         ShowCaseWidget.of(context)?.startShowCase([_servicekey, _specialtycalendarKey]);
@@ -68,18 +96,24 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
       List<Map<String, dynamic>> departments =
       await _firebaseService.getDepartmentsForHospital(widget.hospitalId);
 
-      if (departments.isNotEmpty) {
-        _selectedDepartmentId = departments.first['Department ID'];
-        _loadDoctorsForDepartment(_selectedDepartmentId!);
-      }
-
       setState(() {
         _hospitalDetails = hospitalDetails;
         _departments = departments;
         _isLoading = false;
+
+        if (_selectedDepartmentId != null &&
+            _departments.any((dept) => dept['Department ID'] == _selectedDepartmentId)) {
+          _loadDoctorsForDepartment(_selectedDepartmentId!);
+        } else if (_departments.isNotEmpty) {
+          _selectedDepartmentId = _departments.first['Department ID'];
+          _loadDoctorsForDepartment(_selectedDepartmentId!);
+        }
       });
     } catch (error) {
       print('Error fetching hospital data: $error');
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
@@ -97,13 +131,70 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
       });
     } catch (error) {
       print('Error fetching doctors: $error');
+      setState(() {
+        _isDoctorsLoading = false;
+      });
     }
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _textAnimationController.dispose();
+    _progressAnimationController.dispose();
     super.dispose();
+  }
+
+  Widget _buildSophisticatedProgressIndicator() {
+    return AnimatedBuilder(
+      animation: _progressAnimationController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: CircularProgressIndicator(
+                value: _progressAnimation.value,
+                strokeWidth: 8,
+                backgroundColor: Colors.teal.withOpacity(0.2),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+              ),
+            ),
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Colors.teal.shade100, Colors.teal.shade300],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  '${(_progressAnimation.value * 100).toInt()}%',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -121,10 +212,21 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
             color: Colors.white,
           ),
         ),
-
       ),
       body: _isLoading
-          ? Center(child: CircularProgressIndicator())
+          ? Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _buildSophisticatedProgressIndicator(),
+            SizedBox(height: 16),
+            Text(
+              "Loading Hospital Data...",
+              style: TextStyle(fontSize: 16, color: Colors.teal),
+            ),
+          ],
+        ),
+      )
           : Column(
         children: [
           Padding(
@@ -139,7 +241,6 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                       backgroundImage:
                       NetworkImage(_hospitalDetails['logo'] ?? ''),
                     ),
-
                   ],
                 ),
                 AnimatedBuilder(
@@ -159,37 +260,37 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                               child: ShiftScheduleScreen(
                                 hospitalId: widget.hospitalId,
                                 doctors: _doctors,
+                                isReferral: widget.isReferral,
                               ),
                             ),
                           ),
                         );
                       },
-                    child: Showcase(
-                    key: _servicekey,
-                    description: 'Tap to view the Department Timetable',
-                      child: Container(
-                        padding: const EdgeInsets.all(5.0),
-                        decoration: BoxDecoration(
-                          color: _animation.value,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(Icons.chat_bubble_outline,
-                                color: Colors.white),
-                            SizedBox(width: 10),
-                            Text(
-                              'Department Schedule',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
+                      child: Showcase(
+                        key: _servicekey,
+                        description: 'Tap to view the Department Timetable',
+                        child: Container(
+                          padding: const EdgeInsets.all(5.0),
+                          decoration: BoxDecoration(
+                            color: _animation.value,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.chat_bubble_outline, color: Colors.white),
+                              SizedBox(width: 10),
+                              Text(
+                                'Department Schedule',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 14,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
                     );
                   },
                 ),
@@ -205,13 +306,11 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                   child: ListView.builder(
                     itemCount: _departments.length,
                     itemBuilder: (context, index) {
-                      String departmentId =
-                      _departments[index]['Department ID'];
+                      String departmentId = _departments[index]['Department ID'];
                       return Column(
                         children: [
                           GestureDetector(
-                            onTap: () =>
-                                _loadDoctorsForDepartment(departmentId),
+                            onTap: () => _loadDoctorsForDepartment(departmentId),
                             child: _specialtyLabel(
                               _departments[index]['Department Name'],
                               departmentId == _selectedDepartmentId,
@@ -226,9 +325,35 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
                 Expanded(
                   flex: 7,
                   child: _isDoctorsLoading
-                      ? Center(child: CircularProgressIndicator())
+                      ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildSophisticatedProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text(
+                          "Loading Doctors...",
+                          style: TextStyle(fontSize: 16, color: Colors.teal),
+                        ),
+                      ],
+                    ),
+                  )
                       : _doctors.isEmpty
-                      ? Center(child: Text('Select a department'))
+                      ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.people_outline,
+                            size: 30, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No doctors available',
+                          style: TextStyle(
+                              fontSize: 10, color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  )
                       : ListView.builder(
                     itemCount: _doctors.length,
                     itemBuilder: (context, index) {
@@ -248,29 +373,46 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
         ],
       ),
       floatingActionButton: widget.isReferral
-          ? FloatingActionButton(
-        onPressed: () {
-          String selectedHospitalName = _hospitalDetails['hospitalName'] ?? 'Loading Hospital..';
+          ? Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FadeTransition(
+            opacity: _textFadeAnimation,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Text(
+                "Tap Here To Add Hospital",
+                style: TextStyle(
+                  color: Colors.teal,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          FloatingActionButton(
+            onPressed: () {
+              String selectedHospitalName =
+                  _hospitalDetails['hospitalName'] ?? 'Loading Hospital..';
 
-          // Pass the selected hospital name back to the previous screen
-          Navigator.pop(context, selectedHospitalName);
-          // Pop the navigation stack twice
-          Navigator.pop(context, selectedHospitalName);
-          Navigator.pop(context, selectedHospitalName); // First pop to go back to previous page
+              Navigator.pop(context, selectedHospitalName);
+              Navigator.pop(context, selectedHospitalName);
+              Navigator.pop(context, selectedHospitalName);
 
-          // Trigger the method to reset and re-execute the _selectHealthFacility logic
-          Future.delayed(Duration(milliseconds: 300), () {
-            // Check if the selectHealthFacility function is passed and execute it
-            if (widget.selectHealthFacility != null) {
-              widget.selectHealthFacility!(selectedHospitalName); // Pass selectedHospitalName here
-            }
-          });
-        },
-        child: Icon(Icons.add),
-        backgroundColor: Colors.teal,
+              Future.delayed(Duration(milliseconds: 300), () {
+                if (widget.selectHealthFacility != null) {
+                  widget.selectHealthFacility!(selectedHospitalName);
+                }
+              });
+            },
+            child: Icon(Icons.add),
+            backgroundColor: Colors.teal,
+          ),
+        ],
       )
           : null,
-      bottomNavigationBar: widget.isReferral ? null : CustomBottomNavBarHospital(hospitalId: widget.hospitalId),
+      bottomNavigationBar:
+      widget.isReferral ? null : CustomBottomNavBarHospital(hospitalId: widget.hospitalId),
     );
   }
 
@@ -292,14 +434,16 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
     );
   }
 
-  Widget _doctorDetailCard(
-      String userId, String name, String experience, String userPic) {
+  Widget _doctorDetailCard(String userId, String name, String experience, String userPic) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => DoctorProfileScreen(userId: userId,isReferral:widget.isReferral),
+            builder: (context) => DoctorProfileScreen(
+              userId: userId,
+              isReferral: widget.isReferral,
+            ),
           ),
         );
       },
@@ -314,8 +458,18 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails>
             backgroundImage: userPic.isNotEmpty ? NetworkImage(userPic) : null,
             child: userPic.isEmpty ? Icon(Icons.person) : null,
           ),
-          title: Text(name, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal,fontSize: 14)),
-          subtitle: Text(experience, style: TextStyle(fontSize: 10),),
+          title: Text(
+            name,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: Colors.teal,
+              fontSize: 14,
+            ),
+          ),
+          subtitle: Text(
+            experience,
+            style: TextStyle(fontSize: 10),
+          ),
         ),
       ),
     );

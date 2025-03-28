@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mhealth/Appointments/referral_form.dart';
+import 'package:mhealth/Appointments/Referral screens/referral_details_page.dart'; // Ensure this import matches your file structure
 import '../../Login/login_screen1.dart';
 import '../../booking_page.dart';
 import '../home_page.dart';
@@ -40,12 +41,10 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     _userDataFuture = _fetchUserData();
   }
 
-  // Updated _fetchUserData method
   Future<DocumentSnapshot> _fetchUserData() async {
     try {
       User? currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
-        // Fetch user data from Firestore
         var userDoc = await FirebaseFirestore.instance
             .collection('Users')
             .doc(currentUser.uid)
@@ -61,7 +60,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       }
     } catch (e) {
       print("Error loading user data: $e");
-      // Return Future.error to propagate the error
       return Future.error(e);
     }
   }
@@ -91,13 +89,14 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
           .doc(currentUser.uid)
           .update(userData);
 
-      // Refresh the data in the UI
       setState(() {
         _userDataFuture = _fetchUserData();
         _isEditing = false;
       });
     }
   }
+
+  @override
   void didUpdateWidget(covariant ProfileDrawer oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.showProfileDrawer && !oldWidget.showProfileDrawer) {
@@ -106,11 +105,11 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       });
     }
   }
-  void _checkAndNavigate(BuildContext context) async {
+
+  void _checkAndNavigate(BuildContext context, {bool isReferralForm = false}) async {
     User? user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
-      // Redirect to login if user is not signed in
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => LoginScreen1()),
@@ -118,7 +117,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       return;
     }
 
-    // Check user role from Firestore
     DocumentSnapshot userDoc = await FirebaseFirestore.instance
         .collection('Users')
         .doc(user.uid)
@@ -127,12 +125,11 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     bool isDoctor = userDoc.exists && userDoc['Role'] == true;
 
     if (!isDoctor) {
-      // Show a message if a non-doctor tries to access "Referrals"
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
           title: Text("Access Denied"),
-          content: Text("Only doctors can access Referrals."),
+          content: Text("Only doctors can access ${isReferralForm ? 'Referral Form' : 'Referrals'}."),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
@@ -144,13 +141,15 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       return;
     }
 
-    // Navigate to the service page
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => ReferralForm()),
+      MaterialPageRoute(
+        builder: (context) => isReferralForm
+            ? ReferralForm()
+            : ReferralDetailsPage(userId: user.uid),
+      ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -303,7 +302,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
                               ),
-
                               SizedBox(height: 12),
                               TextFormField(
                                 controller: _regionController,
@@ -333,7 +331,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                           ),
                           SizedBox(height: 1),
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.center, // Added this line
+                            mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
                                 '$email',
@@ -349,7 +347,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                               )
                             ],
                           ),
-
                         ],
                       ),
                     ),
@@ -376,10 +373,17 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                           ),
                           SizedBox(width: 20),
                           _buildInfoBox(
-                            Icons.add_call,
+                            Icons.person_add,
                             'Refer a Patient',
                             region,
-                                () => _checkAndNavigate(context),
+                                () => _checkAndNavigate(context, isReferralForm: true),
+                          ),
+                          SizedBox(width: 20),
+                          _buildInfoBox(
+                            Icons.description,
+                            'Referrals',
+                            region,
+                                () => _checkAndNavigate(context, isReferralForm: false),
                           ),
                         ],
                       ),

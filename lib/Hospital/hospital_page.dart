@@ -11,6 +11,7 @@ class HospitalPage extends StatefulWidget {
   final bool isReferral;
   final Function? selectHealthFacility;
 
+
   const HospitalPage({
     super.key,
     required this.hospitalId,
@@ -22,13 +23,30 @@ class HospitalPage extends StatefulWidget {
   _HospitalPageState createState() => _HospitalPageState();
 }
 
-class _HospitalPageState extends State<HospitalPage> {
+class _HospitalPageState extends State<HospitalPage>
+    with SingleTickerProviderStateMixin{
   final FirebaseService _firebaseService = FirebaseService();
   Map<String, String> _hospitalDetails = {'hospitalName': '', 'logo': ''};
+
+  late AnimationController _textAnimationController;
+  late Animation<double> _textFadeAnimation;
+
 
   @override
   void initState() {
     super.initState();
+    _textAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1200), // Duration of one fade cycle
+    )..repeat(reverse: true); // Repeat the animation indefinitely, reversing direction
+
+    // Define the fade animation (from 0.5 opacity to 1.0)
+    _textFadeAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _textAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
     _loadHospitalData();
   }
 
@@ -42,6 +60,11 @@ class _HospitalPageState extends State<HospitalPage> {
     } catch (error) {
       print('Error fetching hospital data: $error');
     }
+  }
+  @override
+  void dispose() {
+    _textAnimationController.dispose();
+    super.dispose();
   }
 
   @override
@@ -163,25 +186,44 @@ class _HospitalPageState extends State<HospitalPage> {
           ),
         ),
       ),
-      bottomNavigationBar: widget.isReferral ? null : CustomBottomNavBarHospital(hospitalId: widget.hospitalId),
       floatingActionButton: widget.isReferral
-          ? FloatingActionButton(
-        onPressed: () {
-          String selectedHospitalName =
-              _hospitalDetails['hospitalName'] ?? 'Loading Hospital..';
-          Navigator.pop(context, selectedHospitalName);
-          Navigator.pop(context, selectedHospitalName);
+          ? Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FadeTransition(
+            opacity: _textFadeAnimation,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Text(
+                "Tap Here To Add Hospital",
+                style: TextStyle(
+                  color: Colors.teal,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          FloatingActionButton(
+            onPressed: () {
+              String selectedHospitalName = _hospitalDetails['hospitalName'] ?? 'Loading Hospital..';
 
-          Future.delayed(const Duration(milliseconds: 300), () {
-            if (widget.selectHealthFacility != null) {
-              widget.selectHealthFacility!(selectedHospitalName);
-            }
-          });
-        },
-        child: const Icon(Icons.add),
-        backgroundColor: Colors.teal,
+              Navigator.pop(context, selectedHospitalName);
+              Navigator.pop(context, selectedHospitalName);
+
+              Future.delayed(Duration(milliseconds: 300), () {
+                if (widget.selectHealthFacility != null) {
+                  widget.selectHealthFacility!(selectedHospitalName);
+                }
+              });
+            },
+            child: Icon(Icons.add),
+            backgroundColor: Colors.teal,
+          ),
+        ],
       )
           : null,
+      bottomNavigationBar: widget.isReferral ? null : CustomBottomNavBarHospital(hospitalId: widget.hospitalId),
     );
   }
 }

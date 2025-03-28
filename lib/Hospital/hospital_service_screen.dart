@@ -4,23 +4,41 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mhealth/Appointments/Referral%20screens/referral_details_page.dart';
 import '../Appointments/referral_form.dart';
 import '../Login/login_screen1.dart';
+import '../Services/firebase_service.dart';
 import 'Widgets/custom_nav_bar.dart';
 import 'hospital_profile_screen.dart';
 
 class HospitalServiceScreen extends StatefulWidget {
   final String hospitalId;
   final bool isReferral;
+  final Function? selectHealthFacility;
 
-  const HospitalServiceScreen({required this.hospitalId, required this.isReferral, Key? key}) : super(key: key);
+  const HospitalServiceScreen({
+    required this.hospitalId,
+    required this.isReferral,
+    this.selectHealthFacility,
+    Key? key,
+  }) : super(key: key);
 
   @override
   _HospitalServiceScreenState createState() => _HospitalServiceScreenState();
 }
 
-class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
+class _HospitalServiceScreenState extends State<HospitalServiceScreen> with TickerProviderStateMixin {
   Map<String, List<Map<String, dynamic>>> timetable = {};
+  late AnimationController _textAnimationController;
+  late Animation<double> _textFadeAnimation;
+  late AnimationController _progressAnimationController;
+  late Animation<double> _progressAnimation;
 
-  // Define the desired order of days
+  Map<String, String> _hospitalDetails = {};
+  List<Map<String, dynamic>> _departments = [];
+  List<Map<String, dynamic>> _doctors = [];
+  String? _selectedDepartmentId;
+  bool _isLoading = true;
+  bool _isDoctorsLoading = false;
+  FirebaseService _firebaseService = FirebaseService();
+
   final List<String> orderedDays = [
     'Sunday',
     'Monday',
@@ -35,6 +53,47 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
   void initState() {
     super.initState();
     _loadServices();
+    _loadHospitalData();
+    _textAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+
+    _textFadeAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _textAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+
+    _progressAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 2),
+    )..repeat();
+    _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_progressAnimationController);
+  }
+
+  Future<void> _loadHospitalData() async {
+    try {
+      Map<String, String> hospitalDetails = await _firebaseService.getHospitalDetails(widget.hospitalId);
+      List<Map<String, dynamic>> departments =
+      await _firebaseService.getDepartmentsForHospital(widget.hospitalId);
+
+      if (departments.isNotEmpty) {
+        _selectedDepartmentId = departments.first['Department ID'];
+      }
+
+      setState(() {
+        _hospitalDetails = hospitalDetails;
+        _departments = departments;
+        _isLoading = false;
+      });
+    } catch (error) {
+      print('Error fetching hospital data: $error');
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   Future<void> _loadServices() async {
@@ -64,10 +123,8 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
   }
 
   String _getServiceIcon(String serviceName) {
-    // Normalize the input service name to lowercase for comparison
     String normalizedService = serviceName.toLowerCase();
 
-    // Map service names to emojis
     if (normalizedService.contains('refer') || normalizedService.contains('referral')) {
       return '🏥';
     } else if (normalizedService.contains('consult')) {
@@ -123,21 +180,21 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
     } else if (normalizedService.contains('nephrology') || normalizedService.contains('kidney')) {
       return '🫁';
     } else {
-      return '🏥'; // Default hospital icon
+      return '🏥';
     }
   }
 
   Widget Function() _getServicePage(String serviceName) {
     switch (serviceName.toLowerCase()) {
       case 'refer':
-        // return () => ReferralForm();
+      // return () => ReferralForm();
       case 'consultation':
-        // return () => ReferralDetailsPage(hospitalId: widget.hospitalId);
+      // return () => ReferralDetailsPage(hospitalId: widget.hospitalId);
       case 'emergency':
       case 'lab tests':
       case 'pharmacy':
       case 'radiology':
-        // return () => ReferralForm();
+      // return () => ReferralForm();
       default:
         return () => HospitalProfileScreen(hospitalId: widget.hospitalId);
     }
@@ -150,7 +207,8 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
       return;
     }
 
-    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(user.uid).get();
+    DocumentSnapshot userDoc =
+    await FirebaseFirestore.instance.collection('Users').doc(user.uid).get();
     bool isDoctor = userDoc.exists && userDoc['Role'] == true;
 
     if (serviceData['service'].toLowerCase() == 'refer' && !isDoctor) {
@@ -174,7 +232,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text(service, style: TextStyle(fontStyle:FontStyle.italic,color: Colors.teal)),
+        title: Text(service, style: TextStyle(fontStyle: FontStyle.italic, color: Colors.teal)),
         content: Text("Available Time: $time"),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))],
       ),
@@ -182,8 +240,66 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
   }
 
   @override
+  void dispose() {
+    _textAnimationController.dispose();
+    _progressAnimationController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildSophisticatedProgressIndicator() {
+    return AnimatedBuilder(
+      animation: _progressAnimationController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: CircularProgressIndicator(
+                value: _progressAnimation.value,
+                strokeWidth: 8,
+                backgroundColor: Colors.teal.withOpacity(0.2),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+              ),
+            ),
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Colors.teal.shade100, Colors.teal.shade300],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  '${(_progressAnimation.value * 100).toInt()}%',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Filter and sort days based on the orderedDays list and availability in timetable
     List<String> daysToDisplay = orderedDays.where((day) => timetable.containsKey(day)).toList();
 
     return Scaffold(
@@ -213,7 +329,19 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
             const SizedBox(height: 16),
             Expanded(
               child: timetable.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
+                  ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _buildSophisticatedProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text(
+                      "Loading Services...",
+                      style: TextStyle(fontSize: 16, color: Colors.teal),
+                    ),
+                  ],
+                ),
+              )
                   : ListView.builder(
                 itemCount: daysToDisplay.length,
                 itemBuilder: (context, index) {
@@ -254,7 +382,8 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
                                   onTap: () => _checkAndNavigate(context, serviceData),
                                   child: Card(
                                     elevation: 2,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                    shape:
+                                    RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                     child: Container(
                                       decoration: BoxDecoration(
                                         gradient: LinearGradient(
@@ -307,7 +436,46 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: widget.isReferral ? null : CustomBottomNavBarHospital(hospitalId: widget.hospitalId),
+      floatingActionButton: widget.isReferral
+          ? Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FadeTransition(
+            opacity: _textFadeAnimation,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Text(
+                "Tap Here To Add Hospital",
+                style: TextStyle(
+                  color: Colors.teal,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          FloatingActionButton(
+            onPressed: () {
+              String selectedHospitalName = _hospitalDetails['hospitalName'] ?? 'Loading Hospital..';
+
+              Navigator.pop(context, selectedHospitalName);
+              Navigator.pop(context, selectedHospitalName);
+              Navigator.pop(context, selectedHospitalName);
+
+              Future.delayed(Duration(milliseconds: 300), () {
+                if (widget.selectHealthFacility != null) {
+                  widget.selectHealthFacility!(selectedHospitalName);
+                }
+              });
+            },
+            child: Icon(Icons.add),
+            backgroundColor: Colors.teal,
+          ),
+        ],
+      )
+          : null,
+      bottomNavigationBar:
+      widget.isReferral ? null : CustomBottomNavBarHospital(hospitalId: widget.hospitalId),
     );
   }
 }

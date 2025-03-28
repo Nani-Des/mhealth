@@ -10,13 +10,78 @@ class BookingPage extends StatefulWidget {
   _BookingPageState createState() => _BookingPageState();
 }
 
-class _BookingPageState extends State<BookingPage> {
+class _BookingPageState extends State<BookingPage> with SingleTickerProviderStateMixin {
   late Stream<QuerySnapshot> _allBookingsStream;
+  late AnimationController _animationController;
+  late Animation<double> _progressAnimation;
 
   @override
   void initState() {
     super.initState();
     _allBookingsStream = FirebaseFirestore.instance.collection('Bookings').snapshots();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 2),
+    )..repeat();
+    _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_animationController);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  Widget _buildSophisticatedProgressIndicator() {
+    return AnimatedBuilder(
+      animation: _animationController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: CircularProgressIndicator(
+                value: _progressAnimation.value,
+                strokeWidth: 8,
+                backgroundColor: Colors.teal.withOpacity(0.2),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+              ),
+            ),
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Colors.teal.shade100, Colors.teal.shade300],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  '${(_progressAnimation.value * 100).toInt()}%',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -59,7 +124,19 @@ class _BookingPageState extends State<BookingPage> {
       stream: _allBookingsStream,
       builder: (context, AsyncSnapshot<QuerySnapshot> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator(color: Colors.teal));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildSophisticatedProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  "Loading Requests...",
+                  style: TextStyle(fontSize: 16, color: Colors.teal),
+                ),
+              ],
+            ),
+          );
         }
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
           return _buildEmptyState("No booking requests found");
@@ -94,7 +171,19 @@ class _BookingPageState extends State<BookingPage> {
       stream: FirebaseFirestore.instance.collection('Bookings').doc(widget.currentUserId).snapshots(),
       builder: (context, AsyncSnapshot<DocumentSnapshot> snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator(color: Colors.teal));
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildSophisticatedProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  "Loading Appointments...",
+                  style: TextStyle(fontSize: 16, color: Colors.teal),
+                ),
+              ],
+            ),
+          );
         }
         if (!snapshot.hasData || !snapshot.data!.exists) {
           return _buildEmptyState("No appointments found");
@@ -160,7 +249,15 @@ class _BookingPageState extends State<BookingPage> {
       future: FirebaseFirestore.instance.collection('Users').doc(userId).get(),
       builder: (context, AsyncSnapshot<DocumentSnapshot> userSnapshot) {
         if (userSnapshot.connectionState == ConnectionState.waiting) {
-          return Center(child: CircularProgressIndicator(color: Colors.teal));
+          return Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: EdgeInsets.symmetric(vertical: 8),
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(child: _buildSophisticatedProgressIndicator()),
+            ),
+          );
         }
         if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
           return SizedBox.shrink();
@@ -302,14 +399,11 @@ class _BookingPageState extends State<BookingPage> {
       int index = bookings.indexWhere((b) => b['date'] == date);
       if (index == -1) return;
 
-      // Show dialog to update status and optionally change date/time
       final updatedBooking = await _showUpdateBookingDialog(context, bookings[index], newStatus);
-      if (updatedBooking == null) return; // User canceled the dialog
+      if (updatedBooking == null) return;
 
-      // Update the booking in the list
       bookings[index] = updatedBooking;
 
-      // Update Firestore
       await FirebaseFirestore.instance.collection('Bookings').doc(userId).update({
         'Bookings': bookings,
       });
@@ -349,7 +443,6 @@ class _BookingPageState extends State<BookingPage> {
                       ),
                     ),
                     SizedBox(height: 16),
-                    // Date and Time Picker
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -371,7 +464,6 @@ class _BookingPageState extends State<BookingPage> {
                       ],
                     ),
                     SizedBox(height: 16),
-                    // Reason Field
                     TextField(
                       controller: reasonController,
                       maxLines: 3,
@@ -388,7 +480,6 @@ class _BookingPageState extends State<BookingPage> {
                       ),
                     ),
                     SizedBox(height: 20),
-                    // Action Buttons
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
@@ -429,7 +520,6 @@ class _BookingPageState extends State<BookingPage> {
   }
 
   Future<DateTime?> _selectDateTime(BuildContext context, DateTime initialDate) async {
-    // Select Date
     final DateTime? pickedDate = await showDatePicker(
       context: context,
       initialDate: initialDate,
@@ -448,7 +538,6 @@ class _BookingPageState extends State<BookingPage> {
 
     if (pickedDate == null) return null;
 
-    // Select Time
     final TimeOfDay? pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(initialDate),

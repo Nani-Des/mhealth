@@ -3,31 +3,84 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../Services/firebase_service.dart';
+import 'Widgets/custom_nav_bar.dart';
 import 'doctor_profile.dart';
 
 class ShiftScheduleScreen extends StatefulWidget {
   final String hospitalId;
+  final bool isReferral;
+  final Function? selectHealthFacility;
   final List<Map<String, dynamic>> doctors;
 
   const ShiftScheduleScreen({
     required this.hospitalId,
     required this.doctors,
+    required this.isReferral,
+    this.selectHealthFacility
   });
 
   @override
   _ShiftScheduleScreenState createState() => _ShiftScheduleScreenState();
 }
 
-class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
+class _ShiftScheduleScreenState extends State<ShiftScheduleScreen>
+  with SingleTickerProviderStateMixin{
   DateTime selectedMonth = DateTime.now();
   Map<String, Map<String, String>> doctorShifts = {};
   Set<DateTime> holidays = {};
+  Map<String, String> _hospitalDetails = {};
+  List<Map<String, dynamic>> _departments = [];
+  List<Map<String, dynamic>> _doctors = [];
+  String? _selectedDepartmentId;
+  bool _isLoading = true;
+  bool _isDoctorsLoading = false;
+  FirebaseService _firebaseService = FirebaseService();
+
+  late AnimationController _textAnimationController;
+  late Animation<double> _textFadeAnimation;
 
   @override
   void initState() {
     super.initState();
+    _loadHospitalData();
     _fetchHolidays();
     _fetchDoctorSchedules();
+
+    _textAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+
+    _textFadeAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _textAnimationController,
+        curve: Curves.easeInOut,
+      ),
+    );
+  }
+  Future<void> _loadHospitalData() async {
+    try {
+      Map<String, String> hospitalDetails =
+      await _firebaseService.getHospitalDetails(widget.hospitalId);
+      List<Map<String, dynamic>> departments =
+      await _firebaseService.getDepartmentsForHospital(widget.hospitalId);
+
+      setState(() {
+        _hospitalDetails = hospitalDetails;
+        _departments = departments;
+        if (departments.isNotEmpty) {
+          _selectedDepartmentId = departments.first['Department ID'];
+        }
+        _isLoading = false;
+      });
+    } catch (error) {
+      print('Error fetching hospital data: $error');
+      setState(() {
+        _isLoading = false;
+        _hospitalDetails['hospitalName'] = 'Unknown Hospital';
+      });
+    }
   }
 
   Future<void> _fetchHolidays() async {
@@ -128,6 +181,11 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
     }
     return days;
   }
+  @override
+  void dispose() {
+    _textAnimationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -175,20 +233,23 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Legend',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
-                  Row(
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
-                      _buildLegendItem('WD', 'Work Day', Colors.teal),
-                      _buildLegendItem('MS', 'Morning', Colors.blue),
-                      _buildLegendItem('AS', 'Afternoon', Colors.orange),
-                      _buildLegendItem('NS', 'Night', Colors.purple),
-                      _buildLegendItem('OF', 'Off', Colors.grey),
+                      _buildLegendItem('WD', 'Whole Day', Colors.teal),
+                      _buildLegendItem('MS', 'Morning Shift', Colors.blue),
+                      _buildLegendItem('AS', 'Afternoon Shift', Colors.orange),
+                      _buildLegendItem('NS', 'Night Shift', Colors.purple),
+                      _buildLegendItem('OF', 'Day Off', Colors.grey),
                       _buildLegendItem('HO', 'Holiday', Colors.red),
                     ],
                   ),
@@ -209,25 +270,92 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen> {
           ],
         ),
       ),
+      floatingActionButton: widget.isReferral
+          ? Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          FadeTransition(
+            opacity: _textFadeAnimation,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 8.0),
+              child: Text(
+                _isLoading ? "Loading..." : "Tap Here To Add Hospital",
+                style: TextStyle(
+                  color: Colors.teal,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+          FloatingActionButton(
+            onPressed: _isLoading
+                ? null // Disable button while loading
+                : () {
+              String selectedHospitalName =
+                  _hospitalDetails['hospitalName'] ?? 'Unknown Hospital';
+
+              Navigator.pop(context, selectedHospitalName);
+              Navigator.pop(context, selectedHospitalName);
+              Navigator.pop(context, selectedHospitalName);
+              Navigator.pop(context, selectedHospitalName);
+
+              Future.delayed(Duration(milliseconds: 300), () {
+                if (widget.selectHealthFacility != null) {
+                  widget.selectHealthFacility!(selectedHospitalName);
+                }
+              });
+            },
+            child: Icon(Icons.add),
+            backgroundColor: _isLoading ? Colors.grey : Colors.teal,
+          ),
+        ],
+      )
+          : null,
+      bottomNavigationBar: widget.isReferral ? null : CustomBottomNavBarHospital(hospitalId: widget.hospitalId),
+
     );
   }
 
   Widget _buildLegendItem(String code, String meaning, Color color) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(4),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      child: Tooltip(
+        message: '$code: $meaning', // Tooltip for accessibility
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
             ),
-          ),
-          const SizedBox(width: 4),
-          Text('$code', style: const TextStyle(fontSize: 12)),
-        ],
+            const SizedBox(width: 6),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  code,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  meaning,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: Colors.teal,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

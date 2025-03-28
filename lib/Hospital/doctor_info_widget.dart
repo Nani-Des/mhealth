@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:mhealth/Hospital/specialty_details.dart';
 import '../Components/booking_helper.dart';
 import 'doctor_availability_calendar.dart';
+import 'hospital_page.dart';
 
 class DoctorInfoWidget extends StatelessWidget {
   final Map<String, dynamic> doctorDetails;
   final String hospitalName;
   final String departmentName;
+  final String departmentId;
+  final String hospitalId;
   final Function(String) onCall;
   final bool isReferral;
 
@@ -14,6 +18,8 @@ class DoctorInfoWidget extends StatelessWidget {
     required this.doctorDetails,
     required this.hospitalName,
     required this.departmentName,
+    required this.departmentId,
+    required this.hospitalId,
     required this.onCall,
     required this.isReferral,
   }) : super(key: key);
@@ -40,19 +46,13 @@ class DoctorInfoWidget extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Doctor Profile Section
                 _buildProfileSection(context),
                 const SizedBox(height: 24),
-
-                // Information Grid
-                _buildInfoGrid(),
+                _buildInfoGrid(context),
                 const SizedBox(height: 24),
-
               ],
             ),
           ),
-
-          // Action Buttons
           Positioned(
             bottom: 0,
             left: 16,
@@ -64,7 +64,6 @@ class DoctorInfoWidget extends StatelessWidget {
     );
   }
 
-  // Profile Section with Avatar and Name
   Widget _buildProfileSection(BuildContext context) {
     return Column(
       children: [
@@ -103,8 +102,7 @@ class DoctorInfoWidget extends StatelessWidget {
     );
   }
 
-  // Information Grid
-  Widget _buildInfoGrid() {
+  Widget _buildInfoGrid(BuildContext context) {
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 12,
@@ -112,48 +110,109 @@ class DoctorInfoWidget extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       children: [
-        _buildInfoBox(Icons.local_hospital, 'Hospital', hospitalName),
-        _buildInfoBox(Icons.business, 'Department', departmentName),
-        _buildInfoBox(Icons.location_on, 'Region', doctorDetails['Region']),
-        _buildInfoBox(Icons.work, 'Experience', "${doctorDetails['experience']} years"),
+        _buildInfoBox(
+          Icons.local_hospital,
+          'Hospital',
+          hospitalName,
+          onTap: () {
+            // Navigate to HospitalPage
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HospitalPage(
+                  hospitalId: hospitalId,
+                  isReferral: isReferral,
+                ),
+              ),
+            );
+          },
+        ),
+        _buildInfoBox(
+          Icons.business,
+          'Department',
+          departmentName,
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => SpecialtyDetails(
+                  hospitalId: hospitalId,
+                  isReferral: isReferral,
+                  initialDepartmentId: departmentId, // Pass the departmentId
+                ),
+              ),
+            );
+          },
+        ),
+        _buildInfoBox(
+          Icons.location_on,
+          'Region',
+          doctorDetails['Region'],
+          onTap: () => _showInfoDialog(context, 'Region', doctorDetails['Region']),
+        ),
+        _buildInfoBox(
+          Icons.work,
+          'Experience',
+          "${doctorDetails['experience']} years",
+          onTap: () => _showInfoDialog(context, 'Experience', "${doctorDetails['experience']} years"),
+        ),
       ],
     );
   }
 
-
-
-  // Info Box Widget
-  Widget _buildInfoBox(IconData icon, String label, String? value) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey[200]!),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: Colors.teal, size: 28),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value ?? 'Not available',
-            style: const TextStyle(fontSize: 14, color: Colors.black54),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+  Widget _buildInfoBox(IconData icon, String label, String? value, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.grey[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, color: Colors.teal, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              value ?? 'Not available',
+              style: const TextStyle(fontSize: 14, color: Colors.black54),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // Action Buttons
+  void _showInfoDialog(BuildContext context, String title, String? value) {
+    if (value == null || value.isEmpty) return;
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text(title),
+          content: Text(value),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close', style: TextStyle(color: Colors.teal)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Widget _buildActionButtons(BuildContext context) {
     return Row(
       children: [

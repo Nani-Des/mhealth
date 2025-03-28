@@ -18,13 +18,16 @@ class FirstAidResponseWidget1 extends StatefulWidget {
   _FirstAidResponseWidget1State createState() => _FirstAidResponseWidget1State();
 }
 
-class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
+class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> with SingleTickerProviderStateMixin {
   String displayText = "";
   String selectedLanguage = "ak";
   bool isLoading = false;
-  bool isSpeaking = false;
+  bool isSpeaking = true;
   late FlutterTts flutterTts;
   bool isTranslated = false;
+
+  late AnimationController _progressAnimationController;
+  late Animation<double> _progressAnimation;
 
   final Map<String, String> languageMap = {
     "Twi (Akan)": "ak",
@@ -38,6 +41,12 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
     super.initState();
     flutterTts = FlutterTts();
     displayText = widget.responseText;
+
+    _progressAnimationController = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 2),
+    )..repeat();
+    _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_progressAnimationController);
   }
 
   String _sanitizeTextForTranslation(String text) {
@@ -94,7 +103,8 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
       if (response.statusCode == 200) {
         final responseBody = jsonDecode(response.body);
         final translatedText = _restoreFormatting(responseBody['data']['translations'][0]['translatedText']);
-        print("Translated text: $translatedText"); // Debug full translated text
+        print("Translated text: $translatedText");
+
         setState(() {
           displayText = translatedText;
           isTranslated = true;
@@ -143,8 +153,67 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
   }
 
   @override
+  void dispose() {
+    _progressAnimationController.dispose();
+    flutterTts.stop();
+    super.dispose();
+  }
+
+  Widget _buildSophisticatedProgressIndicator() {
+    return AnimatedBuilder(
+      animation: _progressAnimationController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: 80,
+              height: 80,
+              child: CircularProgressIndicator(
+                value: _progressAnimation.value,
+                strokeWidth: 8,
+                backgroundColor: Colors.teal.withOpacity(0.2),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+              ),
+            ),
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Colors.teal.shade100, Colors.teal.shade300],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.teal.withOpacity(0.3),
+                    blurRadius: 10,
+                    offset: Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Text(
+                  '${(_progressAnimation.value * 100).toInt()}%',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    print("Building widget with displayText: $displayText"); // Debug full build
+    print("Building widget with displayText: $displayText");
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -245,7 +314,6 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
   }
 
   Widget _buildContent() {
-    print("Rebuilding content with text: $displayText"); // Debug content rebuild
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -268,15 +336,24 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
   }
 
   Widget _buildLoadingOverlay() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(Colors.redAccent),
-          backgroundColor: Colors.white.withOpacity(0.3),
+    return Positioned.fill(
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black.withOpacity(0.3),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildSophisticatedProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                "Translating...",
+                style: TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -288,7 +365,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
 
     for (String line in lines) {
       if (line.trim().isEmpty) {
-        spans.add(TextSpan(text: "\n")); // Preserve empty lines
+        spans.add(TextSpan(text: "\n"));
         continue;
       }
 
@@ -311,7 +388,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> {
             color: Colors.black54,
           ),
         ));
-      } else if (line.contains(RegExp(r'^#{1,3}\s'))) { // Match any ###, ##, or # followed by space
+      } else if (line.contains(RegExp(r'^#{1,3}\s'))) {
         String content = line.replaceAll(RegExp(r'^#{1,3}\s+'), "").trim();
         spans.add(TextSpan(
           text: "$content\n",
