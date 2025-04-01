@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mhealth/chat_module.dart';
 
 import 'package:mhealth/main.dart';
 
