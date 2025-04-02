@@ -52,7 +52,7 @@ class _HomePageContentState extends State<HomePageContent> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      resizeToAvoidBottomInset: true, // Allows content to resize when keyboard appears
+      resizeToAvoidBottomInset: true,
       body: Stack(
         children: [
           AnimatedSwitcher(
@@ -69,8 +69,7 @@ class _HomePageContentState extends State<HomePageContent> with SingleTickerProv
                   ),
                 ),
                 child: SingleChildScrollView(
-                  // Makes content scrollable
-                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0), // Extra padding for FAB
+                  padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -90,7 +89,7 @@ class _HomePageContentState extends State<HomePageContent> with SingleTickerProv
                       DoctorsRowItem(),
                       const SizedBox(height: 12),
                       SizedBox(
-                        height: MediaQuery.of(context).size.height * 0.5, // Fixed height for OrganizationListView
+                        height: MediaQuery.of(context).size.height * 0.5,
                         child: OrganizationListView(showSearchBar: false, isReferral: false),
                       ),
                     ],
@@ -108,14 +107,12 @@ class _HomePageContentState extends State<HomePageContent> with SingleTickerProv
               },
             ),
           ),
-
         ],
       ),
     );
   }
 }
 
-// Improved SearchBar1 Widget
 class SearchBar1 extends StatefulWidget {
   final Function(PlaceDetails)? onPlaceSelected;
 
@@ -129,6 +126,7 @@ class _SearchBar1State extends State<SearchBar1> {
   final TextEditingController _controller = TextEditingController();
   final String? apiKey = dotenv.env['GOOGLE_API_KEY'];
   List<Prediction> _predictions = [];
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -138,28 +136,56 @@ class _SearchBar1State extends State<SearchBar1> {
 
   Future<void> _fetchPredictions(String input) async {
     if (input.isEmpty || apiKey == null) {
-      setState(() => _predictions = []);
+      setState(() {
+        _predictions = [];
+        _isLoading = false;
+      });
       return;
     }
+
+    setState(() => _isLoading = true);
+
+    // Center of Ghana: approximately 7.9465° N, -1.0232° W
+    const String location = '7.9465,-1.0232';
+    const String radius = '500000'; // 500 km radius to cover Ghana
+    const String types = '(hospital|clinic|doctor|health)'; // Healthcare-specific types
 
     final url = Uri.parse(
       'https://maps.googleapis.com/maps/api/place/autocomplete/json'
           '?input=$input'
           '&key=$apiKey'
           '&language=en'
-          '&components=country:us',
+          '&components=country:gh' // Restrict to Ghana
+          '&location=$location'
+          '&radius=$radius'
+          '&types=$types',
     );
 
-    final response = await http.get(url);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['status'] == 'OK') {
-        setState(() {
-          _predictions = (data['predictions'] as List)
-              .map((p) => Prediction.fromJson(p))
-              .toList();
-        });
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK') {
+          setState(() {
+            _predictions = (data['predictions'] as List)
+                .map((p) => Prediction.fromJson(p))
+                .toList();
+            _isLoading = false;
+          });
+        } else {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error: ${data['status']}')),
+          );
+        }
+      } else {
+        throw Exception('Failed to fetch predictions');
       }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load suggestions')),
+      );
     }
   }
 
@@ -170,17 +196,24 @@ class _SearchBar1State extends State<SearchBar1> {
       'https://maps.googleapis.com/maps/api/place/details/json'
           '?place_id=$placeId'
           '&key=$apiKey'
-          '&fields=name,geometry',
+          '&fields=name,geometry,formatted_address,types',
     );
 
-    final response = await http.get(url);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['status'] == 'OK') {
-        return PlaceDetails.fromJson(data['result'], placeId);
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK') {
+          return PlaceDetails.fromJson(data['result'], placeId);
+        }
       }
+      return null;
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load place details')),
+      );
+      return null;
     }
-    return null;
   }
 
   @override
@@ -203,10 +236,19 @@ class _SearchBar1State extends State<SearchBar1> {
           child: TextField(
             controller: _controller,
             decoration: InputDecoration(
-              hintText: 'Search by name...',
+              hintText: 'Search healthcare in Ghana...',
               hintStyle: TextStyle(color: Colors.grey[400]),
               prefixIcon: const Icon(Icons.search, color: Colors.teal),
-              suffixIcon: _controller.text.isNotEmpty
+              suffixIcon: _isLoading
+                  ? const Padding(
+                padding: EdgeInsets.all(12.0),
+                child: SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              )
+                  : _controller.text.isNotEmpty
                   ? IconButton(
                 icon: Icon(Icons.clear, color: Colors.grey[400]),
                 onPressed: () {
@@ -227,6 +269,7 @@ class _SearchBar1State extends State<SearchBar1> {
         if (_predictions.isNotEmpty)
           Container(
             margin: const EdgeInsets.only(top: 8),
+            constraints: const BoxConstraints(maxHeight: 300),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
@@ -239,29 +282,30 @@ class _SearchBar1State extends State<SearchBar1> {
                 ),
               ],
             ),
-            child: Material(
-              color: Colors.transparent,
-              child: ListView.builder(
-                shrinkWrap: true,
-                physics: const ClampingScrollPhysics(),
-                itemCount: _predictions.length,
-                itemBuilder: (context, index) {
-                  final prediction = _predictions[index];
-                  return ListTile(
-                    title: Text(prediction.description),
-                    tileColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    onTap: () async {
-                      final place = await _fetchPlaceDetails(prediction.placeId);
-                      if (place != null) {
-                        widget.onPlaceSelected?.call(place);
-                      }
-                    },
-                  );
-                },
-              ),
+            child: ListView.builder(
+              shrinkWrap: true,
+              physics: const ClampingScrollPhysics(),
+              itemCount: _predictions.length,
+              itemBuilder: (context, index) {
+                final prediction = _predictions[index];
+                return ListTile(
+                  title: Text(prediction.description),
+                  tileColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  onTap: () async {
+                    final place = await _fetchPlaceDetails(prediction.placeId);
+                    if (place != null) {
+                      widget.onPlaceSelected?.call(place);
+                      setState(() {
+                        _controller.clear();
+                        _predictions = [];
+                      });
+                    }
+                  },
+                );
+              },
             ),
           ),
       ],
@@ -269,7 +313,6 @@ class _SearchBar1State extends State<SearchBar1> {
   }
 }
 
-// Improved MapResultsView Widget
 class MapResultsView extends StatefulWidget {
   final String placeId;
   final String placeName;
@@ -311,12 +354,17 @@ class _MapResultsViewState extends State<MapResultsView> with SingleTickerProvid
   @override
   void dispose() {
     _animationController.dispose();
-    _mapController.dispose(); // Dispose of map controller
+    _mapController.dispose();
     super.dispose();
   }
 
   void _onMapCreated(GoogleMapController controller) {
     _mapController = controller;
+    if (_place?.lat != null && _place?.lng != null) {
+      _mapController.animateCamera(
+        CameraUpdate.newLatLngZoom(LatLng(_place!.lat!, _place!.lng!), 15),
+      );
+    }
   }
 
   Future<void> _fetchPlaceDetails() async {
@@ -326,30 +374,36 @@ class _MapResultsViewState extends State<MapResultsView> with SingleTickerProvid
       'https://maps.googleapis.com/maps/api/place/details/json'
           '?place_id=${widget.placeId}'
           '&key=$apiKey'
-          '&fields=name,geometry',
+          '&fields=name,geometry,formatted_address,types',
     );
 
-    final response = await http.get(url);
-    if (response.statusCode == 200) {
-      final data = json.decode(response.body);
-      if (data['status'] == 'OK') {
-        setState(() {
-          _place = PlaceDetails.fromJson(data['result'], widget.placeId);
-          if (_place?.lat != null && _place?.lng != null) {
-            _markers = {
-              Marker(
-                markerId: MarkerId(widget.placeId),
-                position: LatLng(_place!.lat!, _place!.lng!),
-                infoWindow: InfoWindow(title: _place!.name),
-                icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-              )
-            };
-            _mapController.animateCamera(
-              CameraUpdate.newLatLngZoom(LatLng(_place!.lat!, _place!.lng!), 15),
-            );
-          }
-        });
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['status'] == 'OK') {
+          setState(() {
+            _place = PlaceDetails.fromJson(data['result'], widget.placeId);
+            if (_place?.lat != null && _place?.lng != null) {
+              _markers = {
+                Marker(
+                  markerId: MarkerId(widget.placeId),
+                  position: LatLng(_place!.lat!, _place!.lng!),
+                  infoWindow: InfoWindow(
+                    title: _place!.name,
+                    snippet: _place!.formattedAddress,
+                  ),
+                  icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+                ),
+              };
+            }
+          });
+        }
       }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to load place details')),
+      );
     }
   }
 
@@ -361,11 +415,9 @@ class _MapResultsViewState extends State<MapResultsView> with SingleTickerProvid
         children: [
           GoogleMap(
             onMapCreated: _onMapCreated,
-            initialCameraPosition: CameraPosition(
-              target: _place?.lat != null && _place?.lng != null
-                  ? LatLng(_place!.lat!, _place!.lng!)
-                  : const LatLng(37.7749, -122.4194),
-              zoom: 15,
+            initialCameraPosition: const CameraPosition(
+              target: LatLng(7.9465, -1.0232), // Center of Ghana
+              zoom: 7, // Zoom level to show most of Ghana initially
             ),
             markers: _markers,
             myLocationEnabled: true,
@@ -423,7 +475,6 @@ class _MapResultsViewState extends State<MapResultsView> with SingleTickerProvid
   }
 }
 
-// Data Models
 class Prediction {
   final String description;
   final String placeId;
@@ -443,12 +494,16 @@ class PlaceDetails {
   final double? lat;
   final double? lng;
   final String placeId;
+  final String? formattedAddress;
+  final List<String>? types;
 
   PlaceDetails({
     required this.name,
     this.lat,
     this.lng,
     required this.placeId,
+    this.formattedAddress,
+    this.types,
   });
 
   factory PlaceDetails.fromJson(Map<String, dynamic> json, String placeId) {
@@ -458,6 +513,8 @@ class PlaceDetails {
       lat: geometry?['lat'] as double?,
       lng: geometry?['lng'] as double?,
       placeId: placeId,
+      formattedAddress: json['formatted_address'] as String?,
+      types: (json['types'] as List?)?.map((t) => t as String).toList(),
     );
   }
 }
