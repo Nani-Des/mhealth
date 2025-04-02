@@ -46,7 +46,7 @@ class _CredentialsContainerState extends State<CredentialsContainer> {
             widget.title,
             style: TextStyle(
               color: black,
-              fontSize: 17,
+              fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -80,7 +80,7 @@ class _CredentialsContainerState extends State<CredentialsContainer> {
                         widget.iconText,
                         style: TextStyle(
                           color: semiGrey,
-                          fontSize: 18,
+                          fontSize: 12,
                         ),
                       ),
               ),
@@ -150,12 +150,12 @@ class _CredentialsContainerState extends State<CredentialsContainer> {
                     hintStyle: TextStyle(
                       fontWeight: FontWeight.w200,
                       color: black,
-                      fontSize: 16,
+                      fontSize: 12,
                     )),
                 style: TextStyle(
                   overflow: TextOverflow.clip,
                   color: black,
-                  fontSize: 17,
+                  fontSize: 12,
                 ),
               ),
             ),

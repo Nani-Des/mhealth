@@ -1,0 +1,125 @@
+{
+  "category": "Emergency Procedures",
+  "articles": [
+    {
+      "title": "CPR",
+      "content": "Cardiopulmonary Resuscitation (CPR) is an urgent life-saving technique used when someone's heart stops beating, indicating cardiac arrest. Immediate action is critical to restore circulation. Steps: 1. Call emergency services immediately. 2. Place hands on the center of the chest. 3. Push hard and fast at 100-120 compressions per minute until help arrives.",
+      "keywords": "heart stopped, cardiac arrest, no pulse, chest compressions, resuscitation, not breathing, unconscious, heart failure, emergency, collapse, stopping, beating, reviving, pressing, failing"
+    },
+    {
+      "title": "Choking",
+      "content": "Choking is a life-threatening emergency when an object blocks the airway, preventing breathing. Quick intervention with the Heimlich maneuver can save a life. Steps: 1. Stand behind the person. 2. Make a fist with one hand and place it above the navel. 3. Grasp with the other hand and press hard with quick upward thrusts until the blockage is cleared.",
+      "keywords": "can’t breathe, airway blocked, food stuck, Heimlich, throat obstruction, gasping, suffocation, choking sound, panic, obstruction, struggling, coughing, blocking, gagging, wheezing"
+    },
+    {
+      "title": "Severe Bleeding",
+      "content": "Severe bleeding involves rapid, significant blood loss that can lead to shock or death if not controlled immediately. Urgent action is required. Steps: 1. Apply firm, direct pressure to the wound with a clean cloth. 2. Elevate the injured area if possible to slow blood flow. 3. Maintain pressure without stopping until emergency help arrives.",
+      "keywords": "heavy bleeding, blood loss, hemorrhage, deep cut, wound, gushing blood, unstoppable bleeding, shock, trauma, life-threatening, flowing, cutting, oozing, losing, clotting"
+    },
+    {
+      "title": "Severe Burn",
+      "content": "A severe burn damages deep skin layers and can cause shock, infection, or death if not treated urgently. Immediate cooling and medical attention are vital. Steps: 1. Call emergency services without delay. 2. Cool the burn with cool (not cold) water for 10-15 minutes. 3. Cover loosely with a clean cloth and avoid applying ointments until help arrives.",
+      "keywords": "bad burn, deep burn, blistering, charred skin, third-degree burn, fire injury, excruciating pain, skin peeling, shock, emergency, burning, scorching, blistering, damaging, searing"
+    },
+    {
+      "title": "Heatstroke",
+      "content": "Heatstroke is a critical condition where the body overheats to a dangerous level, potentially causing organ failure or death. Immediate cooling is essential. Steps: 1. Move to a cool, shaded area urgently. 2. Apply cool, wet cloths to the skin and fan the person. 3. Seek medical help if confusion, fainting, or no improvement occurs.",
+      "keywords": "overheating, hot, sweating stopped, high temperature, heat emergency, collapse, confusion, feverish, organ damage, sunstroke, rising, fainting, sweating, overheating, exhausting"
+    },
+    {
+      "title": "Hypothermia",
+      "content": "Hypothermia occurs when body temperature drops dangerously low, risking heart and organ failure if not reversed quickly. Warming is critical. Steps: 1. Move to a warm place immediately. 2. Remove wet clothing and wrap in blankets or warm layers. 3. Offer warm drinks if conscious and call for help if condition worsens.",
+      "keywords": "freezing, cold, shivering, low temperature, frost, numb, sluggish, unconscious, frostbite risk, life-threatening chill, dropping, chilling, warming, shaking, slowing"
+    },
+    {
+      "title": "Frostbite",
+      "content": "Frostbite is the freezing of skin and tissues, which can lead to tissue death and amputation if not treated urgently. Rapid warming is necessary. Steps: 1. Move to a warm area as soon as possible. 2. Soak affected area in warm (not hot) water for 15-30 minutes. 3. Avoid rubbing and seek medical help immediately.",
+      "keywords": "frozen skin, numb, white skin, cold injury, frost damage, blackening, severe cold, tissue loss, emergency warming, frostbitten, freezing, numbing, thawing, damaging, hardening"
+    },
+    {
+      "title": "Fracture",
+      "content": "A fracture is a broken bone that, if severe or compound, can cause internal bleeding or shock, requiring urgent care. Steps: 1. Keep the person still and immobilize the area with a sling or splint. 2. Apply a cold pack to reduce swelling. 3. Seek medical help immediately to prevent complications.",
+      "keywords": "broken bone, crack, snap, bone injury, fracture pain, swelling, deformity, trauma, emergency, internal bleeding, breaking, cracking, swelling, hurting, bleeding"
+    },
+    {
+      "title": "Seizure",
+      "content": "A seizure involves uncontrolled shaking and can be fatal if prolonged or if breathing stops, necessitating immediate action. Steps: 1. Clear the area of hard objects to prevent injury. 2. Place something soft under their head. 3. Call emergency services and do not restrain the person.",
+      "keywords": "convulsion, shaking, fit, epilepsy, tremor, collapse, unconscious, jerking, emergency, breathing stopped, seizing, trembling, falling, stopping, convulsing"
+    },
+    {
+      "title": "Heart Attack",
+      "content": "A heart attack occurs when blood flow to the heart is blocked, a life-threatening emergency requiring instant response. Steps: 1. Call emergency services immediately. 2. Have the person sit or lie down calmly. 3. Offer aspirin if they’re not allergic and conscious, and monitor until help arrives.",
+      "keywords": "chest pain, heart pain, tightness, cardiac emergency, infarction, shortness of breath, sweating, collapse, heart failure, urgent, hurting, stopping, beating, squeezing, failing"
+    },
+    {
+      "title": "Stroke",
+      "content": "A stroke is a sudden interruption of brain blood flow, potentially fatal without rapid treatment. Time is critical. Steps: 1. Call emergency services at once. 2. Note the time symptoms started for medical records. 3. Keep the person calm and still until help arrives.",
+      "keywords": "brain attack, slurred speech, numbness, face droop, cerebrovascular, weakness, confusion, paralysis, emergency, sudden collapse, slurring, weakening, dropping, failing, numbing"
+    },
+    {
+      "title": "Anaphylaxis",
+      "content": "Anaphylaxis is a severe allergic reaction that can cause airway closure and death if not treated immediately. Epinephrine is crucial. Steps: 1. Call emergency services urgently. 2. Use an epinephrine auto-injector if available. 3. Lay the person flat, elevate legs, and monitor breathing.",
+      "keywords": "severe allergy, swelling, breathing trouble, shock, epinephrine, rash, throat closing, collapse, life-threatening, allergic emergency, swelling, choking, reacting, worsening, closing"
+    },
+    {
+      "title": "Snake Bite",
+      "content": "A snake bite from a venomous snake can be fatal due to poison spreading quickly, requiring urgent medical intervention. Steps: 1. Call emergency services immediately. 2. Keep the person still with the bite below heart level to slow venom spread. 3. Avoid ice or tourniquets and seek help fast.",
+      "keywords": "snakebite, venom, fang marks, poison, bite, swelling, dizziness, collapse, venomous, emergency, biting, poisoning, swelling, spreading, dying"
+    },
+    {
+      "title": "Electric Shock",
+      "content": "An electric shock can cause burns, heart stoppage, or unconsciousness, making it a critical emergency. Safety is key. Steps: 1. Turn off the power source if safe to do so. 2. Call emergency services without delay. 3. Avoid touching the person until power is off, then check breathing.",
+      "keywords": "shock, electricity, jolt, burn, electrocution, unconscious, heart stopped, sparks, emergency, power injury, shocking, burning, stopping, jolting, frying"
+    },
+    {
+      "title": "Head Injury",
+      "content": "A severe head injury can lead to brain bleeding or swelling, potentially fatal without immediate care. Steps: 1. Keep the person still to avoid worsening damage. 2. Apply a cold pack to swelling if safe. 3. Call emergency services if they lose consciousness or show confusion.",
+      "keywords": "head trauma, bump, concussion, skull injury, hit head, bleeding, unconscious, dizzy, brain damage, urgent, hitting, swelling, bleeding, confusing, damaging"
+    },
+    {
+      "title": "Drowning",
+      "content": "Drowning is a life-threatening submersion event causing breathing cessation, requiring immediate rescue and resuscitation. Steps: 1. Remove from water if safe to do so. 2. Call emergency services urgently. 3. Begin CPR if the person is not breathing.",
+      "keywords": "water rescue, submersion, not breathing, drowning, swim accident, unconscious, sinking, emergency, waterlogged, suffocation, sinking, choking, submerging, stopping, gasping"
+    },
+    {
+      "title": "Asthma Attack",
+      "content": "An asthma attack can severely restrict breathing and become fatal without prompt treatment. Steps: 1. Sit the person upright to aid breathing. 2. Help them use their inhaler immediately. 3. Call emergency services if breathing doesn’t improve or worsens.",
+      "keywords": "wheezing, asthma, shortness of breath, inhaler, breathing trouble, gasping, chest tightness, emergency, airway constriction, suffocating, wheezing, struggling, tightening, choking, worsening"
+    },
+    {
+      "title": "Poisoning (Ingested)",
+      "content": "Ingested poisoning from toxic substances can cause organ failure or death if not addressed urgently. Steps: 1. Call emergency services or poison control immediately. 2. Avoid inducing vomiting unless instructed by professionals. 3. Provide details of the substance ingested.",
+      "keywords": "swallowed poison, toxic, ingestion, overdose, chemical, vomiting, unconscious, emergency, poison emergency, lethal substance, swallowing, poisoning, sickening, failing, dying"
+    },
+    {
+      "title": "Chest Pain",
+      "content": "Chest pain may indicate a heart attack or other life-threatening condition, requiring immediate attention. Steps: 1. Call emergency services without delay. 2. Keep the person calm and seated to reduce strain. 3. Monitor breathing and pulse until help arrives.",
+      "keywords": "chest ache, pressure, heart, pain, tightness, heart attack, shortness of breath, sweating, collapse, urgent, hurting, pressing, aching, squeezing, failing"
+    },
+    {
+      "title": "Severe Insect Reaction",
+      "content": "A severe reaction to an insect sting can lead to anaphylaxis and death if not treated instantly. Steps: 1. Call emergency services immediately. 2. Use an epinephrine injector if available. 3. Monitor breathing and keep the person still.",
+      "keywords": "bad sting, swelling, allergy, anaphylaxis, insect, breathing trouble, throat swelling, collapse, emergency, venom reaction, stinging, swelling, reacting, closing, worsening"
+    },
+    {
+      "title": "Amputation",
+      "content": "An amputation is a severe injury involving loss of a body part, risking fatal blood loss if not controlled. Steps: 1. Apply firm pressure to stop bleeding immediately. 2. Wrap the severed part in a clean cloth and place in a bag on ice. 3. Call emergency services urgently.",
+      "keywords": "cut off, severed, lost limb, amputation, trauma, massive bleeding, shock, emergency, limb loss, critical injury, cutting, bleeding, severing, losing, gushing"
+    },
+    {
+      "title": "Spinal Injury",
+      "content": "A spinal injury can cause paralysis or death if the spine is damaged, requiring extreme care and immediate help. Steps: 1. Keep the person completely still to prevent further damage. 2. Avoid moving them unless in immediate danger. 3. Call emergency services right away.",
+      "keywords": "spine, back injury, neck injury, paralysis, trauma, numb, can’t move, emergency, spinal damage, critical, hurting, breaking, paralyzing, damaging, stiffening"
+    },
+    {
+      "title": "Smoke Inhalation",
+      "content": "Smoke inhalation can damage lungs and cause respiratory failure, a potentially fatal emergency. Steps: 1. Move to fresh air immediately if safe. 2. Call emergency services without delay. 3. Monitor breathing and watch for unconsciousness.",
+      "keywords": "smoke, breathing trouble, inhalation, cough, fire, lung damage, choking, emergency, suffocation, unconscious, inhaling, coughing, burning, suffocating, worsening"
+    },
+    {
+      "title": "Carbon Monoxide Poisoning",
+      "content": "Carbon monoxide poisoning is a silent, deadly condition that stops oxygen delivery, requiring urgent action. Steps: 1. Move to fresh air immediately. 2. Call emergency services right away. 3. Open windows if safe and monitor for unconsciousness.",
+      "keywords": "CO poisoning, gas, headache, dizzy, silent killer, unconscious, nausea, emergency, oxygen loss, lethal gas, poisoning, sickening, fading, stopping, suffocating"
+    }
+  ]
+}
