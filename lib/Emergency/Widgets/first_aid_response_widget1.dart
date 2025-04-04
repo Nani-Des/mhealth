@@ -258,11 +258,11 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> with 
           Row(
             children: [
               _buildLanguageDropdown(),
-              const SizedBox(width: 6),
+              const SizedBox(width: 2),
               _buildActionButton(Icons.translate, translateText),
-              const SizedBox(width: 6),
+              const SizedBox(width: 2),
               _buildActionButton(isSpeaking ? Icons.volume_up : Icons.volume_off, _toggleSpeech),
-              const SizedBox(width: 6),
+              const SizedBox(width: 2),
               _buildActionButton(Icons.close, widget.onClose),
             ],
           ),

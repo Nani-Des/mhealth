@@ -352,40 +352,43 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                     ),
                     SizedBox(height: 5),
                     if (!_isEditing)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildInfoBox(
-                            Icons.message_outlined,
-                            'Bookings',
-                            mobileNumber,
-                                () {
-                              User? currentUser = FirebaseAuth.instance.currentUser;
-                              if (currentUser != null) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => BookingPage(currentUserId: currentUser.uid),
-                                  ),
-                                );
-                              }
-                            },
-                          ),
-                          SizedBox(width: 20),
-                          _buildInfoBox(
-                            Icons.person_add,
-                            'Refer a Patient',
-                            region,
-                                () => _checkAndNavigate(context, isReferralForm: true),
-                          ),
-                          SizedBox(width: 20),
-                          _buildInfoBox(
-                            Icons.description,
-                            'Referrals',
-                            region,
-                                () => _checkAndNavigate(context, isReferralForm: false),
-                          ),
-                        ],
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            _buildInfoBox(
+                              Icons.message_outlined,
+                              'Bookings',
+                              mobileNumber,
+                                  () {
+                                User? currentUser = FirebaseAuth.instance.currentUser;
+                                if (currentUser != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => BookingPage(currentUserId: currentUser.uid),
+                                    ),
+                                  );
+                                }
+                              },
+                            ),
+                            SizedBox(width: 20),
+                            _buildInfoBox(
+                              Icons.person_add,
+                              'Refer a Patient',
+                              region,
+                                  () => _checkAndNavigate(context, isReferralForm: true),
+                            ),
+                            SizedBox(width: 20),
+                            _buildInfoBox(
+                              Icons.description,
+                              'Referrals',
+                              region,
+                                  () => _checkAndNavigate(context, isReferralForm: false),
+                            ),
+                          ],
+                        ),
                       ),
                     SizedBox(height: 20),
                     Row(

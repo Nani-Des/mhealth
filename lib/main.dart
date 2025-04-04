@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:mhealth/try.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'Appointments/referral_form.dart';
+import 'ChatModule/chat_module.dart';
 import 'Home/home_page.dart';
 import 'Maps/map_screen.dart';
 import 'package:geolocator/geolocator.dart';
@@ -27,6 +28,8 @@ void main() async {
 
   // Request location permission before app loads
   await _requestLocationPermission();
+
+  await CallService().clearOldNotifications();
 
   runApp(const MyApp());
 }

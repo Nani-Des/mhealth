@@ -471,17 +471,12 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.redAccent,
-        title: Row(
-          children: [
-            Icon(
-              _isOffline ? Icons.cloud_off : Icons.cloud_done,
-              color: Colors.white,
-              size: 24,
-            ),
-            SizedBox(width: 2),
-
-          ],
+        leading: Icon(
+          _isOffline ? Icons.cloud_off : Icons.cloud_done,
+          color: Colors.white,
+          size: 24,
         ),
+        title: SizedBox.shrink(), // Optional: removes extra space if no title is needed
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -492,7 +487,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           ),
         ),
         actions: [
-          // Police Button (Blue)
+          // Your existing Police, Fire, and Ambulance buttons here
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6.0),
             child: Tooltip(
@@ -541,7 +536,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                       Icon(Icons.fire_truck, color: Colors.white, size: 20),
                       SizedBox(width: 4),
                       Text(
-                        "Fire Service",
+                        "Fire",
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -585,7 +580,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
               ),
             ),
           ),
-          SizedBox(width: 8), // Final padding for right edge
+          SizedBox(width: 8),
         ],
       ),
       body: Container(

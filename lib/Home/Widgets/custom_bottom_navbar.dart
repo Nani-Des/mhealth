@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mhealth/Home/home_page.dart';
 import 'package:mhealth/Login/login_screen1.dart';
 
+import '../../ChatModule/chat_module.dart';
 import '../../Forums/Public/forum.dart';
 import '../../Hospital/general_hospital_page.dart';
 
@@ -61,7 +62,7 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
         _navigateBasedOnAuthStatus(context, (userId) => HomePage());
         break;
       case 2:
-        _navigateBasedOnAuthStatus(context, (userId) => Forum(userId: userId));
+        _navigateBasedOnAuthStatus(context, (userId) => ChatHomePage());
         break;
     }
   }
