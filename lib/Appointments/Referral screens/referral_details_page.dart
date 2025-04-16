@@ -340,7 +340,7 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
                           Icon(Icons.error_outline, size: 48, color: Colors.red),
                           SizedBox(height: 16),
                           Text(
-                            "Error fetching referrals: ${snapshot.error}",
+                            "Check your Network Connectivity!",
                             style: TextStyle(fontSize: 18, color: Colors.red),
                             textAlign: TextAlign.center,
                           ),

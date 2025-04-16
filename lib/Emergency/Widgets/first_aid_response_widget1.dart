@@ -228,13 +228,17 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget1> with 
         ],
       ),
       padding: const EdgeInsets.all(20),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          _buildHeader(),
-          const SizedBox(height: 16),
-          _buildContent(),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 16),
+              _buildContent(),
+            ],
+          ),
           if (isLoading) _buildLoadingOverlay(),
         ],
       ),

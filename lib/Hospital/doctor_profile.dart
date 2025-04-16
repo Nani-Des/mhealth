@@ -42,7 +42,7 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
         _isLoading = false;
       });
     } catch (error) {
-      print('Error fetching doctor details: $error');
+      print('Check your network connectivity');
     }
   }
 

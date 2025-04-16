@@ -90,7 +90,7 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen>
         holidays = holidaySnapshot.docs.map((doc) => (doc['Date'] as Timestamp).toDate()).toSet();
       });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error fetching holidays: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Check your Network Connectivity!')));
     }
   }
 
@@ -120,7 +120,7 @@ class _ShiftScheduleScreenState extends State<ShiftScheduleScreen>
           });
         }
       } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error fetching schedule: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Check your Network Connectivity!')));
       }
     }
   }
