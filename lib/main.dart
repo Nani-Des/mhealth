@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
@@ -30,6 +32,10 @@ void main() async {
   await _requestLocationPermission();
 
   await CallService().clearOldNotifications();
+
+  await WordFilterService().initialize();
+
+  CallService().initialize();
 
   runApp(const MyApp());
 }

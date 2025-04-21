@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'chat_module.dart';
 import 'expert_post_details_page.dart'; // Import the ExpertPostDetailsPage
 
 
@@ -145,7 +146,7 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
       key: scaffoldMessengerKey,
       appBar: AppBar(
         title: const Text('Experts Community'),
-        backgroundColor: Colors.lightBlue,
+        backgroundColor: Colors.teal,
       ),
       body: Column(
         children: [
@@ -159,7 +160,7 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
                 icon: const Icon(Icons.add, color: Colors.white),
                 label: const Text("Add Post"),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.teal,
                   foregroundColor: Colors.white,
                 ),
               ),
@@ -168,11 +169,11 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
           // Rest of the body content
           Expanded(
             child: Container(
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Colors.grey, Colors.grey],
+                  colors: [Colors.teal[50]!, Colors.grey[100]!],
                 ),
               ),
               child: StreamBuilder<QuerySnapshot>(
@@ -217,8 +218,9 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
                                 const SizedBox(height: 4),
                                 Text(
                                   'Posted by: $username',
-                                  style: const TextStyle(
-                                      fontSize: 12, color: Colors.grey),
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.teal[800],),
                                 ),
                               ],
                             ),
@@ -227,9 +229,9 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
                                   ? DateFormat.yMMMd().add_jm().format(
                                   timestamp.toDate())
                                   : 'No Date',
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.blueGrey,
+                                color: Colors.teal[600],
                               ),
                             ),
                             onTap: () {
@@ -341,6 +343,14 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
                     _showPostTranslationLanguageSelector(context, postId);
                   },
                 ),
+                ListTile(
+                  leading: const Icon(Icons.report, color: Colors.red),
+                  title: const Text('Report Post', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showReportDialog(context, postId, postUserId, post['content']);
+                  },
+                ),
               ],
             );
           },
@@ -348,6 +358,208 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
       },
     );
   }
+
+  void _showReportDialog(BuildContext context, String postId, String reportedUserId, String postContent) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You need to be logged in to report")),
+      );
+      return;
+    }
+
+    final reportController = TextEditingController();
+    String selectedReason = 'Inappropriate content'; // Moved outside the builder
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Report Post',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Please select a reason for reporting this post:'),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: selectedReason,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Inappropriate content',
+                        child: Text('Inappropriate content'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Harassment or bullying',
+                        child: Text('Harassment or bullying'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'False information',
+                        child: Text('False information'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Spam or misleading',
+                        child: Text('Spam or misleading'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Other',
+                        child: Text('Other'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        selectedReason = value;
+                        // Force rebuild
+                        (context as Element).markNeedsBuild();
+                      }
+                    },
+                  ),
+                  if (selectedReason == 'Other') ...[
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: reportController,
+                      decoration: const InputDecoration(
+                        hintText: 'Please specify the reason...',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.all(12),
+                      ),
+                      maxLines: 3,
+                      autofocus: true, // Auto-focus when "Other" is selected
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final reason = selectedReason == 'Other'
+                              ? reportController.text.trim()
+                              : selectedReason;
+
+                          if (selectedReason == 'Other' && reason.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Please provide a reason")),
+                            );
+                            return;
+                          }
+
+                          await _submitReport(
+                            context: context,
+                            postId: postId,
+                            reportedUserId: reportedUserId,
+                            reporterId: currentUserId,
+                            postContent: postContent,
+                            reason: reason,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Submit'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _submitReport({
+    required BuildContext context,
+    required String postId,
+    required String reportedUserId,
+    required String reporterId,
+    required String postContent,
+    required String reason,
+  }) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final reportData = {
+        'postId': postId,
+        'reportedUserId': reportedUserId,
+        'reporterId': reporterId,
+        'postContent': postContent,
+        'reason': reason,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'pending',
+        'postType': 'expert',
+      };
+
+      // Add to reports collection
+      await FirebaseFirestore.instance.collection('reportedExpertPosts').add(reportData);
+
+      // Also add to user's report history
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(reporterId)
+          .collection('reportsMade')
+          .add(reportData);
+
+      // Add to reported user's record
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(reportedUserId)
+          .collection('reportsReceived')
+          .add(reportData);
+
+      // Close loading indicator and dialog
+      Navigator.pop(context); // Loading indicator
+      Navigator.pop(context); // Report dialog
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Report submitted successfully! Our team will review it.'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      Navigator.pop(context); // Close loading indicator if open
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to submit report: ${e.toString()}'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
 
   void _showPostTranslationLanguageSelector(BuildContext context,
       String postId) {
@@ -479,13 +691,21 @@ void _showAddPostDialog(BuildContext context, FirebaseFirestore firestore) {
     builder: (context) {
       return AlertDialog(
         title: const Text('Create a New Post'),
+        backgroundColor: Colors.teal[50], // Added teal background
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16), // Rounded corners
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: postController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Enter your post content...',
+                border: OutlineInputBorder(
+                  borderRadius:BorderRadius.circular(8),
+                  borderSide: BorderSide(color: Colors.teal), // Teal border
+                ),
               ),
               maxLines: 3,
             ),
@@ -496,11 +716,19 @@ void _showAddPostDialog(BuildContext context, FirebaseFirestore firestore) {
             onPressed: () {
               Navigator.pop(context);
             },
-            child: const Text('Cancel'),
+            child: Text(
+                'Cancel',
+                style: TextStyle(color: Colors.teal[800]),
+            ),
           ),
           TextButton(
             onPressed: () async {
               if (postController.text.trim().isNotEmpty) {
+                final canPost = await WordFilterService().canSendMessage(
+                    postController.text.trim(),
+                    context
+                );
+                if (!canPost) return;
                 // Fetch user details from Firestore
                 DocumentSnapshot userSnapshot = await firestore.collection('Users').doc(currentUserId).get();
                 if (!userSnapshot.exists) {
@@ -532,7 +760,13 @@ void _showAddPostDialog(BuildContext context, FirebaseFirestore firestore) {
                 Navigator.pop(context);
               }
             },
-            child: const Text('Post'),
+            style: TextButton.styleFrom(
+              backgroundColor: Colors.teal, // Teal background
+            ),
+            child: const Text(
+              'Post',
+              style: TextStyle(color: Colors.white), // White text
+            ),
           ),
         ],
       );

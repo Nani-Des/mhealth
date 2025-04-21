@@ -88,10 +88,10 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Health Insights'),
-        backgroundColor: Colors.lightBlue,
+        backgroundColor: Colors.teal,
         actions: [
           IconButton(
-            icon: const Icon(Icons.help_outline),
+            icon: const Icon(Icons.help_outline, color: Colors.white),
             onPressed: () => _showHelpDialog(context),
           ),
         ],
@@ -123,14 +123,18 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
         padding: const EdgeInsets.all(8.0),
         child: DropdownButtonFormField<String>(
           value: _selectedRegion,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: 'Select Region',
+            labelStyle: TextStyle(color: Colors.teal[800]),
             border: InputBorder.none,
+            filled: true,
+            fillColor: Colors.teal[50],
           ),
+          dropdownColor: Colors.teal[50],
           items: ghanaRegions.map((String region) {
             return DropdownMenuItem(
               value: region,
-              child: Text(region),
+              child: Text(region, style: TextStyle(color: Colors.teal[800]),),
             );
           }).toList(),
           onChanged: (String? newValue) {
@@ -155,22 +159,26 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
             final isSmallScreen = constraints.maxWidth < 350;
 
             return SegmentedButton<MessageType>(
+              style: SegmentedButton.styleFrom(
+                backgroundColor: Colors.teal[50],
+                selectedBackgroundColor: Colors.teal,
+              ),
               segments: [
                 ButtonSegment(
                   value: MessageType.private,
                   // On small screens, show only icons if needed
                   label: Text(isSmallScreen ? '' : 'Private'),
-                  icon: const Icon(Icons.chat),
+                  icon: const Icon(Icons.chat, color: Colors.teal),
                 ),
                 ButtonSegment(
                   value: MessageType.forum,
                   label: Text(isSmallScreen ? '' : 'Forum'),
-                  icon: const Icon(Icons.forum),
+                  icon: const Icon(Icons.forum, color: Colors.teal),
                 ),
                 ButtonSegment(
                   value: MessageType.experts,
                   label: Text(isSmallScreen ? '' : 'Experts'),
-                  icon: const Icon(Icons.medical_services),
+                  icon: const Icon(Icons.medical_services, color: Colors.teal),
                 ),
               ],
               selected: {_selectedType},
@@ -379,6 +387,10 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('About Health Insights'),
+          backgroundColor: Colors.teal[50],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -406,7 +418,7 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Close'),
+              child: Text('Close', style: TextStyle(color: Colors.teal[800]),),
             ),
           ],
         );

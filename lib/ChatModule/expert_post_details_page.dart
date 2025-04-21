@@ -8,6 +8,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'dart:math';
 
+import 'chat_module.dart';
+
 
 class TranslationService {
   static String API_KEY = dotenv.env['NLP_API_KEY'] ?? '';
@@ -210,7 +212,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
       key: scaffoldMessengerKey,
       appBar: AppBar(
         title: const Text('Discussion', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.lightBlue,
+        backgroundColor: Colors.teal,
         elevation: 4,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -221,7 +223,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
             width: double.infinity,
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Colors.lightBlue[50],
+              color: Colors.teal[50],
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),
@@ -232,7 +234,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
             ),
             child: Text(
               widget.postTitle,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.lightBlue[900]),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal[900]),
             ),
           ),
           Expanded(
@@ -335,7 +337,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                         IconButton(
                                           icon: ScaleTransition(
                                             scale: _scaleAnimation,
-                                            child: const Icon(Icons.reply, color: Colors.lightBlue),
+                                            child: const Icon(Icons.reply, color: Colors.teal),
                                           ),
                                           onPressed: () {
                                             _animateReplyButton();
@@ -430,7 +432,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                           height: 36, // Adjust the height of the container
                           margin: const EdgeInsets.all(4), // Adjust margin to fit the smaller size
                           decoration: BoxDecoration(
-                            color: Colors.lightBlue, // Blue background color
+                            color: Colors.teal, // Blue background color
                             shape: BoxShape.circle, // Make it circular
                           ),
                           child: IconButton(
@@ -438,6 +440,11 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                             icon: const Icon(Icons.send, color: Colors.white), // White icon for contrast
                             onPressed: () async {
                               if (commentController.text.trim().isNotEmpty) {
+                                final canPost = await WordFilterService().canSendMessage(
+                                    commentController.text.trim(),
+                                    context
+                                );
+                                if (!canPost) return;
                                 if (currentUserId == null) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     const SnackBar(content: Text("User not logged in")),
@@ -563,7 +570,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
         child: Text(
           'Replying to $repliedToName: ${_truncateText(repliedContent, 15)}',
           style: TextStyle(
-            color: Colors.blue[800],
+            color: Colors.teal[800],
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -664,10 +671,236 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                 _showCommentTranslationLanguageSelector(context, scaffoldMessengerKey, comment);
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.report, color: Colors.red),
+              title: const Text('Report Comment', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _showCommentReportDialog(
+                  context: context,
+                  commentId: comment.id,
+                  commentUserId: commentUserId,
+                  commentContent: comment['content'],
+                  postId: widget.postId,
+                  scaffoldMessengerKey: scaffoldMessengerKey,
+                );
+              },
+            ),
           ],
         );
       },
     );
+  }
+
+  void _showCommentReportDialog({
+    required BuildContext context,
+    required String commentId,
+    required String commentUserId,
+    required String commentContent,
+    required String postId,
+    required GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
+  }) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You need to be logged in to report")),
+      );
+      return;
+    }
+
+    final reportController = TextEditingController();
+    String selectedReason = 'Inappropriate content'; // Default reason
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Report Comment',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Please select a reason for reporting this comment:'),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: selectedReason,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Inappropriate content',
+                        child: Text('Inappropriate content'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Harassment or bullying',
+                        child: Text('Harassment or bullying'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'False information',
+                        child: Text('False information'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Spam or misleading',
+                        child: Text('Spam or misleading'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Other',
+                        child: Text('Other'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        selectedReason = value;
+                        // Force rebuild
+                        (context as Element).markNeedsBuild();
+                      }
+                    },
+                  ),
+                  if (selectedReason == 'Other') ...[
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: reportController,
+                      decoration: const InputDecoration(
+                        hintText: 'Please specify the reason...',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.all(12),
+                      ),
+                      maxLines: 3,
+                      autofocus: true,
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final reason = selectedReason == 'Other'
+                              ? reportController.text.trim()
+                              : selectedReason;
+
+                          if (selectedReason == 'Other' && reason.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Please provide a reason")),
+                            );
+                            return;
+                          }
+
+                          await _submitCommentReport(
+                            context: context,
+                            commentId: commentId,
+                            commentUserId: commentUserId,
+                            reporterId: currentUserId,
+                            commentContent: commentContent,
+                            postId: postId,
+                            reason: reason,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Submit'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _submitCommentReport({
+    required BuildContext context,
+    required String commentId,
+    required String commentUserId,
+    required String reporterId,
+    required String commentContent,
+    required String postId,
+    required String reason,
+  }) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final reportData = {
+        'commentId': commentId,
+        'postId': postId,
+        'reportedUserId': commentUserId,
+        'reporterId': reporterId,
+        'commentContent': commentContent,
+        'reason': reason,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'pending',
+        'forumType': 'experts',
+      };
+
+      // Add to reports collection
+      await FirebaseFirestore.instance.collection('reportedExpertComments').add(reportData);
+
+      // Also add to user's report history
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(reporterId)
+          .collection('reportsMade')
+          .add(reportData);
+
+      // Add to reported user's record
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(commentUserId)
+          .collection('reportsReceived')
+          .add(reportData);
+
+      // Close loading indicator and dialog
+      Navigator.pop(context); // Loading indicator
+      Navigator.pop(context); // Report dialog
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Report submitted successfully! Our team will review it.'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      Navigator.pop(context); // Close loading indicator if open
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to submit report: ${e.toString()}'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   // Show comment translation language selector
@@ -733,6 +966,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
         late final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller;
 
         final snackBar = SnackBar(
+          backgroundColor: Colors.teal[800],
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
