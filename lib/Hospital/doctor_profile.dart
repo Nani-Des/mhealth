@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../Services/firebase_service.dart';
-import 'doctor_info_widget.dart'; // Import the new widget
+import 'doctor_info_widget.dart';
 
 class DoctorProfileScreen extends StatefulWidget {
   final String userId;
   final bool isReferral;
 
-  DoctorProfileScreen({required this.isReferral,required this.userId});
+  DoctorProfileScreen({required this.isReferral, required this.userId});
 
   @override
   _DoctorProfileScreenState createState() => _DoctorProfileScreenState();
@@ -42,11 +42,13 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
         _isLoading = false;
       });
     } catch (error) {
-      print('Check your network connectivity');
+      print('Error loading doctor details: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load doctor details. Please check your network.')),
+      );
     }
   }
 
-  // Method to initiate a phone call
   Future<void> _makePhoneCall(String phoneNumber) async {
     final Uri launchUri = Uri(
       scheme: 'tel',
@@ -74,13 +76,15 @@ class _DoctorProfileScreenState extends State<DoctorProfileScreen> {
           : DoctorInfoWidget(
         doctorDetails: {
           ..._doctorDetails,
-          'User ID': widget.userId, // Pass User ID explicitly
-          'Hospital ID': _doctorDetails['hospitalId'], // Pass Hospital ID explicitly
+          'User ID': widget.userId,
+          'Hospital ID': _doctorDetails['hospitalId'],
         },
         hospitalName: _hospitalName,
-        departmentName: _departmentName, hospitalId: _doctorDetails['hospitalId'],departmentId: _doctorDetails['departmentId'] ?? '',
+        departmentName: _departmentName,
+        hospitalId: _doctorDetails['hospitalId'],
+        departmentId: _doctorDetails['departmentId'] ?? '',
         onCall: _makePhoneCall,
-          isReferral:widget.isReferral
+        isReferral: widget.isReferral,
       ),
     );
   }

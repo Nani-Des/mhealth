@@ -4,10 +4,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:mhealth/Appointments/referral_form.dart';
-import 'package:mhealth/Appointments/Referral screens/referral_details_page.dart'; // Ensure this import matches your file structure
+import 'package:mhealth/Appointments/Referral screens/referral_details_page.dart';
 import '../../Login/login_screen1.dart';
 import '../../booking_page.dart';
+import '../../main.dart';
 import '../home_page.dart';
+import 'package:provider/provider.dart';
 
 class ProfileDrawer extends StatefulWidget {
   final AnimationController controller;
@@ -394,32 +396,49 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            // Handle delete logic here
-                          },
-                          icon: Icon(Icons.delete, size: 18),
-                          label: Text('Delete'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        Semantics(
+                          label: 'Delete Account',
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              // Handle delete logic here
+                            },
+                            icon: Icon(Icons.delete, size: 18),
+                            label: Text('Delete'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
                           ),
                         ),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            await FirebaseAuth.instance.signOut();
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(builder: (context) => HomePage()),
-                            );
-                          },
-                          icon: Icon(Icons.logout, size: 18),
-                          label: Text('Logout'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.tealAccent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        Semantics(
+                          label: 'Logout',
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              try {
+                                // Sign out from Firebase
+                                await FirebaseAuth.instance.signOut();
+                                // Clear user ID from UserModel
+                                Provider.of<UserModel>(context, listen: false).clearUserId();
+                                // Navigate to HomePage
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(builder: (context) => HomePage()),
+                                );
+                              } catch (e) {
+                                // Handle sign-out errors
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Logout failed: $e')),
+                                );
+                              }
+                            },
+                            icon: Icon(Icons.logout, size: 18),
+                            label: Text('Logout'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.tealAccent,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            ),
                           ),
                         ),
                       ],
@@ -455,7 +474,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.teal, size: 28),
+            Icon(icon, color: Colors.teal, size: 28, semanticLabel: label), // Added for accessibility
             SizedBox(height: 8),
             Text(
               label,

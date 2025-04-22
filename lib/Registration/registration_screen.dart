@@ -6,7 +6,6 @@ import '../Login/login_screen.dart';
 import '../Login/login_screen1.dart';
 import 'Components/registration_service.dart';
 
-
 class RegistrationScreen extends StatefulWidget {
   @override
   _RegistrationScreenState createState() => _RegistrationScreenState();
@@ -114,14 +113,14 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     Center(
                       child: Text(
                         _errorMessage,
-                        style: TextStyle(color: Colors.red),
+                        style: const TextStyle(color: Colors.red),
                       ),
                     ),
                   const SizedBox(height: 20.0),
                   Center(
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(horizontal: 80.0, vertical: 15.0),
+                        padding: const EdgeInsets.symmetric(horizontal: 80.0, vertical: 15.0),
                         backgroundColor: Colors.blueAccent,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30.0),
@@ -159,6 +158,36 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                   ),
                   const SizedBox(height: 20.0),
                   Center(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 15.0),
+                        side: const BorderSide(color: Colors.blueAccent),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30.0),
+                        ),
+                      ),
+                      onPressed: () async {
+                        setState(() {
+                          _errorMessage = '';
+                          _isLoading = true;
+                        });
+                        await _signInWithGoogle(context);
+                      },
+                      icon: Image.network(
+                        'https://www.google.com/favicon.ico',
+                        height: 24.0,
+                      ),
+                      label: const Text(
+                        'Sign in with Google',
+                        style: TextStyle(
+                          fontSize: 16.0,
+                          color: Colors.blueAccent,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20.0),
+                  Center(
                     child: TextButton(
                       onPressed: () {
                         Navigator.push(
@@ -166,7 +195,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                           MaterialPageRoute(builder: (context) => LoginScreen1()),
                         );
                       },
-                      child: Text(
+                      child: const Text(
                         'Already have an account? Login',
                         style: TextStyle(
                           color: Colors.blueAccent,
@@ -180,7 +209,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
             ),
           ),
           if (_isLoading)
-            Center(
+            const Center(
               child: CircularProgressIndicator(),
             ),
         ],
@@ -207,9 +236,9 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         ),
         filled: true,
         fillColor: Colors.grey[200],
-        contentPadding: EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
+        contentPadding: const EdgeInsets.symmetric(vertical: 20.0, horizontal: 20.0),
       ),
-      style: TextStyle(
+      style: const TextStyle(
         fontSize: 16.0,
       ),
     );
@@ -224,9 +253,35 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
         _emailController.text.trim(),
         _passwordController.text.trim(),
       );
+      // Navigate to the next screen after successful registration
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => LoginScreen1()), // Replace with your desired screen
+      );
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<void> _signInWithGoogle(BuildContext context) async {
+    try {
+      String? userId = await RegistrationService.signInWithGoogle(context);
+      if (userId != null) {
+        // Navigate to the next screen after successful Google Sign-In and PhoneNumberDialog
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => LoginScreen1()), // Replace with your desired screen
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Google sign-in failed: ${e.toString()}';
       });
     } finally {
       setState(() {

@@ -169,7 +169,7 @@ class _ChatHomePageState extends State<ChatHomePage>
         title: Text(
           _tabController.index == 0 ? 'Private Chats' : 'Open Forum',
         ),
-        backgroundColor: Colors.lightBlue,
+        backgroundColor: Colors.tealAccent,
       ),
       body: IndexedStack(
         index: _tabController.index,
@@ -178,7 +178,7 @@ class _ChatHomePageState extends State<ChatHomePage>
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.blue.shade700, Colors.lightBlue.shade400],
+            colors: [Colors.teal.shade700, Colors.tealAccent.shade400],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -230,12 +230,12 @@ class _ChatHomePageState extends State<ChatHomePage>
           ? SpeedDial(
         icon: Icons.add,
         activeIcon: Icons.close,
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.teal,
         foregroundColor: Colors.white,
         children: [
           SpeedDialChild(
             child: const Icon(Icons.person_add),
-            backgroundColor: Colors.blue,
+            backgroundColor: Colors.teal,
             label: 'Add User',
             onTap: () async {
               String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
@@ -272,7 +272,7 @@ class _ChatHomePageState extends State<ChatHomePage>
             ),
           );
         },
-        backgroundColor: Colors.blue,
+        backgroundColor: Colors.teal,
         child: const Icon(Icons.analytics, color: Colors.white),
       )
           : null, // Hide FAB if not expert // Hide FAB completely if not expert
@@ -893,7 +893,7 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
     return Container(
       height: 30,
       decoration: BoxDecoration(
-        color: Colors.blue.withOpacity(0.1),
+        color: Colors.teal.withOpacity(0.1),
         border: Border(
           top: BorderSide(color: Colors.grey.shade300),
           bottom: BorderSide(color: Colors.grey.shade300),
@@ -958,7 +958,7 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
                     icon: const Icon(Icons.add, color: Colors.white),
                     label: const Text("Add Post"),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
+                      backgroundColor: Colors.teal,
                       foregroundColor: Colors.white,
                     ),
                   ),
@@ -976,7 +976,7 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
+                        backgroundColor: Colors.teal,
                         foregroundColor: Colors.white,
                       ),
                       child: const Text('Experts Community'),
@@ -1529,7 +1529,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       key: scaffoldMessengerKey,
       appBar: AppBar(
         title: const Text('Discussion', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.lightBlue,
+        backgroundColor: Colors.tealAccent,
         elevation: 4,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -1540,7 +1540,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
             width: double.infinity,
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Colors.lightBlue[50],
+              color: Colors.tealAccent[50],
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),
@@ -1551,7 +1551,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
             ),
             child: Text(
               widget.postTitle,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.lightBlue[900]),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.tealAccent[900]),
             ),
           ),
           Expanded(
@@ -1655,7 +1655,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                                         IconButton(
                                           icon: ScaleTransition(
                                             scale: _scaleAnimation,
-                                            child: const Icon(Icons.reply, color: Colors.lightBlue),
+                                            child: const Icon(Icons.reply, color: Colors.tealAccent),
                                           ),
                                           onPressed: () {
                                             _animateReplyButton();
@@ -1709,7 +1709,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                 children: [
                   Text(
                     'Replying to $_replyingToUserName: ${_repliedContent != null && _repliedContent!.isNotEmpty ? '${_repliedContent!.substring(0, min(_repliedContent!.length, 15))}...' : _repliedContent ?? ''}',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[800]),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal[800]),
                   ),
                   const Spacer(),
                   IconButton(
@@ -1750,7 +1750,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                           height: 36,
                           margin: const EdgeInsets.all(8), // Add some margin around the circle
                           decoration: BoxDecoration(
-                            color: Colors.lightBlue, // Blue background color
+                            color: Colors.tealAccent, // teal background color
                             shape: BoxShape.circle, // Make it circular
                           ),
                           child: IconButton(
@@ -1882,7 +1882,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
         child: Text(
           'Replying to $repliedToName: ${_truncateText(repliedContent, 15)}',
           style: TextStyle(
-            color: Colors.blue[800],
+            color: Colors.teal[800],
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -3059,7 +3059,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
 
     if (status == 'ended') {
       callText = 'Video call ${isInitiator ? 'made' : 'received'}';
-      bubbleColor = Colors.blue.withOpacity(0.1);
+      bubbleColor = Colors.teal.withOpacity(0.1);
       callIcon = Icons.videocam;
     } else {
       callText = 'Video call ${isInitiator ? 'declined' : 'missed'}';
@@ -3193,7 +3193,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
             ),
           ],
         ),
-        backgroundColor: Colors.lightBlue,
+        backgroundColor: Colors.tealAccent,
         actions: [
           IconButton(
             icon: const Icon(Icons.video_call, color: Colors.white),
@@ -3342,7 +3342,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                       child: FloatingActionButton(
                         onPressed: _scrollToBottom,
                         mini: true,
-                        backgroundColor: Colors.blue,
+                        backgroundColor: Colors.teal,
                         child: const Icon(Icons.arrow_downward),
                       ),
                     ),
@@ -3374,7 +3374,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                             // Max 60 seconds
                             backgroundColor: Colors.grey[300],
                             valueColor: const AlwaysStoppedAnimation<Color>(
-                                Colors.blue),
+                                Colors.teal),
                           ),
                           Text(
                             'Recording: ${_recordingDuration.inSeconds}s',
@@ -3388,7 +3388,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                       height: 36, // Adjust the height of the container
                       margin: const EdgeInsets.all(4), // Adjust margin to fit the smaller size
                       decoration: BoxDecoration(
-                        color: Colors.blue, // Blue background color
+                        color: Colors.teal, // teal background color
                         shape: BoxShape.circle, // Make it circular
                       ),
                       child: IconButton(
@@ -3403,7 +3403,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                         onTap: _startRecording,
                         child: const Icon(
                           Icons.mic,
-                          color: Colors.blue,
+                          color: Colors.teal,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -3443,7 +3443,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                         height: 36, // Adjust the height of the container
                         margin: const EdgeInsets.all(4), // Adjust margin to fit the smaller size
                         decoration: BoxDecoration(
-                          color: Colors.blue, // Blue background color
+                          color: Colors.teal, // teal background color
                           shape: BoxShape.circle, // Make it circular
                         ),
                         child: IconButton(
@@ -3496,7 +3496,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.blue,
+                    color: Colors.teal,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(
@@ -3538,7 +3538,7 @@ class ChatBubblePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final Paint bubblePaint = Paint()
-      ..color = isSentByUser ? Colors.blue[500]! : Colors.grey[200]!
+      ..color = isSentByUser ? Colors.teal[500]! : Colors.grey[200]!
       ..style = PaintingStyle.fill;
 
     final Paint shadowPaint = Paint()
@@ -4564,12 +4564,12 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
               isLoading
                   ? const CircleAvatar(
                 radius: 60,
-                backgroundColor: Colors.blue,
+                backgroundColor: Colors.teal,
                 child: CircularProgressIndicator(color: Colors.white),
               )
                   : CircleAvatar(
                 radius: 60,
-                backgroundColor: Colors.blue,
+                backgroundColor: Colors.teal,
                 backgroundImage: profileImageUrl != null && profileImageUrl!.isNotEmpty
                     ? NetworkImage(profileImageUrl!)
                     : null,

@@ -105,7 +105,7 @@ class ArticleDetailPage extends StatelessWidget {
       child: RichText(
         text: TextSpan(
           style: const TextStyle(
-            fontSize: 16,
+            fontSize: 13,
             height: 1.6,
             color: Colors.black87,
           ),
@@ -119,45 +119,75 @@ class ArticleDetailPage extends StatelessWidget {
     List<TextSpan> spans = [];
     List<String> lines = text.split("\n");
 
-    // If it appears to be a single paragraph with steps (like from JSON)
+    final RegExp emphasizePattern = RegExp(r'\b(To prevent|To treat)\b');
+
+    TextSpan formatLine(String line) {
+      final matches = emphasizePattern.allMatches(line);
+      if (matches.isEmpty) {
+        return TextSpan(text: "$line\n");
+      }
+
+      List<InlineSpan> children = [];
+      int lastMatchEnd = 0;
+
+      for (final match in matches) {
+        if (match.start > lastMatchEnd) {
+          children.add(TextSpan(text: line.substring(lastMatchEnd, match.start)));
+        }
+
+        children.add(TextSpan(
+          text: match.group(0),
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Colors.teal,
+          ),
+        ));
+
+        lastMatchEnd = match.end;
+      }
+
+      if (lastMatchEnd < line.length) {
+        children.add(TextSpan(text: line.substring(lastMatchEnd)));
+      }
+
+      return TextSpan(children: children..add(const TextSpan(text: "\n")));
+    }
+
     if (lines.length == 1) {
       String content = lines[0];
-      RegExp stepPattern = RegExp(r'(\d+\.\s+[^.]+)');
       List<String> sentences = content.split('.').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
 
       for (String sentence in sentences) {
-        if (stepPattern.hasMatch(sentence)) {
-          spans.add(TextSpan(
-            text: "$sentence.\n",
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ));
-        } else {
-          spans.add(TextSpan(
-            text: "$sentence.\n",
-            style: const TextStyle(fontWeight: FontWeight.normal),
-          ));
-        }
+        spans.add(formatLine(sentence));
       }
     } else {
-      // Handle multi-line content with existing formatting
       for (String line in lines) {
         if (line.trim().isEmpty) continue;
+
+        TextSpan formatted = formatLine(line);
+
         if (line.startsWith("- ") || line.startsWith("• ")) {
-          spans.add(TextSpan(
-            text: "• ${line.substring(2)}\n",
-            style: const TextStyle(fontWeight: FontWeight.w600),
-          ));
+          formatted = TextSpan(
+            children: [
+              TextSpan(
+                text: "• ",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              ...formatted.children ?? [formatted]
+            ],
+          );
         } else if (line.startsWith("#")) {
-          spans.add(TextSpan(
+          formatted = TextSpan(
             text: "${line.replaceAll("#", "")}\n",
             style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ));
-        } else {
-          spans.add(TextSpan(text: "$line\n"));
+          );
         }
+
+        spans.add(formatted);
       }
     }
 
     return spans;
   }
+
 }

@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:mhealth/Hospital/specialty_details.dart';
+import '../ChatModule/chat_module.dart';
 import '../Components/booking_helper.dart';
+import '../Login/login_screen1.dart';
+import '../main.dart';
 import 'doctor_availability_calendar.dart';
 import 'hospital_page.dart';
+import 'package:uuid/uuid.dart';
+import 'package:provider/provider.dart';
 
 class DoctorInfoWidget extends StatelessWidget {
   final Map<String, dynamic> doctorDetails;
@@ -115,7 +120,6 @@ class DoctorInfoWidget extends StatelessWidget {
           'Hospital',
           hospitalName,
           onTap: () {
-            // Navigate to HospitalPage
             Navigator.push(
               context,
               MaterialPageRoute(
@@ -138,7 +142,7 @@ class DoctorInfoWidget extends StatelessWidget {
                 builder: (context) => SpecialtyDetails(
                   hospitalId: hospitalId,
                   isReferral: isReferral,
-                  initialDepartmentId: departmentId, // Pass the departmentId
+                  initialDepartmentId: departmentId,
                 ),
               ),
             );
@@ -214,26 +218,36 @@ class DoctorInfoWidget extends StatelessWidget {
   }
 
   Widget _buildActionButtons(BuildContext context) {
+    final userModel = Provider.of<UserModel>(context, listen: false);
+
     return Row(
       children: [
         Expanded(
           child: ElevatedButton.icon(
-            icon: const Icon(Icons.call, color: Colors.white),
-            label: const Text('Call Doctor'),
+            icon: const Icon(Icons.message, color: Colors.white),
+            label: const Text('Message Doctor'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.lightBlueAccent,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               elevation: 4,
             ),
-            onPressed: () {
-              String? mobileNumber = doctorDetails['Mobile Number'];
-              if (mobileNumber != null && mobileNumber.isNotEmpty) {
-                onCall(mobileNumber);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Mobile number not available')),
+            onPressed: () async {
+              if (userModel.userId == null || userModel.userId!.isEmpty) {
+                // User is not logged in, navigate to LoginScreen1
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => LoginScreen1()),
                 );
+                if (result != null && result is String && result.isNotEmpty) {
+                  // Update UserModel with the new user ID
+                  userModel.setUserId(result);
+                  // Proceed to ChatThreadDetailsPage
+                  _navigateToChat(context, userModel.userId!);
+                }
+              } else {
+                // User is logged in, proceed to ChatThreadDetailsPage
+                _navigateToChat(context, userModel.userId!);
               }
             },
           ),
@@ -254,6 +268,31 @@ class DoctorInfoWidget extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  void _navigateToChat(BuildContext context, String fromUid) {
+    String? toUid = doctorDetails['User ID'];
+    String? fname = doctorDetails['Fname'];
+    String? lname = doctorDetails['Lname'];
+    if (toUid != null && fname != null && lname != null) {
+      String chatId = const Uuid().v4();
+      String toName = "$fname $lname";
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ChatThreadDetailsPage(
+            chatId: chatId,
+            toName: toName,
+            toUid: toUid,
+            fromUid: fromUid,
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Doctor details not available')),
+      );
+    }
   }
 
   void _showCalendarDialog(BuildContext context) {

@@ -1,6 +1,7 @@
 {
   "project_info": {
     "project_number": "346868082875",
+    "firebase_url": "https://mhealth-6191e-default-rtdb.firebaseio.com",
     "project_id": "mhealth-6191e",
     "storage_bucket": "mhealth-6191e.appspot.com"
   },
@@ -12,7 +13,12 @@
           "package_name": "com.example.mhealth"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "346868082875-so5iejmfq6eq63hc4pc1r84ufm7gickk.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAUt_W7sme9H31aO3dLzqI1aNSeQVMClEo"
@@ -20,7 +26,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "346868082875-so5iejmfq6eq63hc4pc1r84ufm7gickk.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

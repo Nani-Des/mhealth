@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';  // Import dotenv
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'directions_model.dart';
@@ -10,13 +10,18 @@ import 'directions_repository.dart';
 import 'place_search_service.dart';
 
 class MapScreen1 extends StatefulWidget {
+  final String? initialPlace;
+
+  const MapScreen1({Key? key, this.initialPlace}) : super(key: key);
+
   @override
   _MapScreen1State createState() => _MapScreen1State();
 }
 
 class _MapScreen1State extends State<MapScreen1> {
-  static const _initialCameraPosition = CameraPosition(
-    target: LatLng(6.6666, -1.6163), // Default position
+  // Default camera position (will be updated based on initialPlace or current location)
+  CameraPosition _initialCameraPosition = const CameraPosition(
+    target: LatLng(6.6666, -1.6163), // Kumasi as fallback
     zoom: 12.5,
   );
 
@@ -44,13 +49,38 @@ class _MapScreen1State extends State<MapScreen1> {
   @override
   void initState() {
     super.initState();
-    _getCurrentLocation();
+    // Print initialPlace if available
+    if (widget.initialPlace != null) {
+      print('Initial Place: ${widget.initialPlace}');
+    }
+    // Start location fetching and handle initialPlace
+    _initializeMap();
+  }
+
+  Future<void> _initializeMap() async {
+    await _getCurrentLocation();
+    // If initialPlace is provided, fetch its coordinates and set camera position
+    if (widget.initialPlace != null && widget.initialPlace!.isNotEmpty) {
+      await _searchAndShowRoute(widget.initialPlace!);
+    } else {
+      // If no initialPlace, use current location for initial camera position
+      if (_currentPosition != null) {
+        setState(() {
+          _initialCameraPosition = CameraPosition(
+            target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+            zoom: 14.0,
+          );
+        });
+      }
+    }
+
+    // Handle showcase view
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('hasSeenEmergencyWalkthrough');
       final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
       if (!hasSeenWalkthrough && mounted) {
-        ShowCaseWidget.of(context)?.startShowCase([_chipKey,_hospitalKey]);
+        ShowCaseWidget.of(context)?.startShowCase([_chipKey, _hospitalKey]);
         await prefs.setBool('hasSeenEmergencyWalkthrough', true);
       }
     });
@@ -92,12 +122,67 @@ class _MapScreen1State extends State<MapScreen1> {
       );
     });
 
-    _googleMapController.animateCamera(
-      CameraUpdate.newLatLngZoom(LatLng(position.latitude, position.longitude), 14.0),
-    );
+    // Only update camera if no initialPlace is provided
+    if (widget.initialPlace == null || widget.initialPlace!.isEmpty) {
+      _googleMapController.animateCamera(
+        CameraUpdate.newLatLngZoom(LatLng(position.latitude, position.longitude), 14.0),
+      );
+    }
   }
 
-  // Function to search for a "health center" and show direction
+  Future<void> _searchAndShowRoute(String query) async {
+    if (_currentPosition == null) {
+      setState(() {
+        _selectedPlaceName = 'Unable to get current location';
+      });
+      return;
+    }
+
+    try {
+      final result = await _placeSearchService.searchPlace(query, dotenv.env['GOOGLE_API_KEY']!);
+      final destinationLatLng = LatLng(result['lat'], result['lng']);
+
+      setState(() {
+        _selectedPlaceName = result['name'];
+        _destination = Marker(
+          markerId: const MarkerId('searched_place'),
+          infoWindow: InfoWindow(title: result['name']),
+          position: destinationLatLng,
+          icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
+        );
+        // Update initial camera position to focus on initialPlace
+        _initialCameraPosition = CameraPosition(
+          target: destinationLatLng,
+          zoom: 14.0,
+        );
+      });
+
+      // Get directions for polyline
+      final directions = await DirectionsRepository(dio: Dio())
+          .getDirections(origin: _origin!.position, destination: destinationLatLng);
+
+      setState(() {
+        _info = directions;
+        _routePolyline = Polyline(
+          polylineId: const PolylineId('route'),
+          points: _info!.polylinePoints
+              .map((point) => LatLng(point.latitude, point.longitude))
+              .toList(),
+          color: Colors.teal,
+          width: 5,
+        );
+      });
+
+      _googleMapController.animateCamera(
+        CameraUpdate.newLatLngZoom(destinationLatLng, 14.0),
+      );
+    } catch (e) {
+      setState(() {
+        _selectedPlaceName = 'Error finding place: $e';
+      });
+    }
+  }
+
   Future<void> _findHealthCenter() async {
     if (_currentPosition == null) {
       setState(() {
@@ -110,7 +195,7 @@ class _MapScreen1State extends State<MapScreen1> {
     final lng = _currentPosition!.longitude;
 
     final url =
-        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=health&keyword=health%20center&key=${dotenv.env['GOOGLE_API_KEY']}'; // Use dotenv to get the key
+        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=health&keyword=health%20center&key=${dotenv.env['GOOGLE_API_KEY']}';
 
     try {
       final response = await Dio().get(url);
@@ -130,18 +215,15 @@ class _MapScreen1State extends State<MapScreen1> {
           );
         });
 
-        // Show direction from origin to health center
         final directions = await DirectionsRepository(dio: Dio())
             .getDirections(origin: _origin!.position, destination: LatLng(healthCenterLat, healthCenterLng));
 
         setState(() {
           _info = directions;
-
-          // Add polyline between origin and destination
           _routePolyline = Polyline(
-            polylineId: PolylineId('route'),
+            polylineId: const PolylineId('route'),
             points: _info!.polylinePoints
-                .map((point) => LatLng(point.latitude, point.longitude)) // Convert PointLatLng to LatLng
+                .map((point) => LatLng(point.latitude, point.longitude))
                 .toList(),
             color: Colors.blue,
             width: 5,
@@ -163,7 +245,6 @@ class _MapScreen1State extends State<MapScreen1> {
     }
   }
 
-  // Function to search for a hospital and show direction
   Future<void> _findNearestHospital() async {
     if (_currentPosition == null) {
       setState(() {
@@ -176,7 +257,7 @@ class _MapScreen1State extends State<MapScreen1> {
     final lng = _currentPosition!.longitude;
 
     final url =
-        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=hospital&key=${dotenv.env['GOOGLE_API_KEY']}'; // Use dotenv to get the key
+        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=hospital&key=${dotenv.env['GOOGLE_API_KEY']}';
 
     try {
       final response = await Dio().get(url);
@@ -196,18 +277,15 @@ class _MapScreen1State extends State<MapScreen1> {
           );
         });
 
-        // Show direction from origin to hospital
         final directions = await DirectionsRepository(dio: Dio())
             .getDirections(origin: _origin!.position, destination: LatLng(hospitalLat, hospitalLng));
 
         setState(() {
           _info = directions;
-
-          // Add polyline between origin and destination
           _routePolyline = Polyline(
-            polylineId: PolylineId('route'),
+            polylineId: const PolylineId('route'),
             points: _info!.polylinePoints
-                .map((point) => LatLng(point.latitude, point.longitude)) // Convert PointLatLng to LatLng
+                .map((point) => LatLng(point.latitude, point.longitude))
                 .toList(),
             color: Colors.teal,
             width: 5,
@@ -281,14 +359,14 @@ class _MapScreen1State extends State<MapScreen1> {
                     icon: const Icon(Icons.search),
                     onPressed: () => _searchPlace(_searchController.text),
                   ),
-            Showcase(
-              key: _hospitalKey,
-              description: 'Tap To Locate Nearest Hospital',
-              child: IconButton(
-                    icon: const Icon(Icons.local_hospital_sharp),
-                    onPressed: _findNearestHospital, // Find nearest hospital
-                    color: Colors.redAccent,
-                  ),
+                  Showcase(
+                    key: _hospitalKey,
+                    description: 'Tap To Locate Nearest Hospital',
+                    child: IconButton(
+                      icon: const Icon(Icons.local_hospital_sharp),
+                      onPressed: _findNearestHospital,
+                      color: Colors.redAccent,
+                    ),
                   ),
                 ],
               ),
@@ -316,14 +394,14 @@ class _MapScreen1State extends State<MapScreen1> {
         ],
       ),
       floatingActionButton: Showcase(
-    key: _chipKey,
-    description: 'Tap To Find Nearest CHIP Facility',
-    child: FloatingActionButton(
-        backgroundColor: Colors.green,
-        foregroundColor: Colors.white,
-        onPressed: _findHealthCenter, // Emergency button to find health center
-        child: const Icon(Icons.local_hospital),
-      ),
+        key: _chipKey,
+        description: 'Tap To Find Nearest CHIP Facility',
+        child: FloatingActionButton(
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          onPressed: _findHealthCenter,
+          child: const Icon(Icons.local_hospital),
+        ),
       ),
     );
   }
@@ -339,7 +417,7 @@ class _MapScreen1State extends State<MapScreen1> {
         );
         _destination = null;
         _info = null;
-        _routePolyline = null; // Clear polyline when origin is set again
+        _routePolyline = null;
       });
     } else {
       setState(() {
@@ -351,17 +429,14 @@ class _MapScreen1State extends State<MapScreen1> {
         );
       });
 
-      // Get directions to create a polyline
       final directions = await DirectionsRepository(dio: Dio())
           .getDirections(origin: _origin!.position, destination: pos);
       setState(() {
         _info = directions;
-
-        // Add polyline between origin and destination
         _routePolyline = Polyline(
-          polylineId: PolylineId('route'),
+          polylineId: const PolylineId('route'),
           points: _info!.polylinePoints
-              .map((point) => LatLng(point.latitude, point.longitude)) // Convert PointLatLng to LatLng
+              .map((point) => LatLng(point.latitude, point.longitude))
               .toList(),
           color: Colors.teal,
           width: 5,
@@ -372,7 +447,7 @@ class _MapScreen1State extends State<MapScreen1> {
 
   Future<void> _searchPlace(String query) async {
     try {
-      final result = await _placeSearchService.searchPlace(query, dotenv.env['GOOGLE_API_KEY']!); // Access API key from dotenv
+      final result = await _placeSearchService.searchPlace(query, dotenv.env['GOOGLE_API_KEY']!);
       setState(() {
         _selectedPlaceName = result['name'];
         _destination = Marker(

@@ -234,7 +234,7 @@ class _CalenderPageState extends State<CalenderPage> with TickerProviderStateMix
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'View Departments Roster',
+                'View Department Roster',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: Colors.teal,

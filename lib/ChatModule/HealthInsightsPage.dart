@@ -88,7 +88,7 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
     return Scaffold(
       appBar: AppBar(
         title: const Text('Health Insights'),
-        backgroundColor: Colors.lightBlue,
+        backgroundColor: Colors.tealAccent,
         actions: [
           IconButton(
             icon: const Icon(Icons.help_outline),
@@ -463,7 +463,7 @@ class _HealthInsightsPageState extends State<HealthInsightsPage>
   Color _getCategoryColor(String category) {
     final colors = {
       'symptoms': Colors.red[300]!,
-      'conditions': Colors.blue[300]!,
+      'conditions': Colors.teal[300]!,
       'treatments': Colors.green[300]!,
       'lifestyle': Colors.purple[300]!,
       'preventive': Colors.orange[300]!,

@@ -1,0 +1,2 @@
+C:/Users/nanid/Desktop/Gear/mhealth/android/app/.cxx/Debug/5c1u631q/armeabi-v7a/CMakeFiles/edit_cache.dir
+C:/Users/nanid/Desktop/Gear/mhealth/android/app/.cxx/Debug/5c1u631q/armeabi-v7a/CMakeFiles/rebuild_cache.dir

@@ -145,7 +145,7 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
       key: scaffoldMessengerKey,
       appBar: AppBar(
         title: const Text('Experts Community'),
-        backgroundColor: Colors.lightBlue,
+        backgroundColor: Colors.tealAccent,
       ),
       body: Column(
         children: [
@@ -159,7 +159,7 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
                 icon: const Icon(Icons.add, color: Colors.white),
                 label: const Text("Add Post"),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: Colors.teal,
                   foregroundColor: Colors.white,
                 ),
               ),

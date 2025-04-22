@@ -289,7 +289,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           child: SingleChildScrollView(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: FirstAidResponseWidget1(
+              child: FirstAidResponseWidget(
                 responseText: _responseText,
                 onClose: () => Navigator.pop(context),
               ),

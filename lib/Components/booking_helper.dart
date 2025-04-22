@@ -77,7 +77,7 @@ Future<void> _bookAppointment(
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: Colors.tealAccent,
+                  color: Colors.teal,
                 ),
               ),
               SizedBox(height: 16),
@@ -119,7 +119,7 @@ Future<void> _bookAppointment(
                       Navigator.of(context).pop(true);
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.tealAccent,
+                      backgroundColor: Colors.teal,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

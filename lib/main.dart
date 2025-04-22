@@ -10,6 +10,8 @@ import 'ChatModule/chat_module.dart';
 import 'Home/home_page.dart';
 import 'Maps/map_screen.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,16 +57,46 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ShowCaseWidget(
-      builder: (context) => MaterialApp(
-        title: 'mhealth',
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.white),
-          useMaterial3: true,
+    return ChangeNotifierProvider(
+      create: (context) {
+        final userModel = UserModel();
+        try {
+          // Initialize UserModel with current user's ID
+          final userId = FirebaseAuth.instance.currentUser?.uid;
+          userModel.setUserId(userId);
+        } catch (e) {
+          print('Error initializing user ID: $e');
+        }
+        return userModel;
+      },
+      child: ShowCaseWidget(
+        builder: (context) => MaterialApp(
+          title: 'mhealth',
+          theme: ThemeData(
+            colorScheme: ColorScheme.fromSeed(seedColor: Colors.white),
+            useMaterial3: true,
+          ),
+          home: HomePage(),
+          debugShowCheckedModeBanner: false,
         ),
-        home: HomePage(), // No need to pass permissionsGranted
-        debugShowCheckedModeBanner: false,
       ),
     );
+  }
+}
+
+
+class UserModel with ChangeNotifier {
+  String? _userId;
+
+  String? get userId => _userId;
+
+  void setUserId(String? userId) {
+    _userId = userId;
+    notifyListeners();
+  }
+
+  void clearUserId() {
+    _userId = null;
+    notifyListeners();
   }
 }

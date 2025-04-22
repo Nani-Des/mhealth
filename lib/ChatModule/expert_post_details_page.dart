@@ -210,7 +210,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
       key: scaffoldMessengerKey,
       appBar: AppBar(
         title: const Text('Discussion', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.lightBlue,
+        backgroundColor: Colors.tealAccent,
         elevation: 4,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -221,7 +221,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
             width: double.infinity,
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Colors.lightBlue[50],
+              color: Colors.tealAccent[50],
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),
@@ -232,7 +232,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
             ),
             child: Text(
               widget.postTitle,
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.lightBlue[900]),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.tealAccent[900]),
             ),
           ),
           Expanded(
@@ -335,7 +335,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                         IconButton(
                                           icon: ScaleTransition(
                                             scale: _scaleAnimation,
-                                            child: const Icon(Icons.reply, color: Colors.lightBlue),
+                                            child: const Icon(Icons.reply, color: Colors.tealAccent),
                                           ),
                                           onPressed: () {
                                             _animateReplyButton();
@@ -389,7 +389,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                 children: [
                   Text(
                     'Replying to $_replyingToUserName: ${_repliedContent != null && _repliedContent!.isNotEmpty ? '${_repliedContent!.substring(0, min(_repliedContent!.length, 15))}...' : _repliedContent ?? ''}',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue[800]),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal[800]),
                   ),
                   const Spacer(),
                   IconButton(
@@ -430,7 +430,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                           height: 36, // Adjust the height of the container
                           margin: const EdgeInsets.all(4), // Adjust margin to fit the smaller size
                           decoration: BoxDecoration(
-                            color: Colors.lightBlue, // Blue background color
+                            color: Colors.tealAccent, // teal background color
                             shape: BoxShape.circle, // Make it circular
                           ),
                           child: IconButton(
@@ -563,7 +563,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
         child: Text(
           'Replying to $repliedToName: ${_truncateText(repliedContent, 15)}',
           style: TextStyle(
-            color: Colors.blue[800],
+            color: Colors.teal[800],
             fontWeight: FontWeight.bold,
           ),
         ),
