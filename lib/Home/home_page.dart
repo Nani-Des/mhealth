@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
+import '../ChatModule/chat_module.dart';
 import '../Emergency/emergency_page.dart';
 import '../Login/login_screen1.dart';
 import 'Widgets/profile_drawer.dart';
@@ -28,6 +29,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CallService().setContext(context);
+    });
     _controller = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: 400),

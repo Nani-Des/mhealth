@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:convert';
 
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -134,7 +135,7 @@ class _ChatHomePageState extends State<ChatHomePage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    CallService().initialize(context);
+    //CallService().initialize();
     _fetchUserRole(); // Fetch user role when initializing
     _tabController.addListener(() {
       if (mounted) {
@@ -168,6 +169,7 @@ class _ChatHomePageState extends State<ChatHomePage>
       appBar: AppBar(
         title: Text(
           _tabController.index == 0 ? 'Private Chats' : 'Open Forum',
+          style: TextStyle(color: Colors.white),
         ),
         backgroundColor: Colors.tealAccent,
       ),
@@ -248,7 +250,7 @@ class _ChatHomePageState extends State<ChatHomePage>
           if (isExpert == true)
             SpeedDialChild(
               child: const Icon(Icons.analytics),
-              backgroundColor: Colors.green,
+              backgroundColor: Colors.teal.shade600,
               label: 'Health Insights',
               onTap: () {
                 Navigator.push(
@@ -1033,7 +1035,10 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
                           const SizedBox(height: 4),
                           Text(
                             'Posted by: $username',
-                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.teal[800],
+                            ),
                           ),
                         ],
                       ),
@@ -1041,9 +1046,9 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
                         timestamp != null
                             ? DateFormat.yMMMd().add_jm().format(timestamp.toDate())
                             : 'No Date',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Colors.blueGrey,
+                          color: Colors.teal[600],
                         ),
                       ),
                       onTap: () {
@@ -1150,12 +1155,170 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
                     _showPostTranslationLanguageSelector(context, postId);
                   },
                 ),
+                ListTile(
+                  leading: const Icon(Icons.report, color: Colors.red),
+                  title: const Text('Report Post', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showReportDialog(context, postId, postUserId, post['content']);
+                  },
+                ),
               ],
             );
           },
         );
       },
     );
+  }
+
+  void _showReportDialog(BuildContext context, String postId, String reportedUserId, String postContent) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You need to be logged in to report")),
+      );
+      return;
+    }
+
+    final reportController = TextEditingController();
+    String selectedReason = 'Inappropriate content'; // Default reason
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Report Post'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Please select a reason for reporting this post:'),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  value: selectedReason,
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'Inappropriate content',
+                      child: Text('Inappropriate content'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Harassment or bullying',
+                      child: Text('Harassment or bullying'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Spam or misleading',
+                      child: Text('Spam or misleading'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Other',
+                      child: Text('Other'),
+                    ),
+                  ],
+                  onChanged: (value) {
+                    if (value != null) {
+                      selectedReason = value;
+                    }
+                  },
+                ),
+                if (selectedReason == 'Other')
+                  Column(
+                    children: [
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: reportController,
+                        decoration: const InputDecoration(
+                          hintText: 'Please specify the reason...',
+                          border: OutlineInputBorder(),
+                        ),
+                        maxLines: 3,
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final reason = selectedReason == 'Other'
+                    ? reportController.text.trim()
+                    : selectedReason;
+
+                if (selectedReason == 'Other' && reason.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Please provide a reason")),
+                  );
+                  return;
+                }
+
+                await _submitReport(
+                  context: context,
+                  postId: postId,
+                  reportedUserId: reportedUserId,
+                  reporterId: currentUserId,
+                  postContent: postContent,
+                  reason: reason,
+                );
+              },
+              child: const Text('Submit', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _submitReport({
+    required BuildContext context,
+    required String postId,
+    required String reportedUserId,
+    required String reporterId,
+    required String postContent,
+    required String reason,
+  }) async {
+    try {
+      final reportData = {
+        'postId': postId,
+        'reportedUserId': reportedUserId,
+        'reporterId': reporterId,
+        'postContent': postContent,
+        'reason': reason,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'pending', // Can be pending, reviewed, dismissed, etc.
+      };
+
+      // Add to reports collection
+      await FirebaseFirestore.instance.collection('reportedPosts').add(reportData);
+
+      // Also add to user's report history
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(reporterId)
+          .collection('reportsMade')
+          .add(reportData);
+
+      // Add to reported user's record
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(reportedUserId)
+          .collection('reportsReceived')
+          .add(reportData);
+
+      Navigator.pop(context); // Close the dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Report submitted successfully')),
+      );
+    } catch (e) {
+      Navigator.pop(context); // Close the dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit report: ${e.toString()}')),
+      );
+    }
   }
 
   void _showPostTranslationLanguageSelector(BuildContext context,
@@ -1214,6 +1377,7 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
             SnackBarClosedReason> controller;
 
         final snackBar = SnackBar(
+          backgroundColor: Colors.teal[800],
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1282,6 +1446,10 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
       builder: (context) {
         return AlertDialog(
           title: const Text('Create a New Post'),
+          backgroundColor: Colors.teal[50],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1299,11 +1467,17 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
               onPressed: () {
                 Navigator.pop(context);
               },
-              child: const Text('Cancel'),
+              child: Text('Cancel', style: TextStyle(color: Colors.teal[800]),),
             ),
             TextButton(
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.teal,
+              ),
               onPressed: () async {
                 if (postController.text.trim().isNotEmpty) {
+                  final canPost = await WordFilterService()
+                      .canSendMessage(postController.text.trim(), context);
+                  if (!canPost) return;
                   DocumentSnapshot userSnapshot = await _firestore.collection('Users').doc(currentUserId).get();
                   if (!userSnapshot.exists) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1333,7 +1507,7 @@ class _ForumPageState extends State<ForumPage> with AutomaticKeepAliveClientMixi
                   Navigator.pop(context);
                 }
               },
-              child: const Text('Post'),
+              child: const Text('Post', style: TextStyle(color: Colors.white),),
             ),
           ],
         );
@@ -1529,7 +1703,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       key: scaffoldMessengerKey,
       appBar: AppBar(
         title: const Text('Discussion', style: TextStyle(color: Colors.white)),
-        backgroundColor: Colors.tealAccent,
+        backgroundColor: Colors.teal,
         elevation: 4,
         iconTheme: const IconThemeData(color: Colors.white),
       ),
@@ -1540,7 +1714,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
             width: double.infinity,
             padding: const EdgeInsets.all(16.0),
             decoration: BoxDecoration(
-              color: Colors.tealAccent[50],
+              color: Colors.teal[50],
               boxShadow: [
                 BoxShadow(
                   color: Colors.grey.withOpacity(0.3),
@@ -1764,6 +1938,12 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                                   return;
                                 }
 
+                                final canPost = await WordFilterService().canSendMessage(
+                                    commentController.text.trim(),
+                                    context
+                                );
+                                if (!canPost) return;
+
                                 DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
                                     .collection('Users')
                                     .doc(currentUserId)
@@ -1983,10 +2163,235 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                 );
               },
             ),
+            ListTile(
+              leading: const Icon(Icons.report, color: Colors.red),
+              title: const Text('Report Comment', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(context);
+                _showCommentReportDialog(
+                  context: context,
+                  commentId: comment.id,
+                  commentUserId: commentUserId,
+                  commentContent: comment['content'],
+                  postId: widget.postId,
+                  scaffoldMessengerKey: scaffoldMessengerKey,
+                );
+              },
+            ),
           ],
         );
       },
     );
+  }
+
+  void _showCommentReportDialog({
+    required BuildContext context,
+    required String commentId,
+    required String commentUserId,
+    required String commentContent,
+    required String postId,
+    required GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
+  }) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("You need to be logged in to report")),
+      );
+      return;
+    }
+
+    final reportController = TextEditingController();
+    String selectedReason = 'Inappropriate content'; // Default reason
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Report Comment',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Please select a reason for reporting this comment:'),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: selectedReason,
+                    isExpanded: true,
+                    items: const [
+                      DropdownMenuItem(
+                        value: 'Inappropriate content',
+                        child: Text('Inappropriate content'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Harassment or bullying',
+                        child: Text('Harassment or bullying'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'False information',
+                        child: Text('False information'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Spam or misleading',
+                        child: Text('Spam or misleading'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Other',
+                        child: Text('Other'),
+                      ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) {
+                        selectedReason = value;
+                        // Force rebuild
+                        (context as Element).markNeedsBuild();
+                      }
+                    },
+                  ),
+                  if (selectedReason == 'Other') ...[
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: reportController,
+                      decoration: const InputDecoration(
+                        hintText: 'Please specify the reason...',
+                        border: OutlineInputBorder(),
+                        contentPadding: EdgeInsets.all(12),
+                      ),
+                      maxLines: 3,
+                      autofocus: true,
+                    ),
+                  ],
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton(
+                        onPressed: () async {
+                          final reason = selectedReason == 'Other'
+                              ? reportController.text.trim()
+                              : selectedReason;
+
+                          if (selectedReason == 'Other' && reason.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text("Please provide a reason")),
+                            );
+                            return;
+                          }
+
+                          await _submitCommentReport(
+                            context: context,
+                            commentId: commentId,
+                            commentUserId: commentUserId,
+                            reporterId: currentUserId,
+                            commentContent: commentContent,
+                            postId: postId,
+                            reason: reason,
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Submit'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _submitCommentReport({
+    required BuildContext context,
+    required String commentId,
+    required String commentUserId,
+    required String reporterId,
+    required String commentContent,
+    required String postId,
+    required String reason,
+  }) async {
+    try {
+      // Show loading indicator
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final reportData = {
+        'commentId': commentId,
+        'postId': postId,
+        'reportedUserId': commentUserId,
+        'reporterId': reporterId,
+        'commentContent': commentContent,
+        'reason': reason,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      };
+
+      // Add to reports collection
+      await FirebaseFirestore.instance.collection('reportedComments').add(reportData);
+
+      // Also add to user's report history
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(reporterId)
+          .collection('reportsMade')
+          .add(reportData);
+
+      // Add to reported user's record
+      await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(commentUserId)
+          .collection('reportsReceived')
+          .add(reportData);
+
+      // Close loading indicator and dialog
+      Navigator.pop(context); // Loading indicator
+      Navigator.pop(context); // Report dialog
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Report submitted successfully! Our team will review it.'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } catch (e) {
+      Navigator.pop(context); // Close loading indicator if open
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to submit report: ${e.toString()}'),
+          duration: const Duration(seconds: 3),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _showCommentTranslationLanguageSelector(
@@ -2068,6 +2473,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
 
         // Create the SnackBar content
         final snackBar = SnackBar(
+          backgroundColor: Colors.teal[800],
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2301,6 +2707,9 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
   bool _isLoadingUserData = true;
   int _newMessagesCount = 0;
 
+  bool _isUserBlocked = false;
+  bool _isCheckingBlockStatus = true;
+
 
   bool _isRecording = false;
   Duration _recordingDuration = Duration.zero;
@@ -2346,7 +2755,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     _scrollController.addListener(_onScroll);
 
     // Initialize call service to listen for incoming calls
-    CallService().initialize(context);
+    //CallService().initialize();
 
     // Scroll to bottom when page first loads
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -2354,6 +2763,32 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
         _scrollToBottom();
       }
     });
+
+    _checkBlockStatus();
+  }
+
+  Future<void> _checkBlockStatus() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    try {
+      final blockDoc = await FirebaseFirestore.instance
+          .collection('UserBlocks')
+          .doc(currentUserId)
+          .collection('blockedUsers')
+          .doc(widget.toUid)
+          .get();
+
+      setState(() {
+        _isUserBlocked = blockDoc.exists;
+        _isCheckingBlockStatus = false;
+      });
+    } catch (e) {
+      print('Error checking block status: $e');
+      setState(() {
+        _isCheckingBlockStatus = false;
+      });
+    }
   }
 
   Future<void> _fetchAndCacheUserData() async {
@@ -2429,7 +2864,22 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     await batch.commit();
   }
 
-  void _onVideoCallPressed() {
+  Future<void> _onVideoCallPressed() async {
+    if (_isUserBlocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have blocked this user')),
+      );
+      return;
+    }
+
+    // Check if you're blocked by the other user
+    final isBlockedByOtherUser = await _checkIfBlockedByOtherUser();
+    if (isBlockedByOtherUser) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This user has blocked you')),
+      );
+      return;
+    }
     // Request camera and microphone permissions
     Future.wait([
       Permission.camera.request(),
@@ -2601,6 +3051,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
 
       // Create the SnackBar content
       final snackBar = SnackBar(
+        backgroundColor: Colors.teal[800],
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2872,7 +3323,27 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
         .trim()
         .isEmpty) return;
 
+    if (_isUserBlocked) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You have blocked this user')),
+      );
+      return;
+    }
+
+    // Check if you're blocked by the other user
+    final isBlockedByOtherUser = await _checkIfBlockedByOtherUser();
+    if (isBlockedByOtherUser) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('This user has blocked you')),
+      );
+      return;
+    }
+
     String messageText = _messageController.text.trim();
+
+    final canSend = await WordFilterService().canSendMessage(messageText, context);
+    if (!canSend) return;
+
     final message = {
       'content': messageText,
       'from_uid': widget.fromUid,
@@ -2904,6 +3375,51 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
 
     // Scroll to bottom after sending
     _scrollToBottom();
+  }
+
+  Future<bool> _checkIfBlockedByOtherUser() async {
+    try {
+      final blockDoc = await FirebaseFirestore.instance
+          .collection('UserBlocks')
+          .doc(widget.toUid)
+          .collection('blockedUsers')
+          .doc(widget.fromUid)
+          .get();
+      return blockDoc.exists;
+    } catch (e) {
+      print('Error checking if blocked by other user: $e');
+      return false;
+    }
+  }
+
+  void _showBannedWordWarning(List<String> bannedWords) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Message Blocked'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Your message contains inappropriate language and cannot be sent.'),
+            const SizedBox(height: 16),
+            Text(
+              'Banned words detected: ${bannedWords.join(', ')}',
+              style: TextStyle(
+                color: Colors.red[700],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _processMessageForHealthInsights(String messageText,
@@ -3126,6 +3642,82 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     );
   }
 
+  Future<void> _showBlockUserDialog() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final shouldBlock = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(_isUserBlocked ? 'Unblock User' : 'Block User'),
+        content: Text(
+          _isUserBlocked
+              ? 'Are you sure you want to unblock ${widget.toName}?'
+              : 'Are you sure you want to block ${widget.toName}? They will no longer be able to message or call you.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(_isUserBlocked ? 'Unblock' : 'Block'),
+            style: TextButton.styleFrom(
+              foregroundColor: _isUserBlocked ? Colors.green : Colors.red,
+            ),
+          ),
+        ],
+      ),
+    ) ?? false;
+
+    if (shouldBlock) {
+      await _toggleBlockUser(!_isUserBlocked);
+    }
+  }
+
+  Future<void> _toggleBlockUser(bool block) async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    try {
+      final blockRef = FirebaseFirestore.instance
+          .collection('UserBlocks')
+          .doc(currentUserId)
+          .collection('blockedUsers')
+          .doc(widget.toUid);
+
+      if (block) {
+        await blockRef.set({
+          'blockedAt': FieldValue.serverTimestamp(),
+          'blockedUserId': widget.toUid,
+          'blockedUserName': widget.toName,
+        });
+      } else {
+        await blockRef.delete();
+      }
+
+      setState(() {
+        _isUserBlocked = block;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            block
+                ? '${widget.toName} has been blocked'
+                : '${widget.toName} has been unblocked',
+          ),
+        ),
+      );
+    } catch (e) {
+      print('Error toggling block status: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update block status')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -3193,8 +3785,12 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
             ),
           ],
         ),
-        backgroundColor: Colors.tealAccent,
+        backgroundColor: Colors.teal,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.block, color: Colors.white),
+            onPressed: () => _showBlockUserDialog(),
+          ),
           IconButton(
             icon: const Icon(Icons.video_call, color: Colors.white),
             onPressed: _onVideoCallPressed,
@@ -3203,11 +3799,11 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
       ),
 
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Colors.grey, Colors.grey], // Consistent background
+            colors: [Colors.teal[50]!, Colors.grey[100]!], // Consistent background
           ),
         ),
         child: Column(
@@ -3473,7 +4069,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.grey[200],
+          color: Colors.teal.withOpacity(0.1),
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -4413,11 +5009,37 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   String? profileImageUrl;
   String callerFullName = '';
   bool isLoading = true;
+  final AudioPlayer _ringtonePlayer = AudioPlayer();
+  bool _isRinging = false;
 
   @override
   void initState() {
     super.initState();
     _fetchCallerInfo();
+    _startRinging();
+  }
+
+  Future<void> _startRinging() async {
+    try {
+      setState(() => _isRinging = true);
+      // Play ringtone (loop it)
+      await _ringtonePlayer.setSource(AssetSource('audio/incoming_call.mp3'));
+      await _ringtonePlayer.setReleaseMode(ReleaseMode.loop);
+      await _ringtonePlayer.resume();
+    } catch (e) {
+      print('Error playing ringtone: $e');
+    }
+  }
+
+  Future<void> _stopRinging() async {
+    if (_isRinging) {
+      try {
+        await _ringtonePlayer.stop();
+        setState(() => _isRinging = false);
+      } catch (e) {
+        print('Error stopping ringtone: $e');
+      }
+    }
   }
 
   Future<void> _fetchCallerInfo() async {
@@ -4457,6 +5079,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   }
 
   Future<void> _acceptCall(BuildContext context) async {
+    await _stopRinging();
     // Navigate to the video call screen
     Navigator.pushReplacement(
       context,
@@ -4474,6 +5097,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen> {
   }
 
   Future<void> _rejectCall(BuildContext context) async {
+    await _stopRinging();
     try {
       // Add missed call history
       await _addMissedCallHistory();
@@ -4672,12 +5296,26 @@ class CallService {
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   StreamSubscription? _callNotificationSubscription;
+  BuildContext? _context;
 
-  void initialize(BuildContext context) {
+  void initialize() {
+    _listenForIncomingCalls();
+  }
+
+  // Call this method from your root widget to provide context
+  void setContext(BuildContext context) {
+    _context = context;
+  }
+
+  void dispose() {
+    _callNotificationSubscription?.cancel();
+    _context = null;
+  }
+
+  void _listenForIncomingCalls() {
     final currentUserUid = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserUid == null) return;
 
-    // Listen for incoming call notifications
     _callNotificationSubscription = _firestore
         .collection('Users')
         .doc(currentUserUid)
@@ -4686,20 +5324,16 @@ class CallService {
         .limit(1)
         .snapshots()
         .listen((snapshot) async {
-      print("Received notification snapshot: ${snapshot.docs.length} docs");
-      if (snapshot.docs.isNotEmpty) {
+      if (snapshot.docs.isNotEmpty && _context != null && Navigator.of(_context!).mounted) {
         final latestCall = snapshot.docs.first;
         final callData = latestCall.data();
         final callId = callData['callId'];
 
-        // Fetch call details from the calls collection
         final callDoc = await _firestore.collection('calls').doc(callId).get();
         if (callDoc.exists) {
           final callDetails = callDoc.data()!;
-
           if (callDetails['status'] == 'pending') {
-            _showIncomingCallScreen(
-              context,
+            _handleIncomingCall(
               callId,
               callData['callerName'],
               callData['callerUid'],
@@ -4708,14 +5342,32 @@ class CallService {
           }
         }
       }
-    },onError: (error) {
+    }, onError: (error) {
       print("Error in call notification listener: $error");
     });
   }
 
-  void dispose() {
-    _callNotificationSubscription?.cancel();
+  void _handleIncomingCall(
+      String callId,
+      String callerName,
+      String callerUid,
+      Map<String, dynamic> offerSdp,
+      ) {
+    if (_context == null || !Navigator.of(_context!).mounted) return;
+
+    Navigator.of(_context!).push(
+      MaterialPageRoute(
+        builder: (context) => IncomingCallScreen(
+          callId: callId,
+          callerName: callerName,
+          callerUid: callerUid,
+          offerSdp: offerSdp,
+        ),
+      ),
+    );
   }
+
+
 
   Future<void> _showIncomingCallScreen(
       BuildContext context,
@@ -4807,5 +5459,173 @@ class CallService {
 
     await batch.commit();
     print("Cleared ${snapshot.docs.length} old notifications");
+  }
+}
+
+class WordFilterService {
+  static final WordFilterService _instance = WordFilterService._internal();
+  factory WordFilterService() => _instance;
+
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  List<String> _bannedWords = [];
+  bool _isInitialized = false;
+
+  WordFilterService._internal();
+
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    try {
+      final snapshot = await _firestore.collection('bannedWords').doc('wordList').get();
+      if (snapshot.exists) {
+        _bannedWords = List<String>.from(snapshot.data()?['words'] ?? []);
+        _isInitialized = true;
+        debugPrint('Loaded ${_bannedWords.length} banned words');
+      }
+    } catch (e) {
+      debugPrint('Error loading banned words: $e');
+    }
+  }
+
+  List<String> checkForBannedWords(String text) {
+    if (!_isInitialized) return [];
+
+    final lowerText = text.toLowerCase();
+    return _bannedWords.where((word) {
+      return RegExp('\\b${RegExp.escape(word.toLowerCase())}\\b').hasMatch(lowerText);
+    }).toList();
+  }
+
+  Future<bool> canSendMessage(String text, BuildContext context) async {
+    final bannedWords = checkForBannedWords(text);
+    if (bannedWords.isNotEmpty) {
+      await _showBannedWordWarning(context, text, bannedWords);
+      return false;
+    }
+    return true;
+  }
+
+  Future<void> _showBannedWordWarning(
+      BuildContext context,
+      String originalText,
+      List<String> bannedWords,
+      ) async {
+    // Try to get current language (implement your own logic)
+    final currentLanguage = 'en'; // Default to English
+
+    // Prepare translated texts
+    String title = 'Content Blocked';
+    String message = 'Your content contains inappropriate language:';
+    String suggestion = 'Please remove or change the highlighted words.';
+
+    // Translate if needed (remove if not using translations)
+    if (currentLanguage != 'en') {
+      try {
+        title = await TranslationService.translateText(
+          text: title,
+          targetLanguage: currentLanguage,
+        );
+        message = await TranslationService.translateText(
+          text: message,
+          targetLanguage: currentLanguage,
+        );
+        suggestion = await TranslationService.translateText(
+          text: suggestion,
+          targetLanguage: currentLanguage,
+        );
+      } catch (e) {
+        debugPrint('Error translating warning: $e');
+      }
+    }
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(message),
+              const SizedBox(height: 12),
+              // Highlighted text display
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: RichText(
+                  text: _highlightBannedWords(originalText, bannedWords),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                suggestion,
+                style: TextStyle(color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Banned words: ${bannedWords.join(', ')}',
+                style: TextStyle(
+                  color: Colors.red[700],
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('OK'), // Could also be translated
+          ),
+        ],
+      ),
+    );
+  }
+
+  TextSpan _highlightBannedWords(String text, List<String> bannedWords) {
+    final spans = <TextSpan>[];
+    final pattern = RegExp(
+      bannedWords.map((word) => RegExp.escape(word)).join('|'),
+      caseSensitive: false,
+    );
+
+    int lastMatchEnd = 0;
+
+    for (final match in pattern.allMatches(text)) {
+      // Add normal text before match
+      if (match.start > lastMatchEnd) {
+        spans.add(TextSpan(
+          text: text.substring(lastMatchEnd, match.start),
+        ));
+      }
+
+      // Add highlighted banned word
+      spans.add(TextSpan(
+        text: text.substring(match.start, match.end),
+        style: TextStyle(
+          backgroundColor: Colors.red[100],
+          color: Colors.red[900],
+          fontWeight: FontWeight.bold,
+        ),
+      ));
+
+      lastMatchEnd = match.end;
+    }
+
+    // Add remaining normal text
+    if (lastMatchEnd < text.length) {
+      spans.add(TextSpan(text: text.substring(lastMatchEnd)));
+    }
+
+    return TextSpan(children: spans);
+  }
+
+  Future<void> reloadBannedWords() async {
+    _isInitialized = false;
+    await initialize();
   }
 }

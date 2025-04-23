@@ -69,6 +69,7 @@ dependencies:
   flutter_sound: ^9.28.0
   google_sign_in: ^6.2.1
 
+  audioplayers: ^6.4.0
 
 
   intl: ^0.20.2
@@ -116,6 +117,7 @@ flutter:
     - assets/knowledge_packs.json
     - assets/emergency_procedures.json
     - .env
+    - assets/audio/incoming_call.mp3
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
