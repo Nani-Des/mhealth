@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:mhealth/Home/home_page.dart';
-import 'package:mhealth/Login/login_screen1.dart';
+import 'package:nhap/Home/home_page.dart';
+import 'package:nhap/Login/login_screen1.dart';
 
 import '../../ChatModule/chat_module.dart';
 import '../../Forums/Public/forum.dart';

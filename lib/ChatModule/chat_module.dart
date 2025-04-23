@@ -2813,7 +2813,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
 
         try {
           final storageRef = FirebaseStorage.instanceFor(
-            bucket: 'mhealth-6191e.appspot.com',
+            bucket: 'nhap-6191e.appspot.com',
           ).ref().child(storagePath);
 
           final uploadTask = storageRef.putFile(

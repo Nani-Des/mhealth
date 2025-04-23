@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mhealth/Hospital/Widgets/custom_nav_bar.dart';
-import 'package:mhealth/Hospital/specialty_details.dart';
+import 'package:nhap/Hospital/Widgets/custom_nav_bar.dart';
+import 'package:nhap/Hospital/specialty_details.dart';
 import '../Services/firebase_service.dart';
 import '../try.dart';
 import 'Widgets/calender_page.dart';

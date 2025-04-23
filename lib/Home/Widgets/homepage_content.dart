@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mhealth/Home/Widgets/speech_bubble.dart';
+import 'package:nhap/Home/Widgets/speech_bubble.dart';
 import 'doctors_row_item.dart';
 import 'organization_list_view.dart';
 import 'search_bar1.dart';

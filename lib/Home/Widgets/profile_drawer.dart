@@ -2,9 +2,10 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mhealth/Appointments/referral_form.dart';
-import 'package:mhealth/Appointments/Referral screens/referral_details_page.dart';
+import 'package:nhap/Appointments/referral_form.dart';
+import 'package:nhap/Appointments/Referral screens/referral_details_page.dart';
 import '../../Login/login_screen1.dart';
 import '../../booking_page.dart';
 import '../../main.dart';
@@ -416,6 +417,8 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                           child: ElevatedButton.icon(
                             onPressed: () async {
                               try {
+                                // Sign out from Google
+                                await GoogleSignIn().signOut();
                                 // Sign out from Firebase
                                 await FirebaseAuth.instance.signOut();
                                 // Clear user ID from UserModel

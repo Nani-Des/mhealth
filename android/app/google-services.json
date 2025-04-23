@@ -8,12 +8,28 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:346868082875:android:6e61d878b9540d82c7e19e",
+        "mobilesdk_app_id": "1:346868082875:android:189ed9cb28aca144c7e19e",
         "android_client_info": {
-          "package_name": "com.example.mhealth"
+          "package_name": "com.mhealth.nhap"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "346868082875-jtrm0aj32pvaknutgnhco5kpg2b0lt5k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mhealth.nhap",
+            "certificate_hash": "e72cf6f019c24080d7dca5039287311fb85600d7"
+          }
+        },
+        {
+          "client_id": "346868082875-lnpbtst24h0cji7iqol16b4gsq2cs4tf.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.mhealth.nhap",
+            "certificate_hash": "abb81620df922acc04da052896bea2301fe6e4a3"
+          }
+        },
         {
           "client_id": "346868082875-so5iejmfq6eq63hc4pc1r84ufm7gickk.apps.googleusercontent.com",
           "client_type": 3

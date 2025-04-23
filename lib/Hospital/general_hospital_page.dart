@@ -37,7 +37,10 @@ class GeneralHospitalPage extends StatelessWidget {
         .doc(user.uid)
         .get();
 
-    return userDoc.exists ? userDoc.data()!['Hospital ID'] as String? : null;
+    // Safely access 'Hospital ID' field
+    return userDoc.exists && userDoc.data() != null
+        ? (userDoc.data()!['Hospital ID'] as String?)
+        : null;
   }
 
   // Function to show the redesigned dropdown menu
@@ -112,85 +115,93 @@ class GeneralHospitalPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.teal.shade100, Colors.teal.shade50],
-          ),
-        ),
-        child: CustomScrollView(
-          slivers: [
-            SliverAppBar(
-              expandedHeight: 200.0,
-              floating: false,
-              pinned: true,
-              flexibleSpace: FlexibleSpaceBar(
-                title: Text(
-                  'Health Facilities',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    shadows: [
-                      Shadow(
-                        blurRadius: 4.0,
-                        color: Colors.black26,
-                        offset: Offset(2.0, 2.0),
+    return FutureBuilder<bool>(
+      future: _isActiveDoctor(),
+      builder: (context, snapshot) {
+        bool isActiveDoctor = snapshot.data ?? false;
+
+        return Scaffold(
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.teal.shade100, Colors.teal.shade50],
+              ),
+            ),
+            child: CustomScrollView(
+              slivers: [
+                SliverAppBar(
+                  expandedHeight: 200.0,
+                  floating: false,
+                  pinned: true,
+                  flexibleSpace: FlexibleSpaceBar(
+                    title: Text(
+                      'Health Facilities',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 4.0,
+                            color: Colors.black26,
+                            offset: Offset(2.0, 2.0),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Image.asset(
-                      'assets/Images/General Hospital Page.jpeg',
-                      fit: BoxFit.cover,
                     ),
-                    Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.black.withOpacity(0.3),
-                            Colors.black.withOpacity(0.5),
-                          ],
+                    background: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        Image.asset(
+                          'assets/Images/General Hospital Page.jpeg',
+                          fit: BoxFit.cover,
                         ),
-                      ),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withOpacity(0.3),
+                                Colors.black.withOpacity(0.5),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
+                  ),
+                  backgroundColor: Colors.teal,
+                  elevation: 4.0,
+                  automaticallyImplyLeading: false,
+                  actions: [
+                    if (isActiveDoctor)
+                      IconButton(
+                        icon: Icon(Icons.filter_list, color: Colors.white),
+                        onPressed: () => _showDoctorMenu(context),
+                        tooltip: 'Doctor Options',
+                      ),
                   ],
                 ),
-              ),
-              backgroundColor: Colors.teal,
-              elevation: 4.0,
-              automaticallyImplyLeading: false,
-              actions: [
-                IconButton(
-                  icon: Icon(Icons.filter_list, color: Colors.white),
-                  onPressed: () => _showDoctorMenu(context),
-                  tooltip: 'Doctor Options',
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: SizedBox(
+                      height: MediaQuery.of(context).size.height * 0.6,
+                      child: OrganizationListView(
+                        showSearchBar: true,
+                        isReferral: false,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.6,
-                  child: OrganizationListView(
-                    showSearchBar: true,
-                    isReferral: false,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: CustomBottomNavBar(selectedIndex: 0),
+          ),
+          bottomNavigationBar: CustomBottomNavBar(selectedIndex: 0),
+        );
+      },
     );
   }
 }

@@ -155,6 +155,10 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           }
         }
 
+        if (requests.isEmpty) {
+          return _buildEmptyState("No booking requests found");
+        }
+
         requests.sort((a, b) => _sortBookings(a, b));
         return ListView.builder(
           padding: EdgeInsets.all(16),

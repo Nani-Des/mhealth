@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mhealth/Login/login_screen1.dart';
+import 'package:nhap/Login/login_screen1.dart';
 import '../../Appointments/Referral screens/referral_details_page.dart';
 import '../../Appointments/referral_form.dart';
+import '../../booking_page.dart';
 import '../hospital_profile_screen.dart';
 
 class CustomBottomNavBarHospital extends StatefulWidget {
@@ -18,6 +19,28 @@ class CustomBottomNavBarHospital extends StatefulWidget {
 class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital> {
   int _selectedIndex = 0;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  bool _isDoctor = false;
+  bool _isActive = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkUserRoleAndStatus();
+  }
+
+  Future<void> _checkUserRoleAndStatus() async {
+    User? user = _auth.currentUser;
+    if (user != null) {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(user.uid)
+          .get();
+      setState(() {
+        _isDoctor = userDoc.exists && userDoc['Role'] == true;
+        _isActive = userDoc.exists && userDoc['Status'] == true;
+      });
+    }
+  }
 
   Future<void> _navigateBasedOnAuthStatus(
       BuildContext context, Widget Function(String) targetScreen) async {
@@ -75,20 +98,24 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
     await FirebaseFirestore.instance.collection('Users').doc(user.uid).get();
 
     bool isDoctor = userDoc.exists && userDoc['Role'] == true;
-    String? userHospitalId = userDoc.exists ? userDoc['Hospital ID'] : null;
+    bool isActive = userDoc.exists && userDoc['Status'] == true;
+    // Safely access 'Hospital ID' field
+    String? userHospitalId = userDoc.exists && userDoc.data() != null
+        ? (userDoc.data() as Map<String, dynamic>)['Hospital ID']
+        : null;
 
     switch (target) {
       case 'Refer':
-        if (!isDoctor) {
-          _showAccessDeniedDialog(context, "Only doctors can make referrals.");
+        if (!isDoctor || !isActive) {
+          _showAccessDeniedDialog(context, "Only active doctors can make referrals.");
           return;
         }
-        // Fetch hospital name and pass it to ReferralForm
         String? hospitalName = await _fetchHospitalName(widget.hospitalId);
+        String selectedHealthFacility = hospitalName ?? "Loading Hospital..";
         _navigateBasedOnAuthStatus(
           context,
               (userId) => ReferralForm(
-            selectedHealthFacility: hospitalName ?? "Loading Hospital..",
+            selectedHealthFacility: selectedHealthFacility,
           ),
         );
         break;
@@ -100,18 +127,17 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
         );
         break;
 
-      case 'Referrals':
-        if (!isDoctor) {
-          _showAccessDeniedDialog(context, "Only doctors can view referrals.");
-          return;
-        }
-        if (hospitalId != null && userHospitalId != null && hospitalId == userHospitalId) {
+      case 'ReferralsOrBookings':
+        if (isDoctor && isActive && userHospitalId != null && hospitalId == userHospitalId) {
           _navigateBasedOnAuthStatus(
             context,
                 (userId) => ReferralDetailsPage(hospitalId: widget.hospitalId),
           );
         } else {
-          _showAccessDeniedDialog(context, "You can only view referrals from your hospital.");
+          _navigateBasedOnAuthStatus(
+            context,
+                (userId) => BookingPage(currentUserId: userId),
+          );
         }
         break;
     }
@@ -145,8 +171,8 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
       case 1: // About
         _checkAndNavigate(context, 'About');
         break;
-      case 2: // Referrals
-        _checkAndNavigate(context, 'Referrals', hospitalId: widget.hospitalId);
+      case 2: // Referrals or Bookings
+        _checkAndNavigate(context, 'ReferralsOrBookings', hospitalId: widget.hospitalId);
         break;
     }
   }
@@ -183,8 +209,8 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
                 label: 'About',
               ),
               BottomNavigationBarItem(
-                icon: Icon(Icons.group),
-                label: 'Referrals',
+                icon: Icon(_isDoctor && _isActive ? Icons.group : Icons.event),
+                label: _isDoctor && _isActive ? 'Referrals' : 'Bookings',
               ),
             ],
             currentIndex: _selectedIndex,

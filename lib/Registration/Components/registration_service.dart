@@ -2,7 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:mhealth/Registration/Components/phone_number_dialog.dart';
+import 'package:nhap/Registration/Components/phone_number_dialog.dart';
 
 class RegistrationService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -121,35 +121,37 @@ class RegistrationService {
                 'CreatedAt': Timestamp.now(),
               });
 
-              print('Google user registrados exitosamente');
+              print('Google user registered successfully');
             },
           );
         } else {
-          print('Usuario de Google existente ha iniciado sesión');
+          print('Existing Google user signed in');
         }
 
         // Return the User ID for further navigation
         return user.uid;
       }
     } catch (e) {
-      print('Error durante el inicio de sesión con Google: $e');
+      print('Error during Google sign-in: $e');
       String errorMessage;
       if (e is FirebaseAuthException) {
         switch (e.code) {
           case 'account-exists-with-different-credential':
-            errorMessage = 'La cuenta ya existe con una credencial diferente.';
+            errorMessage = 'Account already exists with a different credential.';
             break;
           case 'invalid-credential':
-            errorMessage = 'Credenciales de Google no válidas. Por favor, intenta de nuevo.';
+            errorMessage = 'Invalid Google credentials. Please try again.';
             break;
           case 'network-request-failed':
-            errorMessage = 'Error de red. Por favor, verifica tu conexión a internet.';
+            errorMessage = 'Network error. Please check your internet connection.';
             break;
           default:
-            errorMessage = 'Error en el inicio de sesión con Google: ${e.message}';
+            errorMessage = 'Google sign-in error: ${e.message}';
         }
+      } else if (e.toString().contains('ApiException: 10')) {
+        errorMessage = 'Google Sign-In failed due to a configuration error (ApiException: 10). Please check SHA-1 and OAuth settings in Firebase.';
       } else {
-        errorMessage = 'Error inesperado en el inicio de sesión con Google. Por favor, intenta de nuevo.';
+        errorMessage = 'Unexpected Google sign-in error. Please try again.';
       }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text(errorMessage),
@@ -177,15 +179,15 @@ class RegistrationService {
 
       User? user = userCredential.user;
       if (user != null) {
-        print('Usuario ha iniciado sesión exitosamente con ID: ${user.uid}');
+        print('User signed in successfully with ID: ${user.uid}');
         // Pass the user ID back to the previous screen
         Navigator.pop(context);
         Navigator.pop(context, user.uid);
       }
     } catch (e) {
-      print('Error en el inicio de sesión: $e');
+      print('Error signing in: $e');
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('No se pudo iniciar sesión. Por favor, verifica tu correo y contraseña.'),
+        content: Text('Failed to sign in. Please check your email and password.'),
       ));
       throw e; // Propagate error to the caller
     }

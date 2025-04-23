@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:mhealth/try.dart';
+import 'package:nhap/try.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'Appointments/referral_form.dart';
 import 'ChatModule/chat_module.dart';
@@ -71,7 +71,7 @@ class MyApp extends StatelessWidget {
       },
       child: ShowCaseWidget(
         builder: (context) => MaterialApp(
-          title: 'mhealth',
+          title: 'nhap',
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.white),
             useMaterial3: true,

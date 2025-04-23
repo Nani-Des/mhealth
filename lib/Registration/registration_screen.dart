@@ -39,7 +39,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     style: TextStyle(
                       fontSize: 34.0,
                       fontWeight: FontWeight.bold,
-                      color: Colors.blueAccent,
+                      color: Colors.teal,
                     ),
                   ),
                   const SizedBox(height: 3.0),
@@ -121,7 +121,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 80.0, vertical: 15.0),
-                        backgroundColor: Colors.blueAccent,
+                        backgroundColor: Colors.teal,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30.0),
                         ),
@@ -161,7 +161,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                     child: OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 40.0, vertical: 15.0),
-                        side: const BorderSide(color: Colors.blueAccent),
+                        side: const BorderSide(color: Colors.teal),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30.0),
                         ),
@@ -181,7 +181,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                         'Sign in with Google',
                         style: TextStyle(
                           fontSize: 16.0,
-                          color: Colors.blueAccent,
+                          color: Colors.teal,
                         ),
                       ),
                     ),
@@ -198,7 +198,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
                       child: const Text(
                         'Already have an account? Login',
                         style: TextStyle(
-                          color: Colors.blueAccent,
+                          color: Colors.teal,
                           fontSize: 16.0,
                         ),
                       ),
@@ -230,7 +230,7 @@ class _RegistrationScreenState extends State<RegistrationScreen> {
       inputFormatters: inputFormatters,
       decoration: InputDecoration(
         labelText: labelText,
-        prefixIcon: Icon(icon, color: Colors.blueAccent),
+        prefixIcon: Icon(icon, color: Colors.teal),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10.0),
         ),

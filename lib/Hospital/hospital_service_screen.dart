@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mhealth/Appointments/Referral%20screens/referral_details_page.dart';
+import 'package:nhap/Appointments/Referral%20screens/referral_details_page.dart';
 import '../Appointments/referral_form.dart';
 import '../Login/login_screen1.dart';
 import '../Services/firebase_service.dart';

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mhealth/Hospital/specialty_details.dart';
+import 'package:nhap/Hospital/specialty_details.dart';
 import '../ChatModule/chat_module.dart';
 import '../Components/booking_helper.dart';
 import '../Login/login_screen1.dart';

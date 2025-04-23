@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "mhealth" "\0"
+            VALUE "CompanyName", "com.nhap" "\0"
+            VALUE "FileDescription", "nhap" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "mhealth" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2024 com.example. All rights reserved." "\0"
-            VALUE "OriginalFilename", "mhealth.exe" "\0"
-            VALUE "ProductName", "mhealth" "\0"
+            VALUE "InternalName", "nhap" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2024 com.nhap. All rights reserved." "\0"
+            VALUE "OriginalFilename", "nhap.exe" "\0"
+            VALUE "ProductName", "nhap" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

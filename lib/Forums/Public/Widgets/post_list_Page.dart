@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:mhealth/Forums/Public/Widgets/post_card.dart';
+import 'package:nhap/Forums/Public/Widgets/post_card.dart';
 
 class PostListPage extends StatefulWidget {
   @override
