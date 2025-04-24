@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nhap/Hospital/specialty_details.dart';
+import '../Auth/auth_screen.dart';
 import '../ChatModule/chat_module.dart';
 import '../Components/booking_helper.dart';
 import '../Login/login_screen1.dart';
@@ -237,7 +238,7 @@ class DoctorInfoWidget extends StatelessWidget {
                 // User is not logged in, navigate to LoginScreen1
                 final result = await Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => LoginScreen1()),
+                  MaterialPageRoute(builder: (context) => AuthScreen()),
                 );
                 if (result != null && result is String && result.isNotEmpty) {
                   // Update UserModel with the new user ID

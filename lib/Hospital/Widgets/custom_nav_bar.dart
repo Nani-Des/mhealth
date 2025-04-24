@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nhap/Login/login_screen1.dart';
 import '../../Appointments/Referral screens/referral_details_page.dart';
 import '../../Appointments/referral_form.dart';
+import '../../Auth/auth_screen.dart';
 import '../../booking_page.dart';
 import '../hospital_profile_screen.dart';
 
@@ -52,7 +53,7 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
     } else {
       userId = await Navigator.push<String>(
         context,
-        MaterialPageRoute(builder: (context) => LoginScreen1()),
+        MaterialPageRoute(builder: (context) => AuthScreen()),
       );
     }
 
@@ -89,7 +90,7 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
     if (user == null) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => LoginScreen1()),
+        MaterialPageRoute(builder: (context) => AuthScreen()),
       );
       return;
     }

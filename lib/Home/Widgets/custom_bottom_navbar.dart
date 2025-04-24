@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:nhap/Home/home_page.dart';
 import 'package:nhap/Login/login_screen1.dart';
 
+import '../../Auth/auth_screen.dart';
 import '../../ChatModule/chat_module.dart';
 import '../../Forums/Public/forum.dart';
 import '../../Hospital/general_hospital_page.dart';
@@ -37,7 +38,7 @@ class _CustomBottomNavBarState extends State<CustomBottomNavBar> {
     } else {
       userId = await Navigator.push<String>(
         context,
-        MaterialPageRoute(builder: (context) => LoginScreen1()),
+        MaterialPageRoute(builder: (context) => AuthScreen()),
       );
     }
 

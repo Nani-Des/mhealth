@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
+import '../Auth/auth_screen.dart';
 import '../ChatModule/chat_module.dart';
 import '../Emergency/emergency_page.dart';
 import '../Login/login_screen1.dart';
@@ -86,7 +87,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
       // If no user is logged in, navigate to the login page
       await Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => LoginScreen1()),
+        MaterialPageRoute(builder: (context) => AuthScreen()),
       );
 
       // After login, fetch user data

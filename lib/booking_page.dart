@@ -14,6 +14,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
   late Stream<QuerySnapshot> _allBookingsStream;
   late AnimationController _animationController;
   late Animation<double> _progressAnimation;
+  bool _isDoctor = false; // Track if the user is a doctor
 
   @override
   void initState() {
@@ -24,6 +25,26 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       duration: Duration(seconds: 2),
     )..repeat();
     _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_animationController);
+    _checkUserRole(); // Check user role on initialization
+  }
+
+  // Check if the current user is a doctor
+  void _checkUserRole() async {
+    try {
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance
+          .collection('Users')
+          .doc(widget.currentUserId)
+          .get();
+      if (userDoc.exists) {
+        var userData = userDoc.data() as Map<String, dynamic>;
+        setState(() {
+          _isDoctor = userData['Role'] == true; // Check boolean Role field
+        });
+      }
+    } catch (e) {
+      print("Error checking user role: $e");
+      _showModernSnackBar(context, "Failed to load user role", isError: true);
+    }
   }
 
   @override
@@ -87,7 +108,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: _isDoctor ? 2 : 1, // Show 2 tabs for doctors, 1 for non-doctors
       child: Scaffold(
         appBar: AppBar(
           title: Text(
@@ -101,7 +122,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
             labelColor: Colors.white,
             unselectedLabelColor: Colors.white70,
             tabs: [
-              Tab(text: "Requests"),
+              if (_isDoctor) Tab(text: "Requests"), // Only show for doctors
               Tab(text: "Appointments"),
             ],
           ),
@@ -110,7 +131,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           color: Colors.grey[100],
           child: TabBarView(
             children: [
-              _buildRequests(),
+              if (_isDoctor) _buildRequests(), // Only include for doctors
               _buildAppointments(),
             ],
           ),
@@ -250,9 +271,9 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
 
   Widget _buildAppointmentCard(Map<String, dynamic> appointment, String userId, bool isRequest) {
     return FutureBuilder(
-      future: FirebaseFirestore.instance.collection('Users').doc(userId).get(),
-      builder: (context, AsyncSnapshot<DocumentSnapshot> userSnapshot) {
-        if (userSnapshot.connectionState == ConnectionState.waiting) {
+      future: FirebaseFirestore.instance.collection('Users').doc(appointment['doctorId']).get(),
+      builder: (context, AsyncSnapshot<DocumentSnapshot> doctorSnapshot) {
+        if (doctorSnapshot.connectionState == ConnectionState.waiting) {
           return Card(
             elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -263,10 +284,10 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
             ),
           );
         }
-        if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+        if (!doctorSnapshot.hasData || !doctorSnapshot.data!.exists) {
           return SizedBox.shrink();
         }
-        var userInfo = userSnapshot.data!.data() as Map<String, dynamic>;
+        var doctorInfo = doctorSnapshot.data!.data() as Map<String, dynamic>;
         String formattedDate = appointment['date'] is Timestamp
             ? DateFormat('MMM dd, yyyy HH:mm').format(appointment['date'].toDate())
             : appointment['date'].toString();
@@ -293,8 +314,8 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                   radius: 25,
                   backgroundColor: Colors.teal.withOpacity(0.1),
                   backgroundImage:
-                  userInfo['User Pic'] != null ? NetworkImage(userInfo['User Pic']) : null,
-                  child: userInfo['User Pic'] == null ? Icon(Icons.person, color: Colors.teal) : null,
+                  doctorInfo['User Pic'] != null ? NetworkImage(doctorInfo['User Pic']) : null,
+                  child: doctorInfo['User Pic'] == null ? Icon(Icons.person, color: Colors.teal) : null,
                 ),
                 SizedBox(width: 16),
                 Expanded(
@@ -302,7 +323,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        "${userInfo['Fname']} ${userInfo['Lname']}",
+                        "${doctorInfo['Fname']} ${doctorInfo['Lname']}",
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey[800]),
                       ),
                       SizedBox(height: 4),

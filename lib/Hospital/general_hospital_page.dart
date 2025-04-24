@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../Appointments/Referral screens/referral_details_page.dart';
 import '../Appointments/referral_form.dart';
+import '../Auth/auth_screen.dart';
 import '../Home/Widgets/custom_bottom_navbar.dart';
 import '../Home/Widgets/organization_list_view.dart';
 import '../Login/login_screen1.dart';
@@ -50,7 +51,7 @@ class GeneralHospitalPage extends StatelessWidget {
       // Navigate to login screen if not an active doctor
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => LoginScreen1()),
+        MaterialPageRoute(builder: (context) => AuthScreen()),
       );
       return;
     }

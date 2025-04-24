@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import '../Appointments/AppointmentScreen.dart';
+import '../Auth/auth_screen.dart';
 import '../Login/login_screen1.dart';
 import '../booking_page.dart';
 
@@ -17,7 +18,7 @@ Future<void> handleBookAppointment(
   if (user == null) {
     final userId = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => LoginScreen1()),
+      MaterialPageRoute(builder: (context) => AuthScreen()),
     );
 
     if (userId != null) {

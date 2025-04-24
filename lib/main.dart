@@ -8,6 +8,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:nhap/try.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'Appointments/referral_form.dart';
+import 'Auth/auth_screen.dart';
+import 'Auth/auth_service.dart';
 import 'ChatModule/chat_module.dart';
 import 'Home/home_page.dart';
 import 'Maps/map_screen.dart';
@@ -63,18 +65,23 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (context) {
-        final userModel = UserModel();
-        try {
-          // Initialize UserModel with current user's ID
-          final userId = FirebaseAuth.instance.currentUser?.uid;
-          userModel.setUserId(userId);
-        } catch (e) {
-          print('Error initializing user ID: $e');
-        }
-        return userModel;
-      },
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider(
+          create: (context) {
+            final userModel = UserModel();
+            try {
+              // Initialize UserModel with current user's ID
+              final userId = FirebaseAuth.instance.currentUser?.uid;
+              userModel.setUserId(userId);
+            } catch (e) {
+              print('Error initializing user ID: $e');
+            }
+            return userModel;
+          },
+        ),
+      ],
       child: ShowCaseWidget(
         builder: (context) => MaterialApp(
           title: 'nhap',
@@ -89,7 +96,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
 
 class UserModel with ChangeNotifier {
   String? _userId;

@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../Auth/auth_screen.dart';
 import '../../Hospital/hospital_page.dart';
 import '../../Hospital/hospital_profile_screen.dart';
 import '../../Hospital/specialty_details.dart';
@@ -182,7 +183,7 @@ class HospitalCard extends StatelessWidget {
       context,
       MaterialPageRoute(
         builder: (context) => user == null
-            ? LoginScreen1()
+            ? AuthScreen()
             : HospitalProfileScreen(hospitalId: hospitalId),
       ),
     );

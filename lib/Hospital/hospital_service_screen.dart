@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:nhap/Appointments/Referral%20screens/referral_details_page.dart';
 import '../Appointments/referral_form.dart';
+import '../Auth/auth_screen.dart';
 import '../Login/login_screen1.dart';
 import '../Services/firebase_service.dart';
 import 'Widgets/custom_nav_bar.dart';
@@ -203,7 +204,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> with Tick
   void _checkAndNavigate(BuildContext context, Map<String, dynamic> serviceData) async {
     User? user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      Navigator.push(context, MaterialPageRoute(builder: (context) => LoginScreen1()));
+      Navigator.push(context, MaterialPageRoute(builder: (context) => AuthScreen()));
       return;
     }
 
