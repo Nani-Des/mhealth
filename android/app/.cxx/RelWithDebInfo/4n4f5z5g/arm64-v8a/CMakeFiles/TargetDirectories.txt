@@ -1,0 +1,2 @@
+C:/Users/nanid/Desktop/Gear/mhealth/android/app/.cxx/RelWithDebInfo/4n4f5z5g/arm64-v8a/CMakeFiles/edit_cache.dir
+C:/Users/nanid/Desktop/Gear/mhealth/android/app/.cxx/RelWithDebInfo/4n4f5z5g/arm64-v8a/CMakeFiles/rebuild_cache.dir

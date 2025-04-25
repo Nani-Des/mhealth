@@ -117,7 +117,7 @@ class AuthService with ChangeNotifier {
           return true;
         } else {
           await _auth.signOut();
-          _errorMessage = 'Account is disabled';
+          _errorMessage = 'Account is deleted';
         }
       }
     } catch (e) {

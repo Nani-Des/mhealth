@@ -63,7 +63,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
         .doc(currentUser.uid)
         .get();
     if (!userDoc.exists || userDoc['Status'] != true) {
-      throw Exception('User data is disabled or does not exist');
+      throw Exception('User data is deleted or does not exist');
     }
     return userDoc;
   }
@@ -135,7 +135,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     if (isDoctor && await _requiresRecentLogin(currentUser)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Doctors must log out and log in again to disable their account'),
+          content: Text('Doctors must log out and log in again to deleted their account'),
         ),
       );
       return;
@@ -144,9 +144,9 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     final bool? confirmDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Disable Account'),
+        title: const Text('Delete Account'),
         content: const Text(
-          'Are you sure you want to permanently disable your account? Your data will remain, but your email will be available for new accounts, and you will be logged out. This action cannot be undone.',
+          'Are you sure you want to permanently delete your account? This action cannot be undone.',
         ),
         actions: [
           TextButton(
@@ -155,7 +155,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Disable', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -200,7 +200,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
               (route) => false,
         );
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Account disabled successfully. You are now logged out')),
+          const SnackBar(content: Text('Account deleted successfully. You are now logged out')),
         );
       }
     } catch (e) {
@@ -519,11 +519,11 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
                               Semantics(
-                                label: 'Disable Account',
+                                label: 'Delete Account',
                                 child: ElevatedButton.icon(
                                   onPressed: () => _deleteUserAccount(context),
                                   icon: const Icon(Icons.block, size: 18),
-                                  label: const Text('Disable'),
+                                  label: const Text('Delete'),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.red,
                                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -547,7 +547,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                                       if (context.mounted) {
                                         Navigator.pushAndRemoveUntil(
                                           context,
-                                          MaterialPageRoute(builder: (context) => const AuthScreen()),
+                                          MaterialPageRoute(builder: (context) =>  HomePage()),
                                               (route) => false,
                                         );
                                       }

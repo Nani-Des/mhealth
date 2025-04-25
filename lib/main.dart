@@ -1,5 +1,4 @@
 import 'dart:ui';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
@@ -15,7 +14,7 @@ import 'Home/home_page.dart';
 import 'Maps/map_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth
+import 'package:firebase_auth/firebase_auth.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,13 +31,8 @@ void main() async {
     ),
   );
 
-  // Request location permission before app loads
-  await _requestLocationPermission();
-
   await CallService().clearOldNotifications();
-
   await WordFilterService().initialize();
-
   CallService().initialize();
 
   runApp(const MyApp());
@@ -72,7 +66,6 @@ class MyApp extends StatelessWidget {
           create: (context) {
             final userModel = UserModel();
             try {
-              // Initialize UserModel with current user's ID
               final userId = FirebaseAuth.instance.currentUser?.uid;
               userModel.setUserId(userId);
             } catch (e) {
@@ -89,8 +82,133 @@ class MyApp extends StatelessWidget {
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.white),
             useMaterial3: true,
           ),
-          home: HomePage(),
+          home: const CustomTransitionScreen(),
           debugShowCheckedModeBanner: false,
+        ),
+      ),
+    );
+  }
+}
+
+class CustomTransitionScreen extends StatefulWidget {
+  const CustomTransitionScreen({super.key});
+
+  @override
+  _CustomTransitionScreenState createState() => _CustomTransitionScreenState();
+}
+
+class _CustomTransitionScreenState extends State<CustomTransitionScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _rotationAnimation;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize AnimationController
+    _controller = AnimationController(
+      duration: const Duration(seconds: 2), // Animation duration
+      vsync: this,
+    );
+
+    // Define rotation animation (full 360-degree rotation)
+    _rotationAnimation = Tween<double>(begin: 0, end: 2 * 3.14159).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    // Define scale animation (from 2.0 to 0.5)
+    _scaleAnimation = Tween<double>(begin: 2.0, end: 0.5).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    // Start animation and navigate when complete
+    _controller.forward().then((_) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const LocationPermissionScreen()),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: AnimatedBuilder(
+          animation: _controller,
+          builder: (context, child) {
+            return Transform.rotate(
+              angle: _rotationAnimation.value,
+              child: Transform.scale(
+                scale: _scaleAnimation.value,
+                child: Image.asset('assets/Icons/Icon.png', width: 200, height: 200),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class LocationPermissionScreen extends StatelessWidget {
+  const LocationPermissionScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset('assets/Icons/Icon.png', width: 100, height: 100),
+              const SizedBox(height: 20),
+              const Text(
+                'We Need Your Location',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'To provide you with the best experience, we need your location to find healthcare providers, professionals, and hospitals near you.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: () async {
+                  await _requestLocationPermission();
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) =>  HomePage()),
+                  );
+                },
+                child: const Text('Allow Location Access'),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) =>  HomePage()),
+                  );
+                },
+                child: const Text('Skip for Now'),
+              ),
+            ],
+          ),
         ),
       ),
     );

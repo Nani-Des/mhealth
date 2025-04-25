@@ -90,7 +90,7 @@ class _MapScreen1State extends State<MapScreen1> {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       setState(() {
-        _selectedPlaceName = 'Location services are disabled. Please enable them in your settings.';
+        _selectedPlaceName = 'Location services are deleted. Please enable them in your settings.';
       });
       return;
     }
