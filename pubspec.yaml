@@ -68,6 +68,7 @@ dependencies:
   share_plus: ^10.0.0
   flutter_sound: ^9.28.0
   google_sign_in: ^6.2.1
+  lottie: ^2.7.0
 
   audioplayers: ^6.4.0
 
@@ -130,6 +131,9 @@ flutter:
     - assets/emergency_procedures.json
     - .env
     - assets/audio/incoming_call.mp3
+    - assets/label_classes.json
+    - assets/symptoms.json
+    - assets/animations/medical_loading.json
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware

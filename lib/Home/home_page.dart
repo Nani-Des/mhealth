@@ -10,6 +10,7 @@ import '../Login/login_screen1.dart';
 import 'Widgets/profile_drawer.dart';
 import 'Widgets/custom_bottom_navbar.dart';
 import 'Widgets/homepage_content.dart';
+import 'package:nhap/ml_ui/screens/disease_prediction_screen.dart';
 
 class HomePage extends StatefulWidget {
   @override
@@ -26,34 +27,49 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   late AnimationController _textAnimationController;
   late Animation<double> _textFadeAnimation;
+  late AnimationController _animationController;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      CallService().setContext(context);
-    });
+
+    // Initialize animation controllers in order
     _controller = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: 400),
     );
-    _slideAnimation = Tween<Offset>(begin: Offset(0, 1), end: Offset(0, 0.3)).animate(_controller);
 
-    // Initialize the text animation controller
+    _slideAnimation = Tween<Offset>(
+      begin: Offset(0, 1),
+      end: Offset(0, 0.3),
+    ).animate(_controller);
+
     _textAnimationController = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 1200), // Duration of one fade cycle
-    )..repeat(reverse: true); // Repeat the animation indefinitely, reversing direction
+      duration: Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
 
-    // Define the fade animation (from 0.5 opacity to 1.0)
-    _textFadeAnimation = Tween<double>(begin: 0.2, end: 1.0).animate(
+    _textFadeAnimation = Tween<double>(
+      begin: 0.2,
+      end: 1.0,
+    ).animate(
       CurvedAnimation(
         parent: _textAnimationController,
         curve: Curves.easeInOut,
       ),
     );
 
+    _animationController = AnimationController(
+      vsync: this,
+      duration: Duration(seconds: 2),
+    )..repeat(reverse: true);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      CallService().setContext(context);
+    });
+
     _fetchUserData();
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
       final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
@@ -111,8 +127,9 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _animationController.dispose();
+    _textAnimationController.dispose();
     _controller.dispose();
-    _textAnimationController.dispose(); // Dispose the text animation controller
     super.dispose();
   }
 
@@ -158,7 +175,12 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
                   colors: [Colors.teal.withOpacity(0.05), Colors.grey[100]!],
                 ),
               ),
-              child: HomePageContent(),
+              child: Column(
+                children: [
+                  _buildAIDetectionButton(),
+                  Expanded(child: HomePageContent()),
+                ],
+              ),
             ),
             ProfileDrawer(
               controller: _controller,
@@ -209,7 +231,6 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               SizedBox(width: 8),
               FloatingActionButton(
                 onPressed: () {
-                  // Keep the FAB's onPressed for consistency, but it will also trigger the GestureDetector
                   Navigator.push(context, MaterialPageRoute(builder: (context) => EmergencyPage()));
                 },
                 child: Icon(Icons.medical_services, color:Colors.white),
@@ -222,6 +243,83 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
         ),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+    );
+  }
+
+  Widget _buildAIDetectionButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          // Base glow (static)
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.teal.withOpacity(0.2),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+          ),
+          // Animated glow
+          AnimatedBuilder(
+            animation: _animationController,
+            builder: (context, child) {
+              return Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.teal.withOpacity(0.4 * _animationController.value),
+                      blurRadius: 15 * _animationController.value,
+                      spreadRadius: 5 * _animationController.value,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+          // The actual button
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => DiseasePredictionScreen()),
+              );
+            },
+            icon: Icon(Icons.psychology_alt, color: Colors.white, size: 22),
+            label: Text(
+              'AI Disease Detection',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                letterSpacing: 0.5,
+                shadows: [
+                  Shadow(
+                    color: Colors.white.withOpacity(0.3),
+                    blurRadius: 2,
+                    offset: Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal[700],
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(vertical: 10, horizontal: 24),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              elevation: 8,
+              shadowColor: Colors.teal.withOpacity(0.3),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
