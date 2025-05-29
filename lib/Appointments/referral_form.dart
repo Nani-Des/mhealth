@@ -248,7 +248,7 @@ class _ReferralFormState extends State<ReferralForm> {
                 children: [
                   Expanded(
                     flex: 2,
-                    child: _buildTextField(_patientRegController, "Patient Reg. No. (Optional)",
+                    child: _buildTextField(_patientRegController, "Patient Reg.No. (Optional)",
                         isRequired: false),
                   ),
                   SizedBox(width: 16),

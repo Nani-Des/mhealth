@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:nhap/Hospital/shift_schedule_Table.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../Services/firebase_service.dart';
 import 'Widgets/custom_nav_bar.dart';
 import 'doctor_profile.dart';
@@ -26,7 +29,7 @@ class SpecialtyDetails extends StatefulWidget {
 class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<Color?> _animation;
-  FirebaseService _firebaseService = FirebaseService();
+  final FirebaseService _firebaseService = FirebaseService();
 
   Map<String, String> _hospitalDetails = {'hospitalName': '', 'logo': ''};
   List<Map<String, dynamic>> _departments = [];
@@ -35,6 +38,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
   bool _isLoading = true;
   bool _isDoctorsLoading = false;
   String? _selectedDepartmentId;
+  bool _isOffline = false;
 
   final GlobalKey _servicekey = GlobalKey();
   final GlobalKey _specialtycalendarKey = GlobalKey();
@@ -48,6 +52,12 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
   @override
   void initState() {
     super.initState();
+    _initializeAnimations();
+    _checkConnectivity();
+    _loadCachedState();
+  }
+
+  void _initializeAnimations() {
     _textAnimationController = AnimationController(
       vsync: this,
       duration: Duration(milliseconds: 1200),
@@ -75,42 +85,109 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
       duration: Duration(seconds: 2),
     )..repeat();
     _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_progressAnimationController);
+  }
 
-    _selectedDepartmentId = widget.initialDepartmentId;
-    _loadHospitalData();
+  Future<void> _checkConnectivity() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      _isOffline = connectivityResult.contains(ConnectivityResult.none);
+    });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final prefs = await SharedPreferences.getInstance();
-      final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
-      if (!hasSeenWalkthrough && mounted) {
-        ShowCaseWidget.of(context)?.startShowCase([_servicekey, _specialtycalendarKey]);
-        await prefs.setBool('hasSeenEmergencyWalkthrough', true);
+    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      if (mounted) {
+        setState(() {
+          _isOffline = results.contains(ConnectivityResult.none);
+        });
       }
     });
   }
 
-  Future<void> _loadHospitalData() async {
+  Future<void> _loadCachedState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough_${widget.hospitalId}') ?? false;
+
+    // Load cached state
+    final cachedHospitalDetails = prefs.getString('hospital-details-${widget.hospitalId}');
+    final cachedDepartments = prefs.getString('departments-${widget.hospitalId}');
+    final cachedSelectedDepartmentId = prefs.getString('selected-department-${widget.hospitalId}');
+
+    setState(() {
+      if (cachedHospitalDetails != null) {
+        _hospitalDetails = Map<String, String>.from(jsonDecode(cachedHospitalDetails));
+      }
+      if (cachedDepartments != null) {
+        _departments = List<Map<String, dynamic>>.from(jsonDecode(cachedDepartments));
+      }
+      _selectedDepartmentId = cachedSelectedDepartmentId ?? widget.initialDepartmentId;
+      _isLoading = false;
+    });
+
+    // Load doctors for selected department
+    if (_selectedDepartmentId != null) {
+      final cachedDoctors = prefs.getString('doctors-${widget.hospitalId}-$_selectedDepartmentId');
+      if (cachedDoctors != null) {
+        setState(() {
+          _doctors = List<Map<String, dynamic>>.from(jsonDecode(cachedDoctors));
+        });
+      }
+    }
+
+    // Fetch fresh data if online
+    if (!_isOffline) {
+      await _loadHospitalData();
+    } else if (_departments.isNotEmpty && _selectedDepartmentId != null) {
+      await _loadDoctorsForDepartment(_selectedDepartmentId!);
+    }
+
+    // Show walkthrough if not seen
+    if (!hasSeenWalkthrough && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        ShowCaseWidget.of(context)?.startShowCase([_servicekey, _specialtycalendarKey]);
+        prefs.setBool('hasSeenEmergencyWalkthrough_${widget.hospitalId}', true);
+      });
+    }
+  }
+
+  Future<void> _saveState() async {
+    final prefs = await SharedPreferences.getInstance();
     try {
-      Map<String, String> hospitalDetails =
-      await _firebaseService.getHospitalDetails(widget.hospitalId);
-      List<Map<String, dynamic>> departments =
-      await _firebaseService.getDepartmentsForHospital(widget.hospitalId);
+      await prefs.setString('hospital-details-${widget.hospitalId}', jsonEncode(_hospitalDetails));
+      await prefs.setString('departments-${widget.hospitalId}', jsonEncode(_departments));
+      if (_selectedDepartmentId != null) {
+        await prefs.setString('selected-department-${widget.hospitalId}', _selectedDepartmentId!);
+      }
+      if (_doctors.isNotEmpty && _selectedDepartmentId != null) {
+        await prefs.setString('doctors-${widget.hospitalId}-$_selectedDepartmentId', jsonEncode(_doctors));
+      }
+    } catch (e) {
+      debugPrint('Error saving state: $e');
+    }
+  }
+
+  Future<void> _loadHospitalData() async {
+    setState(() {
+      _isLoading = true;
+    });
+    try {
+      Map<String, String> hospitalDetails = await _firebaseService.getHospitalDetails(widget.hospitalId);
+      List<Map<String, dynamic>> departments = await _firebaseService.getDepartmentsForHospital(widget.hospitalId);
 
       setState(() {
         _hospitalDetails = hospitalDetails;
         _departments = departments;
         _isLoading = false;
 
+        if (_selectedDepartmentId == null && _departments.isNotEmpty) {
+          _selectedDepartmentId = _departments.first['Department ID'];
+        }
         if (_selectedDepartmentId != null &&
             _departments.any((dept) => dept['Department ID'] == _selectedDepartmentId)) {
           _loadDoctorsForDepartment(_selectedDepartmentId!);
-        } else if (_departments.isNotEmpty) {
-          _selectedDepartmentId = _departments.first['Department ID'];
-          _loadDoctorsForDepartment(_selectedDepartmentId!);
         }
       });
+      await _saveState();
     } catch (error) {
-      print('Error fetching hospital data: $error');
+      debugPrint('Error fetching hospital data: $error');
       setState(() {
         _isLoading = false;
       });
@@ -122,18 +199,42 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
       _isDoctorsLoading = true;
       _selectedDepartmentId = departmentId;
     });
+
+    final prefs = await SharedPreferences.getInstance();
+    final cacheKey = 'doctors-${widget.hospitalId}-$departmentId';
+
+    if (_isOffline) {
+      final cachedDoctors = prefs.getString(cacheKey);
+      if (cachedDoctors != null) {
+        setState(() {
+          _doctors = List<Map<String, dynamic>>.from(jsonDecode(cachedDoctors));
+          _isDoctorsLoading = false;
+        });
+        await _saveState();
+        return;
+      }
+    }
+
     try {
-      List<Map<String, dynamic>> doctors = await _firebaseService
-          .getDoctorsForDepartment(widget.hospitalId, departmentId);
+      List<Map<String, dynamic>> doctors = await _firebaseService.getDoctorsForDepartment(widget.hospitalId, departmentId);
       setState(() {
         _doctors = doctors;
         _isDoctorsLoading = false;
       });
+      await prefs.setString(cacheKey, jsonEncode(doctors));
+      await _saveState();
     } catch (error) {
-      print('Error fetching doctors: $error');
+      debugPrint('Error fetching doctors: $error');
+      final cachedDoctors = prefs.getString(cacheKey);
+      if (cachedDoctors != null) {
+        setState(() {
+          _doctors = List<Map<String, dynamic>>.from(jsonDecode(cachedDoctors));
+        });
+      }
       setState(() {
         _isDoctorsLoading = false;
       });
+      await _saveState();
     }
   }
 
@@ -205,7 +306,9 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
         backgroundColor: Colors.teal,
         elevation: 0,
         title: Text(
-          _hospitalDetails['hospitalName'] ?? 'Loading Hospital..',
+          _hospitalDetails['hospitalName']?.isNotEmpty == true
+              ? _hospitalDetails['hospitalName']!
+              : 'Loading Hospital...',
           style: const TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -238,8 +341,16 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
                   children: [
                     CircleAvatar(
                       radius: 30,
-                      backgroundImage:
-                      NetworkImage(_hospitalDetails['logo'] ?? ''),
+                      child: _hospitalDetails['logo']?.isNotEmpty == true
+                          ? ClipOval(
+                        child: CachedNetworkImage(
+                          imageUrl: _hospitalDetails['logo']!,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => CircularProgressIndicator(),
+                          errorWidget: (context, url, error) => Icon(Icons.error),
+                        ),
+                      )
+                          : Icon(Icons.local_hospital),
                     ),
                   ],
                 ),
@@ -343,13 +454,11 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.people_outline,
-                            size: 30, color: Colors.grey[400]),
+                        Icon(Icons.people_outline, size: 30, color: Colors.grey[400]),
                         const SizedBox(height: 16),
                         Text(
                           'No doctors available',
-                          style: TextStyle(
-                              fontSize: 10, color: Colors.grey[600]),
+                          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
                         ),
                       ],
                     ),
@@ -393,7 +502,9 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
           FloatingActionButton(
             onPressed: () {
               String selectedHospitalName =
-                  _hospitalDetails['hospitalName'] ?? 'Loading Hospital..';
+              _hospitalDetails['hospitalName']?.isNotEmpty == true
+                  ? _hospitalDetails['hospitalName']!
+                  : 'Unknown Hospital';
 
               Navigator.pop(context, selectedHospitalName);
               Navigator.pop(context, selectedHospitalName);
@@ -455,8 +566,17 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
         ),
         child: ListTile(
           leading: CircleAvatar(
-            backgroundImage: userPic.isNotEmpty ? NetworkImage(userPic) : null,
-            child: userPic.isEmpty ? Icon(Icons.person) : null,
+            backgroundColor: Colors.grey[200],
+            child: userPic.isNotEmpty
+                ? ClipOval(
+              child: CachedNetworkImage(
+                imageUrl: userPic,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => CircularProgressIndicator(),
+                errorWidget: (context, url, error) => Icon(Icons.person),
+              ),
+            )
+                : Icon(Icons.person),
           ),
           title: Text(
             name,

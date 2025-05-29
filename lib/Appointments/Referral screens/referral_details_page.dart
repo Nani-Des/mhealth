@@ -284,7 +284,7 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          widget.hospitalId != null ? "Hospital Referrals" : "My Referrals",
+          widget.hospitalId != null ? "Referrals To This Hospital" : "My Referrals",
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         backgroundColor: Colors.teal,
