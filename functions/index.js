@@ -1,175 +1,110 @@
-const { onDocumentCreated, onDocumentUpdated, onDocumentDeleted } = require('firebase-functions/v2/firestore');
+// index.js
+const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 admin.initializeApp();
 
-// Helper function to format date
-function formatDate(timestamp) {
-  try {
-    const date = timestamp.toDate();
-    return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()} ${date.getHours()}:${date.getMinutes()}`;
-  } catch (error) {
-    console.error('Error formatting date:', error);
-    return 'Unknown Date';
-  }
-}
+exports.onBookingCreated = functions.firestore
+  .document('Bookings/{userId}')
+  .onWrite(async (change, context) => {
+    const userId = context.params.userId;
+    const newData = change.after.data();
+    const oldData = change.before.data();
 
-// Firestore trigger for booking creation
-exports.notifyOnBookingCreate = onDocumentCreated('Bookings/{bookingId}', async (event) => {
-  const doc = event.data;
-  const booking = doc.data();
-  const patientId = booking.patientId;
-  const doctorId = booking.doctorId;
-  const hospitalName = booking.hospitalName || 'Unknown Hospital';
-  const date = formatDate(booking.date);
+    const newBookings = newData?.Bookings || [];
+    const oldBookings = oldData?.Bookings || [];
+    const addedOrUpdatedBookings = newBookings.filter((newBooking) => {
+      const oldBooking = oldBookings.find(
+        (b) => b.date.seconds === newBooking.date.seconds
+      );
+      return !oldBooking || oldBooking.status !== newBooking.status;
+    });
 
-  // Get FCM tokens
-  const patientDoc = await admin.firestore().collection('Users').doc(patientId).get();
-  const doctorDoc = await admin.firestore().collection('Users').doc(doctorId).get();
+    for (const booking of addedOrUpdatedBookings) {
+      const doctorId = booking.doctorId;
+      const patientId = userId;
+      const status = booking.status;
 
-  const patientToken = patientDoc.exists ? patientDoc.data().fcmToken : null;
-  const doctorToken = doctorDoc.exists ? doctorDoc.data().fcmToken : null;
+      let recipientId, notificationType;
+      if (status === 'Pending') {
+        recipientId = doctorId;
+        notificationType = 'new_booking';
+      } else if (status === 'Active') {
+        recipientId = patientId;
+        notificationType = 'status_update';
+      } else if (status === 'Terminated') {
+        recipientId = patientId;
+        notificationType = 'cancelled';
+      } else {
+        continue;
+      }
 
-  const patientPayload = {
-    notification: {
-      title: 'New Booking Confirmation',
-      body: `Your appointment at ${hospitalName} on ${date} is confirmed.`,
-    },
-    data: {
-      type: 'new_booking',
-      bookingId: event.params.bookingId,
-    },
-    token: patientToken,
-  };
+      const userDoc = await admin.firestore()
+        .collection('Users')
+        .doc(recipientId)
+        .get();
+      const fcmToken = userDoc.data()?.fcmToken;
+      if (!fcmToken) continue;
 
-  const doctorPayload = {
-    notification: {
-      title: 'New Booking Request',
-      body: `A patient booked an appointment at ${hospitalName} on ${date}.`,
-    },
-    data: {
-      type: 'new_booking',
-      bookingId: event.params.bookingId,
-    },
-    token: doctorToken,
-  };
+      const message = {
+        token: fcmToken,
+        notification: {
+          title: status === 'Pending' ? 'New Booking Request' :
+                 status === 'Active' ? 'Booking Accepted' : 'Booking Cancelled',
+          body: status === 'Pending'
+            ? `New booking request from patient on ${new Date(booking.date.seconds * 1000).toLocaleString()}`
+            : status === 'Active'
+            ? `Your booking on ${new Date(booking.date.seconds * 1000).toLocaleString()} has been accepted`
+            : `Your booking on ${new Date(booking.date.seconds * 1000).toLocaleString()} has been cancelled`,
+        },
+        data: {
+          type: notificationType,
+          bookingDate: booking.date.seconds.toString(),
+          userId: patientId,
+          doctorId: doctorId,
+        },
+      };
 
-  // Send notifications
-  const notifications = [];
-  if (patientToken) notifications.push(admin.messaging().send(patientPayload));
-  if (doctorToken) notifications.push(admin.messaging().send(doctorPayload));
-
-  try {
-    await Promise.all(notifications);
-    console.log('Notifications sent successfully');
-  } catch (error) {
-    console.error('Error sending notifications:', error);
-  }
-});
-
-// Firestore trigger for booking updates
-exports.notifyOnBookingUpdate = onDocumentUpdated('Bookings/{bookingId}', async (event) => {
-  const oldData = event.data.before.data();
-  const newData = event.data.after.data();
-  const patientId = newData.patientId;
-  const doctorId = newData.doctorId;
-  const hospitalName = newData.hospitalName || 'Unknown Hospital';
-  const newStatus = newData.status;
-  const date = formatDate(newData.date);
-
-  if (oldData.status !== newStatus) {
-    // Get FCM tokens
-    const patientDoc = await admin.firestore().collection('Users').doc(patientId).get();
-    const doctorDoc = await admin.firestore().collection('Users').doc(doctorId).get();
-
-    const patientToken = patientDoc.exists ? patientDoc.data().fcmToken : null;
-    const doctorToken = doctorDoc.exists ? doctorDoc.data().fcmToken : null;
-
-    const patientPayload = {
-      notification: {
-        title: 'Booking Status Updated',
-        body: `Your appointment at ${hospitalName} on ${date} is now ${newStatus}.`,
-      },
-      data: {
-        type: 'status_update',
-        bookingId: event.params.bookingId,
-      },
-      token: patientToken,
-    };
-
-    const doctorPayload = {
-      notification: {
-        title: 'Booking Status Updated',
-        body: `A booking at ${hospitalName} on ${date} is now ${newStatus}.`,
-      },
-      data: {
-        type: 'status_update',
-        bookingId: event.params.bookingId,
-      },
-      token: doctorToken,
-    };
-
-    // Send notifications
-    const notifications = [];
-    if (patientToken) notifications.push(admin.messaging().send(patientPayload));
-    if (doctorToken) notifications.push(admin.messaging().send(doctorPayload));
-
-    try {
-      await Promise.all(notifications);
-      console.log('Notifications sent successfully');
-    } catch (error) {
-      console.error('Error sending notifications:', error);
+      await admin.messaging().send(message);
     }
-  }
-});
+  });
 
-// Firestore trigger for booking deletions
-exports.notifyOnBookingDelete = onDocumentDeleted('Bookings/{bookingId}', async (event) => {
-  const booking = event.data.data();
-  const patientId = booking.patientId;
-  const doctorId = booking.doctorId;
-  const hospitalName = booking.hospitalName || 'Unknown Hospital';
-  const date = formatDate(booking.date);
+exports.sendBookingReminders = functions.pubsub
+  .schedule('every 24 hours')
+  .onRun(async () => {
+    const now = new Date();
+    const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-  // Get FCM tokens
-  const patientDoc = await admin.firestore().collection('Users').doc(patientId).get();
-  const doctorDoc = await admin.firestore().collection('Users').doc(doctorId).get();
-
-  const patientToken = patientDoc.exists ? patientDoc.data().fcmToken : null;
-  const doctorToken = doctorDoc.exists ? doctorDoc.data().fcmToken : null;
-
-  const patientPayload = {
-    notification: {
-      title: 'Booking Cancelled',
-      body: `Your appointment at ${hospitalName} on ${date} has been cancelled.`,
-    },
-    data: {
-      type: 'cancelled',
-      bookingId: event.params.bookingId,
-    },
-    token: patientToken,
-  };
-
-  const doctorPayload = {
-    notification: {
-      title: 'Booking Cancelled',
-      body: `A booking at ${hospitalName} on ${date} has been cancelled.`,
-    },
-    data: {
-      type: 'cancelled',
-      bookingId: event.params.bookingId,
-    },
-    token: doctorToken,
-  };
-
-  // Send notifications
-  const notifications = [];
-  if (patientToken) notifications.push(admin.messaging().send(patientPayload));
-  if (doctorToken) notifications.push(admin.messaging().send(doctorPayload));
-
-  try {
-    await Promise.all(notifications);
-    console.log('Notifications sent successfully');
-  } catch (error) {
-    console.error('Error sending notifications:', error);
-  }
-});
+    const bookingsSnapshot = await admin.firestore().collectionGroup('Bookings').get();
+    for (const doc of bookingsSnapshot.docs) {
+      const bookings = doc.data().Bookings || [];
+      for (const booking of bookings) {
+        const bookingDate = new Date(booking.date.seconds * 1000);
+        if (
+          booking.status === 'Active' &&
+          bookingDate.getDate() === tomorrow.getDate() &&
+          bookingDate.getMonth() === tomorrow.getMonth() &&
+          bookingDate.getFullYear() === tomorrow.getFullYear()
+        ) {
+          const userDoc = await admin.firestore()
+            .collection('Users')
+            .doc(doc.id)
+            .get();
+          const fcmToken = userDoc.data()?.fcmToken;
+          if (fcmToken) {
+            await admin.messaging().send({
+              token: fcmToken,
+              notification: {
+                title: 'Appointment Reminder',
+                body: `Your appointment is scheduled for ${bookingDate.toLocaleString()}`,
+              },
+              data: {
+                type: 'reminder',
+                bookingDate: booking.date.seconds.toString(),
+                doctorId: booking.doctorId,
+              },
+            });
+          }
+        }
+      }
+    }
+  });
