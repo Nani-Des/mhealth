@@ -9,51 +9,44 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:http/http.dart' as http;
+import 'dart:async';
 import 'Home/home_page.dart';
+import 'booking_details.dart';
 
 // Background message handler (must be top-level or static)
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(); // Initialize Firebase for Firestore access
+  await Firebase.initializeApp();
   if (kDebugMode) {
     print('Handling background message: ${message.messageId}');
     print('Background message data: ${message.data}');
   }
 
-  // Extract notification data
   final notification = message.notification;
   final data = message.data;
 
-  // Initialize local notifications for background messages
   const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
   const InitializationSettings initSettings = InitializationSettings(android: androidSettings);
   final FlutterLocalNotificationsPlugin localNotificationsPlugin = FlutterLocalNotificationsPlugin();
   await localNotificationsPlugin.initialize(initSettings);
 
-  // Display notification for notification messages
+  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+    'booking_channel',
+    'Booking Notifications',
+    importance: Importance.max,
+    priority: Priority.high,
+  );
+  const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
+
   if (notification != null) {
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'booking_channel',
-      'Booking Notifications',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-    const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
     await localNotificationsPlugin.show(
       notification.hashCode,
       notification.title,
       notification.body,
       notificationDetails,
-      payload: jsonEncode(data), // Store data for tap handling
+      payload: jsonEncode(data),
     );
   } else if (data.isNotEmpty) {
-    // Handle data-only messages
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'booking_channel',
-      'Booking Notifications',
-      importance: Importance.max,
-      priority: Priority.high,
-    );
-    const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
     await localNotificationsPlugin.show(
       data.hashCode,
       data['title'] ?? 'Booking Update',
@@ -63,7 +56,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     );
   }
 
-  // Optional: Cache notification data for app resume
   final prefs = await SharedPreferences.getInstance();
   List<String> notifications = prefs.getStringList('pending_notifications') ?? [];
   notifications.add(jsonEncode({
@@ -93,8 +85,8 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
   List<Map<String, dynamic>> _cachedRequests = [];
   List<Map<String, dynamic>> _cachedAppointments = [];
   int _selectedTabIndex = 0;
+  Timer? _reminderTimer;
 
-  // FCM and local notifications
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
   final FlutterLocalNotificationsPlugin _localNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
@@ -113,9 +105,164 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     _loadCachedData();
     _setupFCM();
     _checkPendingNotifications();
+    _checkNewAppointmentsOnLogin();
+    _startReminderChecks();
   }
 
-  // Check for pending notifications from background
+  void _startReminderChecks() {
+    _reminderTimer = Timer.periodic(const Duration(hours: 1), (timer) async {
+      if (!_isOffline) {
+        await _checkUpcomingAppointments();
+      }
+    });
+    _checkUpcomingAppointments();
+  }
+
+  Future<void> _sendFCMNotification(String? fcmToken, String title, String body, Map<String, dynamic> data) async {
+    if (fcmToken == null) return;
+    try {
+      final serverKey = 'YOUR_FCM_SERVER_KEY'; // Replace with your FCM server key
+      final response = await http.post(
+        Uri.parse('https://fcm.googleapis.com/fcm/send'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'key=$serverKey',
+        },
+        body: jsonEncode({
+          'to': fcmToken,
+          'notification': {
+            'title': title,
+            'body': body,
+          },
+          'data': data,
+        }),
+      );
+      if (response.statusCode == 200) {
+        if (kDebugMode) {
+          print('FCM notification sent to $fcmToken');
+        }
+      } else {
+        if (kDebugMode) {
+          print('Failed to send FCM notification: ${response.body}');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error sending FCM notification: $e');
+      }
+    }
+  }
+
+  Future<void> _checkUpcomingAppointments() async {
+    if (_isOffline) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final sentReminders = prefs.getStringList('sent_reminders_${widget.currentUserId}') ?? [];
+
+      QuerySnapshot bookingsSnapshot = await FirebaseFirestore.instance.collection('Bookings').get();
+      List<Map<String, dynamic>> upcomingAppointments = [];
+
+      for (var doc in bookingsSnapshot.docs) {
+        var bookings = doc['Bookings'] as List<dynamic>? ?? [];
+        for (var booking in bookings) {
+          if ((booking['status'] == 'Active' || booking['status'] == 'Pending') &&
+              booking['date'] is Timestamp) {
+            final appointmentDate = booking['date'].toDate();
+            final now = DateTime.now();
+            final difference = appointmentDate.difference(now);
+            if (difference.inHours >= 23 && difference.inHours <= 25) {
+              upcomingAppointments.add({
+                ...booking,
+                'userId': doc.id,
+              });
+            }
+          }
+        }
+      }
+
+      for (var appointment in upcomingAppointments) {
+        final reminderId = '${appointment['userId']}_${appointment['doctorId']}_${appointment['date'].seconds}';
+        if (!sentReminders.contains(reminderId)) {
+          final formattedDate = DateFormat('MMM dd, yyyy HH:mm').format(appointment['date'].toDate());
+          final patientDoc = await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(appointment['userId'])
+              .get();
+          final doctorDoc = await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(appointment['doctorId'])
+              .get();
+
+          final patientName = patientDoc.exists
+              ? '${patientDoc['Fname'] ?? 'Unknown'} ${patientDoc['Lname'] ?? 'Unknown'}'
+              : 'Unknown';
+          final doctorName = doctorDoc.exists
+              ? '${doctorDoc['Fname'] ?? 'Unknown'} ${doctorDoc['Lname'] ?? 'Unknown'}'
+              : 'Unknown';
+          final patientFcmToken = patientDoc.exists ? patientDoc['fcmToken'] : null;
+          final doctorFcmToken = doctorDoc.exists ? doctorDoc['fcmToken'] : null;
+
+          await _sendFCMNotification(
+            patientFcmToken,
+            'Appointment Reminder',
+            'Your appointment with $doctorName on $formattedDate is tomorrow.',
+            {
+              'type': 'appointment_reminder',
+              'bookingDate': appointment['date'].seconds.toString(),
+              'userId': appointment['userId'],
+              'doctorId': appointment['doctorId'],
+            },
+          );
+
+          await _sendFCMNotification(
+            doctorFcmToken,
+            'Appointment Reminder',
+            'Your appointment with $patientName on $formattedDate is tomorrow.',
+            {
+              'type': 'appointment_reminder',
+              'bookingDate': appointment['date'].seconds.toString(),
+              'userId': appointment['userId'],
+              'doctorId': appointment['doctorId'],
+            },
+          );
+
+          if (widget.currentUserId == appointment['userId'] ||
+              widget.currentUserId == appointment['doctorId']) {
+            const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+              'booking_channel',
+              'Booking Notifications',
+              importance: Importance.max,
+              priority: Priority.high,
+            );
+            const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
+            await _localNotificationsPlugin.show(
+              reminderId.hashCode,
+              'Appointment Reminder',
+              widget.currentUserId == appointment['userId']
+                  ? 'Your appointment with $doctorName on $formattedDate is tomorrow.'
+                  : 'Your appointment with $patientName on $formattedDate is tomorrow.',
+              notificationDetails,
+              payload: jsonEncode({
+                'type': 'appointment_reminder',
+                'bookingDate': appointment['date'].seconds.toString(),
+                'userId': appointment['userId'],
+                'doctorId': appointment['doctorId'],
+              }),
+            );
+          }
+
+          sentReminders.add(reminderId);
+          await prefs.setStringList('sent_reminders_${widget.currentUserId}', sentReminders);
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error checking upcoming appointments: $e');
+      }
+      _showModernSnackBar(context, 'Failed to check upcoming appointments', isError: true);
+    }
+  }
+
   Future<void> _checkPendingNotifications() async {
     final prefs = await SharedPreferences.getInstance();
     final notifications = prefs.getStringList('pending_notifications') ?? [];
@@ -124,20 +271,111 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         final data = jsonDecode(notification) as Map<String, dynamic>;
         _handleNotificationTap(data['data'] ?? {});
       }
-      await prefs.setStringList('pending_notifications', []); // Clear processed notifications
+      await prefs.setStringList('pending_notifications', []);
     }
   }
 
-  // Initialize FCM and local notifications
+  Future<void> _checkNewAppointmentsOnLogin() async {
+    if (_isOffline) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final processedAppointments = prefs.getStringList('processed_appointments_${widget.currentUserId}') ?? [];
+
+      QuerySnapshot bookingsSnapshot;
+      if (_isDoctor) {
+        bookingsSnapshot = await FirebaseFirestore.instance.collection('Bookings').get();
+      } else {
+        bookingsSnapshot = await FirebaseFirestore.instance
+            .collection('Bookings')
+            .where(FieldPath.documentId, isEqualTo: widget.currentUserId)
+            .get();
+      }
+
+      List<Map<String, dynamic>> newAppointments = [];
+      for (var doc in bookingsSnapshot.docs) {
+        var bookings = doc['Bookings'] as List<dynamic>? ?? [];
+        for (var booking in bookings) {
+          if (_isDoctor && booking['doctorId'] == widget.currentUserId && booking['status'] == 'Pending') {
+            newAppointments.add({...booking, 'userId': doc.id});
+          }
+          // Skip patient notifications for their own Pending bookings
+        }
+      }
+
+      for (var appointment in newAppointments) {
+        final appointmentId = '${appointment['userId']}_${appointment['date'].seconds}';
+        if (!processedAppointments.contains(appointmentId)) {
+          final formattedDate = DateFormat('MMM dd, yyyy HH:mm').format(appointment['date'].toDate());
+          final userDoc = await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(appointment['userId'])
+              .get();
+          final userName = userDoc.exists
+              ? '${userDoc['Fname'] ?? 'Unknown'} ${userDoc['Lname'] ?? 'Unknown'}'
+              : 'Unknown';
+          final doctorFcmToken = _isDoctor ? (await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(widget.currentUserId)
+              .get())['fcmToken'] : null;
+
+          const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+            'booking_channel',
+            'Booking Notifications',
+            importance: Importance.max,
+            priority: Priority.high,
+          );
+          const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
+
+          // Local notification for doctor (if current user)
+          if (_isDoctor) {
+            await _localNotificationsPlugin.show(
+              appointmentId.hashCode,
+              'New Booking Request',
+              'New booking request from $userName on $formattedDate',
+              notificationDetails,
+              payload: jsonEncode({
+                'type': 'new_booking',
+                'bookingDate': appointment['date'].seconds.toString(),
+                'userId': appointment['userId'],
+                'doctorId': appointment['doctorId'],
+              }),
+            );
+          }
+
+          // FCM push notification for doctor
+          await _sendFCMNotification(
+            doctorFcmToken,
+            'New Booking Request',
+            'New booking request from $userName on $formattedDate',
+            {
+              'type': 'new_booking',
+              'bookingDate': appointment['date'].seconds.toString(),
+              'userId': appointment['userId'],
+              'doctorId': appointment['doctorId'],
+            },
+          );
+
+          processedAppointments.add(appointmentId);
+        }
+      }
+
+      await prefs.setStringList('processed_appointments_${widget.currentUserId}', processedAppointments);
+      await _checkUpcomingAppointments();
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error checking new appointments: $e');
+      }
+      _showModernSnackBar(context, 'Failed to check new appointments', isError: true);
+    }
+  }
+
   Future<void> _setupFCM() async {
-    // Request permission
     NotificationSettings settings = await _messaging.requestPermission();
     if (settings.authorizationStatus != AuthorizationStatus.authorized) {
       _showModernSnackBar(context, 'Notifications disabled', isError: true);
       return;
     }
 
-    // Get and store FCM token
     try {
       String? token = await _messaging.getToken();
       if (token != null) {
@@ -153,7 +391,6 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       print('Error storing FCM token: $e');
     }
 
-    // Initialize local notifications
     const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
     const InitializationSettings initSettings = InitializationSettings(android: androidSettings);
     await _localNotificationsPlugin.initialize(
@@ -165,24 +402,17 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       },
     );
 
-    // Register background handler
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    // Handle foreground messages
     FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-    // Handle background/terminated messages
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       _handleNotificationTap(message.data);
     });
 
-    // Check initial message
     RemoteMessage? initialMessage = await _messaging.getInitialMessage();
     if (initialMessage != null) {
       _handleNotificationTap(initialMessage.data);
     }
 
-    // Handle token refresh
     _messaging.onTokenRefresh.listen((newToken) async {
       await FirebaseFirestore.instance.collection('Users').doc(widget.currentUserId).set(
         {'fcmToken': newToken},
@@ -194,7 +424,6 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     });
   }
 
-  // Handle foreground notifications
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     final notification = message.notification;
     if (notification != null) {
@@ -218,31 +447,51 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     }
   }
 
-  // Handle notification tap
   void _handleNotificationTap(Map<String, dynamic> data) {
-    if (['new_booking', 'status_update', 'reminder', 'cancelled'].contains(data['type'])) {
-      setState(() => _selectedTabIndex = _isDoctor ? 0 : 1);
+    final type = data['type'];
+    final bookingDateSeconds = data['bookingDate'];
+    final userId = data['userId'];
+    final doctorId = data['doctorId'];
+
+    setState(() {
+      _selectedTabIndex = _isDoctor ? 0 : 1;
+    });
+
+    if (bookingDateSeconds != null && userId != null && doctorId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BookingDetailsPage(
+            userId: userId,
+            doctorId: doctorId,
+            bookingDate: Timestamp.fromMillisecondsSinceEpoch(int.parse(bookingDateSeconds) * 1000),
+            currentUserId: widget.currentUserId,
+          ),
+        ),
+      );
     }
   }
 
-  // Check connectivity
   Future<void> _checkConnectivity() async {
     var connectivityResult = await Connectivity().checkConnectivity();
     setState(() {
       _isOffline = connectivityResult.contains(ConnectivityResult.none);
     });
 
-    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) async {
       setState(() {
         _isOffline = results.contains(ConnectivityResult.none);
       });
       if (!_isOffline) {
         _showModernSnackBar(context, 'Back online, syncing data...');
+        await _checkPendingNotifications();
+        await _loadCachedData();
+        await _checkNewAppointmentsOnLogin();
+        await _checkUpcomingAppointments();
       }
     });
   }
 
-  // Load cached data
   Future<void> _loadCachedData() async {
     final prefs = await SharedPreferences.getInstance();
     final cachedRequests = prefs.getString('cached_requests_${widget.currentUserId}');
@@ -258,13 +507,11 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     });
   }
 
-  // Cache data
   Future<void> _cacheData(String key, List<Map<String, dynamic>> data) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(key, jsonEncode(data));
   }
 
-  // Check user role
   Future<void> _checkUserRole() async {
     try {
       DocumentSnapshot userDoc = await FirebaseFirestore.instance
@@ -290,6 +537,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
   @override
   void dispose() {
     _animationController.dispose();
+    _reminderTimer?.cancel();
     super.dispose();
   }
 
@@ -363,7 +611,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
             onPressed: () {
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) =>  HomePage()),
+                MaterialPageRoute(builder: (context) => HomePage()),
                     (route) => false,
               );
             },
@@ -479,8 +727,8 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         }
 
         if (kDebugMode) {
-          print('Fetched ${bookings.length} appointments for userId: ${widget.currentUserId}');
-          print('Appointments: $bookings');
+          print('Fetched ${bookings.length} bookings for userId: ${widget.currentUserId}');
+          print('Bookings: $bookings');
         }
 
         if (bookings.isEmpty) {
@@ -598,7 +846,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                       fit: BoxFit.cover,
                       placeholder: (context, url) => const CircularProgressIndicator(),
                       errorWidget: (context, url, error) => Image.asset(
-                        'assets/images/doctor_placeholder.png',
+                        'assets/Images/placeholder.png',
                         fit: BoxFit.cover,
                       ),
                       cacheKey: 'user-pic-${isRequest ? appointment['userId'] : appointment['doctorId']}',
@@ -606,7 +854,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                       maxWidthDiskCache: 200,
                     ),
                   )
-                      : Image.asset('assets/images/doctor_placeholder.png'),
+                      : Image.asset('assets/Images/placeholder.png'),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -724,6 +972,34 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     return timestamp.toDate().isBefore(DateTime.now());
   }
 
+  Future<void> _createBooking({
+    required String doctorId,
+    required DateTime date,
+    required String reason,
+    required String hospitalId,
+  }) async {
+    if (_isOffline) {
+      _showModernSnackBar(context, 'Cannot create booking offline', isError: true);
+      return;
+    }
+    try {
+      DocumentReference docRef = FirebaseFirestore.instance.collection('Bookings').doc(widget.currentUserId);
+      DocumentSnapshot doc = await docRef.get();
+      List<dynamic> bookings = doc.exists ? List.from(doc['Bookings'] ?? []) : [];
+      bookings.add({
+        'doctorId': doctorId,
+        'hospitalId': hospitalId,
+        'date': Timestamp.fromDate(date),
+        'status': 'Pending',
+        'reason': reason,
+      });
+      await docRef.set({'Bookings': bookings});
+      _showModernSnackBar(context, 'Booking created successfully');
+    } catch (e) {
+      _showModernSnackBar(context, 'Failed to create booking: $e', isError: true);
+    }
+  }
+
   void _updateStatus(String userId, Timestamp date, String newStatus) async {
     if (_isOffline) {
       _showModernSnackBar(context, 'Cannot update status offline', isError: true);
@@ -754,6 +1030,67 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         'Bookings': bookings,
       });
       _showModernSnackBar(context, 'Status updated to $newStatus');
+
+      // Notify patient if booking is accepted (status changed to Active)
+      if (newStatus == 'Active') {
+        final prefs = await SharedPreferences.getInstance();
+        final sentAcceptedNotifications = prefs.getStringList('sent_accepted_notifications_${widget.currentUserId}') ?? [];
+        final notificationId = '${userId}_${bookings[index]['doctorId']}_${bookings[index]['date'].seconds}';
+
+        if (!sentAcceptedNotifications.contains(notificationId)) {
+          final formattedDate = DateFormat('MMM dd, yyyy HH:mm').format(bookings[index]['date'].toDate());
+          final doctorDoc = await FirebaseFirestore.instance
+              .collection('Users')
+              .doc(bookings[index]['doctorId'])
+              .get();
+          final doctorName = doctorDoc.exists
+              ? '${doctorDoc['Fname'] ?? 'Unknown'} ${doctorDoc['Lname'] ?? 'Unknown'}'
+              : 'Unknown';
+          final patientFcmToken = (await FirebaseFirestore.instance.collection('Users').doc(userId).get())['fcmToken'];
+
+          // FCM notification to patient
+          await _sendFCMNotification(
+            patientFcmToken,
+            'Booking Accepted',
+            'Your appointment with $doctorName on $formattedDate has been accepted.',
+            {
+              'type': 'booking_accepted',
+              'bookingDate': bookings[index]['date'].seconds.toString(),
+              'userId': userId,
+              'doctorId': bookings[index]['doctorId'],
+            },
+          );
+
+          // Local notification if patient is current user
+          if (widget.currentUserId == userId) {
+            const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+              'booking_channel',
+              'Booking Notifications',
+              importance: Importance.max,
+              priority: Priority.high,
+            );
+            const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
+            await _localNotificationsPlugin.show(
+              notificationId.hashCode,
+              'Booking Accepted',
+              'Your appointment with $doctorName on $formattedDate has been accepted.',
+              notificationDetails,
+              payload: jsonEncode({
+                'type': 'booking_accepted',
+                'bookingDate': bookings[index]['date'].seconds.toString(),
+                'userId': userId,
+                'doctorId': bookings[index]['doctorId'],
+              }),
+            );
+          }
+
+          sentAcceptedNotifications.add(notificationId);
+          await prefs.setStringList('sent_accepted_notifications_${widget.currentUserId}', sentAcceptedNotifications);
+        }
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('processed_appointments_${widget.currentUserId}');
     } catch (e) {
       _showModernSnackBar(context, 'Failed to update status: $e', isError: true);
     }
@@ -766,21 +1103,20 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
 
     return await showDialog<Map<String, dynamic>>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
             return Dialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              elevation: 10,
               child: Padding(
-                padding: const EdgeInsets.all(20.0),
+                padding: const EdgeInsets.all(16.0),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'Accept Booking',
+                      'Adjust Booking',
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal),
                     ),
                     const SizedBox(height: 16),
@@ -788,12 +1124,12 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Date: ${DateFormat('MMM dd, yyyy HH:mm').format(selectedDateTime)}',
-                          style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                          '${DateFormat('MMM d, yyyy h:mm a').format(selectedDateTime)}',
+                          style: const TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                         TextButton(
                           onPressed: () async {
-                            final newDate = await _selectDateTime(context, selectedDateTime);
+                            final newDate = await _selectDateTime(context);
                             if (newDate != null) {
                               setState(() => selectedDateTime = newDate);
                             }
@@ -807,13 +1143,10 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                       controller: reasonController,
                       maxLines: 3,
                       decoration: InputDecoration(
-                        hintText: 'Update reason (optional)',
+                        hintText: 'Reason for Booking',
                         hintStyle: TextStyle(color: Colors.grey[400]),
-                        filled: true,
-                        fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
                         ),
                         contentPadding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                       ),
@@ -824,7 +1157,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, null),
-                          child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+                          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
                         ),
                         const SizedBox(width: 10),
                         ElevatedButton(
@@ -842,7 +1175,6 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.teal,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                           ),
                           child: const Text('Confirm', style: TextStyle(color: Colors.white)),
                         ),
@@ -858,16 +1190,15 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     );
   }
 
-  Future<DateTime?> _selectDateTime(BuildContext context, DateTime initialDate) async {
+  Future<DateTime?> _selectDateTime(BuildContext context) async {
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: initialDate,
+      initialDate: DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(2101),
       builder: (context, child) => Theme(
         data: ThemeData.light().copyWith(
           colorScheme: const ColorScheme.light(primary: Colors.teal),
-          buttonTheme: const ButtonThemeData(textTheme: ButtonTextTheme.primary),
         ),
         child: child!,
       ),
@@ -877,7 +1208,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
 
     final pickedTime = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(initialDate),
+      initialTime: TimeOfDay.now(),
       builder: (context, child) => Theme(
         data: ThemeData.light().copyWith(
           colorScheme: const ColorScheme.light(primary: Colors.teal),
@@ -940,12 +1271,15 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         return;
       }
 
-      List<dynamic> bookings = List.from(doc['Bookings'] ?? []);
+      List<dynamic> bookings = List.from(doc['Bookings']);
       bookings.removeWhere((booking) =>
       booking['date'] is Timestamp &&
           booking['date'].toDate().millisecondsSinceEpoch == date.toDate().millisecondsSinceEpoch);
       await docRef.update({'Bookings': bookings});
       _showModernSnackBar(context, 'Booking deleted successfully');
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('processed_appointments_${widget.currentUserId}');
     } catch (e) {
       _showModernSnackBar(context, 'Failed to delete booking: $e', isError: true);
     }
