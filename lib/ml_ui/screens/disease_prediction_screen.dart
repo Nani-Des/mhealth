@@ -54,11 +54,23 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
   }
 
   Future<void> _loadSymptoms() async {
-    await _predictorService.init();
-    if (mounted) {
-      setState(() {
-        _suggestions = _predictorService.displaySymptoms;
-      });
+    try {
+      await _predictorService.init();
+      if (mounted) {
+        setState(() {
+          _suggestions = _predictorService.displaySymptoms;
+        });
+      }
+    } catch (e) {
+      print('Error loading symptoms: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to load symptoms: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -75,6 +87,16 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
 
   Future<void> _predictDisease() async {
     print('_predictDisease called');
+
+    if (_selectedSymptoms.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select at least one symptom'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
 
     // Dismiss keyboard
     FocusScope.of(context).unfocus();
@@ -99,8 +121,7 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
       // Create a completer for cancellation support
       _predictionCompleter = Completer<List<Map<String, dynamic>>>();
 
-      // Run prediction in a separate isolate/compute function
-      // This prevents UI blocking
+      // Run prediction
       _runPredictionAsync();
 
       // Wait for either completion or cancellation
@@ -130,7 +151,10 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
             backgroundColor: Colors.red,
           ),
         );
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _isCancelling = false;
+        });
       }
     } finally {
       _predictionCompleter = null;
@@ -138,7 +162,6 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
   }
 
   void _runPredictionAsync() {
-    // Use Timer.periodic to break up the computation and allow UI updates
     Timer(const Duration(milliseconds: 50), () async {
       try {
         if (_isCancelling || _predictionCompleter == null) {
@@ -146,7 +169,15 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
           return;
         }
 
-        // Run the actual prediction
+        // Validate that we have symptoms selected
+        if (_selectedSymptoms.isEmpty) {
+          _predictionCompleter?.completeError(
+              Exception('No symptoms selected for prediction')
+          );
+          return;
+        }
+
+        // Run the actual prediction with timeout
         final predictions = await _predictorService.predict(_selectedSymptoms)
             .timeout(const Duration(seconds: 30), onTimeout: () {
           if (mounted && !_isCancelling) {
@@ -164,6 +195,7 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
           _predictionCompleter!.complete(predictions);
         }
       } catch (e) {
+        print('Prediction async error: $e');
         if (!_isCancelling && _predictionCompleter != null && !_predictionCompleter!.isCompleted) {
           _predictionCompleter!.completeError(e);
         }
@@ -217,6 +249,25 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
     return 0.0;
   }
 
+  Color _getRankColor(int rank) {
+    switch (rank) {
+      case 1:
+        return Colors.amber[600]!; // Gold for 1st place
+      case 2:
+        return Colors.grey[600]!; // Silver for 2nd place
+      case 3:
+        return Colors.brown[400]!; // Bronze for 3rd place
+      default:
+        return Colors.teal[600]!;
+    }
+  }
+
+  Color _getConfidenceColor(double confidence) {
+    if (confidence > 75) return Colors.green[600]!;
+    if (confidence > 50) return Colors.orange[600]!;
+    return Colors.red[600]!;
+  }
+
   @override
   Widget build(BuildContext context) {
     print('Build called - isLoading: $_isLoading, isCancelling: $_isCancelling');
@@ -226,6 +277,7 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
       appBar: AppBar(
         title: const Text('Disease Predictor'),
         backgroundColor: Colors.teal[700],
+        foregroundColor: Colors.white,
       ),
       body: Column(
         children: [
@@ -243,7 +295,7 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
                   const Icon(Icons.warning_amber, size: 18, color: Colors.orange),
                   const SizedBox(width: 8),
                   const Text(
-                    'Note: This detection tool is AI-based and should not replace professional medical diagnosis. For serious concerns, consult a health expert.',
+                    'Note: This AI-powered tool should not replace professional medical diagnosis. For serious concerns, consult a health expert.',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.orange,
@@ -254,7 +306,7 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
                   const Icon(Icons.warning_amber, size: 18, color: Colors.orange),
                   const SizedBox(width: 8),
                   const Text(
-                    'Note: This detection tool is AI-based and should not replace professional medical diagnosis. For serious concerns, consult a health expert.',
+                    'Note: This AI-powered tool should not replace professional medical diagnosis. For serious concerns, consult a health expert.',
                     style: TextStyle(
                       fontSize: 14,
                       color: Colors.orange,
@@ -374,7 +426,7 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
                                     onPressed: _isLoading ? null : _predictDisease,
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.teal[700],
-                                      foregroundColor: Colors.black,
+                                      foregroundColor: Colors.white,
                                       padding: const EdgeInsets.symmetric(vertical: 16),
                                     ),
                                     child: _isLoading
@@ -401,39 +453,203 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
                         ),
                       ),
 
+                      // Enhanced results display
                       if (_showResults && _predictions.isNotEmpty) ...[
                         const SizedBox(height: 24),
-                        const Text(
-                          'Prediction Results',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [Colors.teal[50]!, Colors.teal[100]!],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.teal[200]!),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.analytics, color: Colors.teal[700], size: 24),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Top 3 Possible Conditions',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.teal[700],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Based on ${_selectedSymptoms.length} symptom${_selectedSymptoms.length > 1 ? 's' : ''}',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.teal[600],
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 16),
-                        ..._predictions.map((p) {
-                          final confidence = _parseConfidence(p['confidence']);
-                          return Card(
+                        ..._predictions.asMap().entries.map((entry) {
+                          final index = entry.key;
+                          final prediction = entry.value;
+                          final confidence = _parseConfidence(prediction['confidence']);
+                          final rank = index + 1;
+
+                          return Container(
                             margin: const EdgeInsets.only(bottom: 12),
-                            child: ListTile(
-                              title: Text(p['disease']?.toString() ?? 'Unknown'),
-                              trailing: Container(
-                                width: 50,
-                                height: 50,
-                                decoration: BoxDecoration(
-                                  color: _getConfidenceColor(confidence),
-                                  shape: BoxShape.circle,
+                            child: Card(
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                                side: BorderSide(
+                                  color: _getRankColor(rank).withOpacity(0.3),
+                                  width: 2,
                                 ),
-                                child: Center(
-                                  child: Text(
-                                    '${confidence.toStringAsFixed(0)}%',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      _getRankColor(rank).withOpacity(0.05),
+                                      _getRankColor(rank).withOpacity(0.02),
+                                    ],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Row(
+                                    children: [
+                                      // Rank badge
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          color: _getRankColor(rank),
+                                          shape: BoxShape.circle,
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: _getRankColor(rank).withOpacity(0.3),
+                                              blurRadius: 8,
+                                              offset: const Offset(0, 2),
+                                            ),
+                                          ],
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            '$rank',
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 18,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      // Disease info
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              prediction['disease']?.toString() ?? 'Unknown',
+                                              style: const TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.black87,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.trending_up,
+                                                  size: 14,
+                                                  color: Colors.grey[600],
+                                                ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  'Confidence: ${confidence.toStringAsFixed(1)}%',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      // Confidence indicator
+                                      Container(
+                                        width: 60,
+                                        height: 60,
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            SizedBox(
+                                              width: 50,
+                                              height: 50,
+                                              child: CircularProgressIndicator(
+                                                value: confidence / 100,
+                                                strokeWidth: 4,
+                                                backgroundColor: Colors.grey[300],
+                                                valueColor: AlwaysStoppedAnimation<Color>(
+                                                  _getConfidenceColor(confidence),
+                                                ),
+                                              ),
+                                            ),
+                                            Text(
+                                              '${confidence.toStringAsFixed(0)}%',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: _getConfidenceColor(confidence),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ),
                             ),
                           );
                         }),
+                        const SizedBox(height: 16),
+                        // Disclaimer card
+                        Card(
+                          color: Colors.amber[50],
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Row(
+                              children: [
+                                Icon(Icons.info_outline, color: Colors.amber[800], size: 20),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'These are AI predictions based on symptoms. Please consult a healthcare professional for proper diagnosis.',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.amber[800],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ],
                     ],
                   ),
@@ -518,7 +734,7 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
             Text(
               _isCancelling
                   ? 'Please wait...'
-                  : 'This may take a few moments',
+                  : 'AI is processing your symptoms',
               style: const TextStyle(
                 fontSize: 14,
                 color: Colors.grey,
@@ -620,18 +836,13 @@ class _DiseasePredictionScreenState extends State<DiseasePredictionScreen> {
     );
   }
 
-  Color _getConfidenceColor(double confidence) {
-    if (confidence > 75) return Colors.green;
-    if (confidence > 50) return Colors.orange;
-    return Colors.red;
-  }
-
   @override
   void dispose() {
     _predictionSubscription?.cancel();
     _marqueeController.dispose();
     _symptomFocusNode.dispose();
     _symptomController.dispose();
+    _predictorService.dispose();
     super.dispose();
   }
 }
