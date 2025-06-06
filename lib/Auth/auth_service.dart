@@ -28,8 +28,9 @@ class AuthService with ChangeNotifier {
 
   // Validate email format
   static bool isValidEmail(String email) {
+    // Updated regex to be more permissive
     final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
-    return emailRegex.hasMatch(email);
+        return emailRegex.hasMatch(email);
   }
 
   // Register user with email and password
@@ -43,7 +44,7 @@ class AuthService with ChangeNotifier {
     String region = '',
   }) async {
     if (!isValidEmail(email)) {
-      _errorMessage = 'Invalid email address';
+      _errorMessage = 'Invalid email format';
       notifyListeners();
       return false;
     }
@@ -93,7 +94,7 @@ class AuthService with ChangeNotifier {
     required String password,
   }) async {
     if (!isValidEmail(email)) {
-      _errorMessage = 'Invalid email address';
+      _errorMessage = 'Invalid email format';
       notifyListeners();
       return false;
     }
@@ -129,8 +130,42 @@ class AuthService with ChangeNotifier {
     return false;
   }
 
+  // Reset password
+  Future<bool> resetPassword({
+    required BuildContext context,
+    required String email,
+  }) async {
+    if (!isValidEmail(email)) {
+      _errorMessage = 'Invalid email format';
+      notifyListeners();
+      return false;
+    }
+
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return true;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'user-not-found') {
+        _errorMessage = 'No account found with this email';
+      } else if (e.code == 'invalid-email') {
+        _errorMessage = 'Invalid email format';
+      } else {
+        _errorMessage = e.message ?? 'An error occurred';
+      }
+    } catch (e) {
+      _errorMessage = e.toString().replaceAll(RegExp(r'\[.*?\]'), '').trim();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+    return false;
+  }
+
   // Sign in with Google
-// In auth_service.dart
   Future<bool> signInWithGoogle(BuildContext context) async {
     _isLoading = true;
     _errorMessage = null;
@@ -152,7 +187,6 @@ class AuthService with ChangeNotifier {
       if (user != null) {
         DocumentSnapshot userDoc = await _firestore.collection('Users').doc(user.uid).get();
         if (!userDoc.exists) {
-          // New user: Create Firestore document
           String displayName = user.displayName ?? '';
           String firstName = displayName.isNotEmpty ? displayName.split(' ').first : 'User';
           String lastName = displayName.contains(' ') ? displayName.split(' ').sublist(1).join(' ') : '';
@@ -170,7 +204,6 @@ class AuthService with ChangeNotifier {
             'CreatedAt': Timestamp.now(),
           });
         } else if (userDoc['Status'] != true) {
-          // Existing disabled account: Reset to active
           String displayName = user.displayName ?? '';
           String firstName = displayName.isNotEmpty ? displayName.split(' ').first : 'User';
           String lastName = displayName.contains(' ') ? displayName.split(' ').sublist(1).join(' ') : '';
@@ -182,9 +215,9 @@ class AuthService with ChangeNotifier {
             'Email': user.email ?? googleUser.email,
             'Mobile Number': userDoc['Mobile Number'] ?? '',
             'Region': userDoc['Region'] ?? '',
-            'Status': true, // Reset status to active
+            'Status': true,
             'User Pic': user.photoURL ?? userDoc['User Pic'] ?? defaultProfilePic,
-            'UpdatedAt': Timestamp.now(), // Track update time
+            'UpdatedAt': Timestamp.now(),
           });
         }
 

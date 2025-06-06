@@ -395,7 +395,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                               elevation: 2,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                               child: Padding(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(10),
                                 child: Column(
                                   children: [
                                     TextFormField(
@@ -430,15 +430,8 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                                       ),
                                       keyboardType: TextInputType.phone,
                                     ),
-                                    const SizedBox(height: 12),
-                                    TextFormField(
-                                      controller: _emailController,
-                                      decoration: InputDecoration(
-                                        labelText: 'Email',
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      keyboardType: TextInputType.emailAddress,
-                                    ),
+                                    
+                                    const SizedBox(height: 50),
                                   ],
                                 ),
                               ),
@@ -453,28 +446,28 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                                     color: Colors.teal,
                                   ),
                                 ),
-                                const SizedBox(height: 8),
+
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
                                     Text(
                                       email ?? 'No email',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                      style: TextStyle(fontSize: 8, color: Colors.grey[700]),
                                     ),
                                     Text(
                                       '  ||  ',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                      style: TextStyle(fontSize: 8, color: Colors.grey[600]),
                                     ),
                                     Text(
                                       region ?? 'No region',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                      style: TextStyle(fontSize: 8, color: Colors.grey[700]),
                                     ),
                                   ],
                                 ),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 10),
+
                           if (!_isEditing)
                             SingleChildScrollView(
                               scrollDirection: Axis.horizontal,
@@ -514,7 +507,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                                 ],
                               ),
                             ),
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 10),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
@@ -596,7 +589,7 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       child: Container(
         width: 100,
         // height: 100,
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: Colors.grey[100],
           borderRadius: BorderRadius.circular(12),

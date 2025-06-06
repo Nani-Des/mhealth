@@ -230,7 +230,7 @@ class DoctorInfoWidget extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.lightBlueAccent,
               padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
               elevation: 4,
             ),
             onPressed: () async {
@@ -253,7 +253,7 @@ class DoctorInfoWidget extends StatelessWidget {
             },
           ),
         ),
-        const SizedBox(width: 4),
+        const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton.icon(
             icon: const Icon(Icons.calendar_month, color: Colors.white),
@@ -261,7 +261,7 @@ class DoctorInfoWidget extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: isReferral ? Colors.grey[400] : Colors.tealAccent,
               padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
               elevation: isReferral ? 0 : 4,
             ),
             onPressed: isReferral ? null : () => _showCalendarDialog(context),

@@ -135,16 +135,32 @@ class _CustomBottomNavBarHospitalState extends State<CustomBottomNavBarHospital>
                 (userId) => ReferralDetailsPage(hospitalId: widget.hospitalId),
           );
         } else {
-          _navigateBasedOnAuthStatus(
-            context,
-                (userId) => BookingPage(currentUserId: userId),
-          );
+          _showAccessDeniedDialogDoctors(context, "Only active doctors of this hospital can view referrals made here.");
+          // _navigateBasedOnAuthStatus(
+          //   context,
+          //       (userId) => BookingPage(currentUserId: userId),
+          // );
         }
         break;
     }
   }
 
   void _showAccessDeniedDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Access Denied"),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+  void _showAccessDeniedDialogDoctors(BuildContext context, String message) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(

@@ -1,9 +1,14 @@
+import 'dart:convert';
 import 'dart:ui';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:nhap/try.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'Appointments/referral_form.dart';
@@ -15,6 +20,14 @@ import 'Maps/map_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+
+import 'booking_page.dart';
+
+// Background message handler
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print('Handling background message: ${message.messageId}');
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +43,84 @@ void main() async {
       storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
     ),
   );
+  FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
+
+  // Initialize FCM
+  try {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    await messaging.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    await messaging.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+
+    // Initialize local notifications
+    final FlutterLocalNotificationsPlugin localNotificationsPlugin = FlutterLocalNotificationsPlugin();
+    const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initSettings = InitializationSettings(android: androidSettings);
+    await localNotificationsPlugin.initialize(
+      initSettings,
+      onDidReceiveNotificationResponse: (response) async {
+        if (response.payload != null) {
+          final data = Map<String, dynamic>.from(jsonDecode(response.payload!));
+          final userId = FirebaseAuth.instance.currentUser?.uid;
+          if (userId != null && (data['type'] == 'new_booking' || data['type'] == 'status_update' || data['type'] == 'reminder')) {
+            Navigator.of(navigatorKey.currentContext!).pushReplacement(
+              MaterialPageRoute(builder: (context) => BookingPage(currentUserId: userId)),
+            );
+          }
+        }
+      },
+    );
+
+    // Store FCM token
+    String? token = await messaging.getToken();
+    final userId = FirebaseAuth.instance.currentUser?.uid;
+    if (token != null && userId != null) {
+      await FirebaseFirestore.instance.collection('Users').doc(userId).update({
+        'fcmToken': token,
+      });
+    }
+
+    // Handle initial message
+    RemoteMessage? initialMessage = await messaging.getInitialMessage();
+    if (initialMessage != null && userId != null) {
+      if (initialMessage.data['type'] == 'new_booking' || initialMessage.data['type'] == 'status_update' || initialMessage.data['type'] == 'reminder') {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Navigator.of(navigatorKey.currentContext!).pushReplacement(
+            MaterialPageRoute(builder: (context) => BookingPage(currentUserId: userId)),
+          );
+        });
+      }
+    }
+
+    // Handle message opened from background
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null && (message.data['type'] == 'new_booking' || message.data['type'] == 'status_update' || message.data['type'] == 'reminder')) {
+        Navigator.of(navigatorKey.currentContext!).pushReplacement(
+          MaterialPageRoute(builder: (context) => BookingPage(currentUserId: userId)),
+        );
+      }
+    });
+  } catch (e) {
+    print('Error initializing FCM: $e');
+  }
+
+  // Initialize cached_network_image
+  try {
+    CachedNetworkImage.logLevel = CacheManagerLogLevel.debug;
+    imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100 MB
+    PaintingBinding.instance.imageCache.maximumSizeBytes = 100 * 1024 * 1024;
+  } catch (e) {
+    print('Error initializing image cache: $e');
+  }
 
   await CallService().clearOldNotifications();
   await WordFilterService().initialize();
@@ -37,6 +128,9 @@ void main() async {
 
   runApp(const MyApp());
 }
+
+// Global navigator key for notification navigation
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> _requestLocationPermission() async {
   LocationPermission permission = await Geolocator.checkPermission();
@@ -84,6 +178,7 @@ class MyApp extends StatelessWidget {
           ),
           home: const CustomTransitionScreen(),
           debugShowCheckedModeBanner: false,
+          navigatorKey: navigatorKey, // Add navigator key
         ),
       ),
     );
@@ -105,23 +200,19 @@ class _CustomTransitionScreenState extends State<CustomTransitionScreen> with Si
   @override
   void initState() {
     super.initState();
-    // Initialize AnimationController
     _controller = AnimationController(
-      duration: const Duration(seconds: 2), // Animation duration
+      duration: const Duration(seconds: 2),
       vsync: this,
     );
 
-    // Define rotation animation (full 360-degree rotation)
     _rotationAnimation = Tween<double>(begin: 0, end: 2 * 3.14159).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
 
-    // Define scale animation (from 2.0 to 0.5)
     _scaleAnimation = Tween<double>(begin: 2.0, end: 0.5).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
 
-    // Start animation and navigate when complete
     _controller.forward().then((_) {
       Navigator.pushReplacement(
         context,
@@ -192,7 +283,7 @@ class LocationPermissionScreen extends StatelessWidget {
                   await _requestLocationPermission();
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) =>  HomePage()),
+                    MaterialPageRoute(builder: (context) => HomePage()),
                   );
                 },
                 child: const Text('Allow Location Access'),
@@ -202,7 +293,7 @@ class LocationPermissionScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.pushReplacement(
                     context,
-                    MaterialPageRoute(builder: (context) =>  HomePage()),
+                    MaterialPageRoute(builder: (context) => HomePage()),
                   );
                 },
                 child: const Text('Skip for Now'),

@@ -51,12 +51,11 @@ class _HomePageContentState extends State<HomePageContent> with SingleTickerProv
                 ),
               ),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 80.0),
+                padding: const EdgeInsets.fromLTRB(16.0, 10.0, 16.0, 80.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SearchBar1(),
-                    const SizedBox(height: 12),
                     SpeechBubble(
                       onPressed: () {
                         print("See Doctor now! tapped");
@@ -67,9 +66,9 @@ class _HomePageContentState extends State<HomePageContent> with SingleTickerProv
                         color: Colors.teal,
                       ),
                     ),
-                    const SizedBox(height: 12),
+
                     DoctorsRowItem(),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 2),
                     SizedBox(
                       height: MediaQuery.of(context).size.height * 0.5,
                       child: OrganizationListView(showSearchBar: false, isReferral: false),

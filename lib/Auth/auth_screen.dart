@@ -19,6 +19,7 @@ class _AuthScreenState extends State<AuthScreen> {
   final _passwordController = TextEditingController();
   final _phoneNumberController = TextEditingController();
   bool _isRegistering = false;
+  bool _isForgotPassword = false;
 
   @override
   void dispose() {
@@ -33,6 +34,14 @@ class _AuthScreenState extends State<AuthScreen> {
   void _toggleMode() {
     setState(() {
       _isRegistering = !_isRegistering;
+      _isForgotPassword = false;
+    });
+  }
+
+  void _toggleForgotPassword() {
+    setState(() {
+      _isForgotPassword = !_isForgotPassword;
+      _isRegistering = false;
     });
   }
 
@@ -41,6 +50,25 @@ class _AuthScreenState extends State<AuthScreen> {
 
     final authService = Provider.of<AuthService>(context, listen: false);
     bool success;
+
+    if (_isForgotPassword) {
+      success = await authService.resetPassword(
+        context: context,
+        email: _emailController.text.trim(),
+      );
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Password reset email sent. Check your inbox.'),
+            backgroundColor: Colors.teal,
+          ),
+        );
+        setState(() {
+          _isForgotPassword = false;
+        });
+      }
+      return;
+    }
 
     if (_isRegistering) {
       success = await authService.registerUser(
@@ -82,7 +110,11 @@ class _AuthScreenState extends State<AuthScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _isRegistering ? 'Register' : 'Login',
+                  _isForgotPassword
+                      ? 'Reset Password'
+                      : _isRegistering
+                      ? 'Register'
+                      : 'Login',
                   style: const TextStyle(
                     fontSize: 34,
                     fontWeight: FontWeight.bold,
@@ -91,11 +123,15 @@ class _AuthScreenState extends State<AuthScreen> {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  _isRegistering ? 'Create your account' : 'Welcome back',
+                  _isForgotPassword
+                      ? 'Enter your email to reset password'
+                      : _isRegistering
+                      ? 'Create your account'
+                      : 'Welcome back',
                   style: TextStyle(color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 20),
-                if (_isRegistering) ...[
+                if (_isRegistering && !_isForgotPassword) ...[
                   Row(
                     children: [
                       Expanded(
@@ -130,22 +166,24 @@ class _AuthScreenState extends State<AuthScreen> {
                   label: 'Email',
                   validator: (value) {
                     if (value!.isEmpty) return 'Enter email';
-                    if (!AuthService.isValidEmail(value)) return 'Invalid email';
+                    if (!AuthService.isValidEmail(value.trim())) return 'Invalid email format';
                     return null;
                   },
                 ),
-                const SizedBox(height: 20),
-                _buildTextField(
-                  controller: _passwordController,
-                  label: 'Password',
-                  obscureText: true,
-                  validator: (value) =>
-                  value!.isEmpty ? 'Enter password' : null,
-                  inputFormatters: [
-                    LengthLimitingTextInputFormatter(20),
-                  ],
-                ),
-                if (_isRegistering) ...[
+                if (!_isForgotPassword) ...[
+                  const SizedBox(height: 20),
+                  _buildTextField(
+                    controller: _passwordController,
+                    label: 'Password',
+                    obscureText: true,
+                    validator: (value) =>
+                    value!.isEmpty ? 'Enter password' : null,
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(20),
+                    ],
+                  ),
+                ],
+                if (_isRegistering && !_isForgotPassword) ...[
                   const SizedBox(height: 20),
                   _buildTextField(
                     controller: _phoneNumberController,
@@ -182,7 +220,11 @@ class _AuthScreenState extends State<AuthScreen> {
                         ? null
                         : () => _submit(context),
                     child: Text(
-                      _isRegistering ? 'Register' : 'Login',
+                      _isForgotPassword
+                          ? 'Send Reset Email'
+                          : _isRegistering
+                          ? 'Register'
+                          : 'Login',
                       style: const TextStyle(
                         fontSize: 18,
                         color: Colors.white,
@@ -191,51 +233,73 @@ class _AuthScreenState extends State<AuthScreen> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                Center(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.teal),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 15,
+                if (!_isForgotPassword)
+                  Center(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.teal),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 40,
+                          vertical: 15,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
+                      onPressed: authService.isLoading
+                          ? null
+                          : () async {
+                        bool success =
+                        await authService.signInWithGoogle(context);
+                        if (success) {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>  HomePage(),
+                            ),
+                          );
+                        }
+                      },
+                      icon: Image.network(
+                        'https://www.google.com/favicon.ico',
+                        height: 24,
                       ),
-                    ),
-                    onPressed: authService.isLoading
-                        ? null
-                        : () async {
-                      bool success = await authService.signInWithGoogle(context);
-                      if (success) {
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>  HomePage(),
-                          ),
-                        );
-                      }
-                    },
-                    icon: Image.network(
-                      'https://www.google.com/favicon.ico',
-                      height: 24,
-                    ),
-                    label: const Text(
-                      'Sign in with Google',
-                      style: TextStyle(fontSize: 16, color: Colors.teal),
+                      label: const Text(
+                        'Sign in with Google',
+                        style: TextStyle(fontSize: 16, color: Colors.teal),
+                      ),
                     ),
                   ),
-                ),
                 const SizedBox(height: 20),
                 Center(
-                  child: TextButton(
-                    onPressed: _toggleMode,
-                    child: Text(
-                      _isRegistering
-                          ? 'Already have an account? Login'
-                          : 'Need an account? Register',
-                      style: const TextStyle(color: Colors.teal, fontSize: 16),
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (!_isRegistering)
+                        TextButton(
+                          onPressed: _toggleForgotPassword,
+                          child: const Text(
+                            'Forgot Password?',
+                            style: TextStyle(color: Colors.teal, fontSize: 12),
+                          ),
+                        ),
+                      if (!_isRegistering && !_isForgotPassword)
+                        const Text(
+                          '|',
+                          style: TextStyle(color: Colors.teal, fontSize: 16),
+                        ),
+                      TextButton(
+                        onPressed: _isForgotPassword ? _toggleMode : _toggleMode,
+                        child: Text(
+                          _isForgotPassword
+                              ? 'Back to Login'
+                              : _isRegistering
+                              ? 'Already have an account? Login'
+                              : 'Need an account? Register',
+                          style: const TextStyle(color: Colors.teal, fontSize: 12),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

@@ -1,6 +1,10 @@
+import 'dart:convert';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../Auth/auth_screen.dart';
 import '../../Hospital/hospital_page.dart';
 import '../../Hospital/hospital_profile_screen.dart';
@@ -26,12 +30,75 @@ class _OrganizationListViewState extends State<OrganizationListView> {
   late final Stream<QuerySnapshot> _hospitalsStream;
   final _auth = FirebaseAuth.instance;
   late ScrollController _scrollController;
+  bool _isOffline = false;
+  List<Map<String, dynamic>> _cachedHospitals = [];
+  Map<String, double> _cachedRatings = {};
 
   @override
   void initState() {
     super.initState();
     _hospitalsStream = FirebaseFirestore.instance.collection('Hospital').snapshots();
     _scrollController = ScrollController();
+    _checkConnectivity();
+    _loadCachedData();
+    _loadSearchQuery();
+  }
+
+  // Check network connectivity
+  void _checkConnectivity() async {
+    var connectivityResult = await Connectivity().checkConnectivity();
+    setState(() {
+      _isOffline = connectivityResult.contains(ConnectivityResult.none);
+    });
+
+    Connectivity().onConnectivityChanged.listen((List<ConnectivityResult> results) {
+      setState(() {
+        _isOffline = results.contains(ConnectivityResult.none);
+      });
+      if (!_isOffline) {
+        _showModernSnackBar(context, "Back online, syncing data...");
+      }
+    });
+  }
+
+  // Load cached hospital data and ratings
+  Future<void> _loadCachedData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedHospitals = prefs.getString('cached_hospitals');
+    final cachedRatings = prefs.getString('cached_ratings');
+
+    setState(() {
+      if (cachedHospitals != null) {
+        _cachedHospitals = List<Map<String, dynamic>>.from(jsonDecode(cachedHospitals));
+      }
+      if (cachedRatings != null) {
+        _cachedRatings = Map<String, double>.from(jsonDecode(cachedRatings));
+      }
+    });
+  }
+
+  // Load cached search query
+  Future<void> _loadSearchQuery() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cachedQuery = prefs.getString('search_query_organization');
+    if (cachedQuery != null) {
+      setState(() {
+        searchQuery = cachedQuery;
+      });
+    }
+  }
+
+  // Cache hospital data and ratings
+  Future<void> _cacheData(List<Map<String, dynamic>> hospitals, Map<String, double> ratings) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('cached_hospitals', jsonEncode(hospitals));
+    await prefs.setString('cached_ratings', jsonEncode(ratings));
+  }
+
+  // Cache search query
+  Future<void> _cacheSearchQuery(String query) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('search_query_organization', query);
   }
 
   @override
@@ -53,18 +120,54 @@ class _OrganizationListViewState extends State<OrganizationListView> {
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              onChanged: (value) => setState(() => searchQuery = value.toLowerCase()),
+              onChanged: (value) {
+                setState(() => searchQuery = value.toLowerCase());
+                _cacheSearchQuery(value.toLowerCase());
+              },
             ),
           ),
         Expanded(
-          child: StreamBuilder<QuerySnapshot>(
+          child: _isOffline && _cachedHospitals.isNotEmpty
+              ? _buildOfflineHospitalList()
+              : StreamBuilder<QuerySnapshot>(
             stream: _hospitalsStream,
             builder: (context, snapshot) {
-              if (!snapshot.hasData) {
-                return const Center(child: CircularProgressIndicator());
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Loading Hospitals${_isOffline ? ' (Offline)' : ''}...",
+                        style: const TextStyle(fontSize: 16, color: Colors.teal),
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return const Center(child: Text("No hospitals found"));
               }
 
               final hospitals = _filterHospitals(snapshot.data!.docs);
+              final hospitalDataList = hospitals.map((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                return {
+                  'id': doc.id,
+                  'Hospital Name': data['Hospital Name'] ?? '',
+                  'City': data['City'] ?? 'Unknown City',
+                  'Contact': data['Contact'] ?? 'No Contact Info',
+                  'Background Image': data['Background Image']?.isNotEmpty == true
+                      ? data['Background Image']
+                      : 'assets/Images/background_default.jpg',
+                };
+              }).toList();
+
+              // Cache hospital data
+              _cacheData(hospitalDataList, _cachedRatings);
 
               return Container(
                 decoration: BoxDecoration(
@@ -81,11 +184,12 @@ class _OrganizationListViewState extends State<OrganizationListView> {
                 ),
                 child: Scrollbar(
                   controller: _scrollController,
-                  thumbVisibility: true,// Always show scrollbar
-                  thickness: 8, // Slightly thicker for better visibility
-                  radius: const Radius.circular(12), // Smooth rounded edges
-                  trackVisibility: true, // Show track for modern look
+                  thumbVisibility: true,
+                  thickness: 8,
+                  radius: const Radius.circular(12),
+                  trackVisibility: true,
                   child: ListView.builder(
+                    key: const PageStorageKey<String>('hospital_list'),
                     controller: _scrollController,
                     shrinkWrap: true,
                     physics: const BouncingScrollPhysics(),
@@ -104,6 +208,7 @@ class _OrganizationListViewState extends State<OrganizationListView> {
                         contact: hospitalData['Contact'] ?? 'No Contact Info',
                         hospitalId: hospital.id,
                         onTap: () => _navigateToHospitalPage(context, hospital.id),
+                        cachedRating: _cachedRatings[hospital.id],
                       );
                     },
                   ),
@@ -116,12 +221,65 @@ class _OrganizationListViewState extends State<OrganizationListView> {
     );
   }
 
+  Widget _buildOfflineHospitalList() {
+    final filteredHospitals = _filterCachedHospitals(_cachedHospitals);
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.teal,
+            spreadRadius: 2,
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        thickness: 8,
+        radius: const Radius.circular(12),
+        trackVisibility: true,
+        child: ListView.builder(
+          key: const PageStorageKey<String>('hospital_list'),
+          controller: _scrollController,
+          shrinkWrap: true,
+          physics: const BouncingScrollPhysics(),
+          padding: const EdgeInsets.all(8),
+          itemCount: filteredHospitals.length,
+          itemBuilder: (context, index) {
+            final hospital = filteredHospitals[index];
+            return HospitalCard(
+              backgroundImage: hospital['Background Image'],
+              city: hospital['City'],
+              contact: hospital['Contact'],
+              hospitalId: hospital['id'],
+              onTap: () => _navigateToHospitalPage(context, hospital['id']),
+              cachedRating: _cachedRatings[hospital['id']],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   List<QueryDocumentSnapshot> _filterHospitals(List<QueryDocumentSnapshot> docs) {
     if (searchQuery.isEmpty) return docs;
     return docs.where((doc) {
       final data = doc.data() as Map<String, dynamic>;
       final name = (data['Hospital Name'] as String?)?.toLowerCase() ?? '';
       final city = (data['City'] as String?)?.toLowerCase() ?? '';
+      return name.contains(searchQuery) || city.contains(searchQuery);
+    }).toList();
+  }
+
+  List<Map<String, dynamic>> _filterCachedHospitals(List<Map<String, dynamic>> hospitals) {
+    if (searchQuery.isEmpty) return hospitals;
+    return hospitals.where((hospital) {
+      final name = (hospital['Hospital Name'] as String?)?.toLowerCase() ?? '';
+      final city = (hospital['City'] as String?)?.toLowerCase() ?? '';
       return name.contains(searchQuery) || city.contains(searchQuery);
     }).toList();
   }
@@ -137,6 +295,28 @@ class _OrganizationListViewState extends State<OrganizationListView> {
       ),
     );
   }
+
+  void _showModernSnackBar(BuildContext context, String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(
+              isError ? Icons.error_outline : Icons.check_circle_outline,
+              color: Colors.white,
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(message, style: const TextStyle(color: Colors.white))),
+          ],
+        ),
+        backgroundColor: isError ? Colors.redAccent : Colors.teal,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(10),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 }
 
 class HospitalCard extends StatelessWidget {
@@ -145,6 +325,7 @@ class HospitalCard extends StatelessWidget {
   final String contact;
   final String hospitalId;
   final VoidCallback onTap;
+  final double? cachedRating;
 
   const HospitalCard({
     super.key,
@@ -153,6 +334,7 @@ class HospitalCard extends StatelessWidget {
     required this.contact,
     required this.hospitalId,
     required this.onTap,
+    this.cachedRating,
   });
 
   Future<double> _getAverageRating() async {
@@ -201,12 +383,13 @@ class HospitalCard extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(15.0)),
-              child: Image.network(
-                backgroundImage,
+              child: CachedNetworkImage(
+                imageUrl: backgroundImage,
                 height: 100,
                 width: double.infinity,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Image.asset(
+                placeholder: (context, url) => const Center(child: CircularProgressIndicator()),
+                errorWidget: (context, url, error) => Image.asset(
                   'assets/Images/background_default.jpg',
                   height: 100,
                   width: double.infinity,
@@ -219,13 +402,19 @@ class HospitalCard extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  FutureBuilder<double>(
+                  cachedRating != null
+                      ? _RatingWidget(rating: cachedRating)
+                      : FutureBuilder<double>(
                     future: _getAverageRating(),
                     builder: (context, snapshot) {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const _RatingWidget(loading: true);
                       }
                       final rating = snapshot.data ?? 4.5;
+                      // Cache the rating
+                      _OrganizationListViewState? state = context.findAncestorStateOfType<_OrganizationListViewState>();
+                      state?._cachedRatings[hospitalId] = rating;
+                      state?._cacheData(state._cachedHospitals, state._cachedRatings);
                       return _RatingWidget(rating: rating);
                     },
                   ),
