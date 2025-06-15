@@ -1,16 +1,18 @@
 buildscript {
+    repositories {
+        google()
+        mavenCentral()
+    }
     dependencies {
-        classpath 'com.android.tools.build:gradle:8.2.2' // ✅ Update this line
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.20'
+        classpath 'com.android.tools.build:gradle:8.7.0' // Updated to latest AGP
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21' // Updated to latest Kotlin
     }
 }
 
-
 plugins {
-    // Add the dependency for the Google services Gradle plugin
-    id 'com.google.gms.google-services' version '4.4.1' apply false
-
+    id 'com.google.gms.google-services' version '4.4.2' apply false // Updated to latest
 }
+
 allprojects {
     repositories {
         google()
@@ -29,6 +31,3 @@ subprojects {
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
-
-
-
