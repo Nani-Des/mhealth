@@ -28,9 +28,47 @@ class AuthService with ChangeNotifier {
 
   // Validate email format
   static bool isValidEmail(String email) {
-    // Updated regex to be more permissive
     final emailRegex = RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
-        return emailRegex.hasMatch(email);
+    return emailRegex.hasMatch(email);
+  }
+
+  // Map FirebaseAuthException codes to user-friendly messages
+  String _mapFirebaseError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'email-already-in-use':
+        return 'This email is already registered. Please sign in or use a different email.';
+      case 'invalid-email':
+        return 'The email address is not valid.';
+      case 'weak-password':
+        return 'The password is too weak. Please use a stronger password.';
+      case 'operation-not-allowed':
+        return 'This registration method is not allowed. Please contact support.';
+      case 'invalid-credential':
+        return 'Invalid email or password. Please check your credentials.';
+      case 'user-disabled':
+        return 'This account has been disabled. Please contact support.';
+      case 'user-not-found':
+        return 'No account found with this email. Please register first.';
+      case 'wrong-password':
+        return 'Incorrect password. Please try again.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      case 'network-request-failed':
+        return 'Network error. Please check your internet connection and try again.';
+      default:
+        return e.message ?? 'An unexpected error occurred. Please try again.';
+    }
+  }
+
+  // Show error message to the user
+  void _showError(BuildContext context, String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
 
   // Register user with email and password
@@ -44,7 +82,15 @@ class AuthService with ChangeNotifier {
     String region = '',
   }) async {
     if (!isValidEmail(email)) {
-      _errorMessage = 'Invalid email format';
+      _errorMessage = 'Please enter a valid email address.';
+      _showError(context, _errorMessage!);
+      notifyListeners();
+      return false;
+    }
+
+    if (firstName.isEmpty || lastName.isEmpty || phoneNumber.isEmpty) {
+      _errorMessage = 'Please fill in all required fields.';
+      _showError(context, _errorMessage!);
       notifyListeners();
       return false;
     }
@@ -78,8 +124,12 @@ class AuthService with ChangeNotifier {
         notifyListeners();
         return true;
       }
+    } on FirebaseAuthException catch (e) {
+      _errorMessage = _mapFirebaseError(e);
+      _showError(context, _errorMessage!);
     } catch (e) {
-      _errorMessage = e.toString().replaceAll(RegExp(r'\[.*?\]'), '').trim();
+      _errorMessage = 'An unexpected error occurred: ${e.toString()}';
+      _showError(context, _errorMessage!);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -94,7 +144,15 @@ class AuthService with ChangeNotifier {
     required String password,
   }) async {
     if (!isValidEmail(email)) {
-      _errorMessage = 'Invalid email format';
+      _errorMessage = 'Please enter a valid email address.';
+      _showError(context, _errorMessage!);
+      notifyListeners();
+      return false;
+    }
+
+    if (password.isEmpty) {
+      _errorMessage = 'Please enter a password.';
+      _showError(context, _errorMessage!);
       notifyListeners();
       return false;
     }
@@ -118,11 +176,16 @@ class AuthService with ChangeNotifier {
           return true;
         } else {
           await _auth.signOut();
-          _errorMessage = 'Account is deleted';
+          _errorMessage = 'This account is deactivated or deleted.';
+          _showError(context, _errorMessage!);
         }
       }
+    } on FirebaseAuthException catch (e) {
+      _errorMessage = _mapFirebaseError(e);
+      _showError(context, _errorMessage!);
     } catch (e) {
-      _errorMessage = e.toString().replaceAll(RegExp(r'\[.*?\]'), '').trim();
+      _errorMessage = 'An unexpected error occurred: ${e.toString()}';
+      _showError(context, _errorMessage!);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -136,7 +199,8 @@ class AuthService with ChangeNotifier {
     required String email,
   }) async {
     if (!isValidEmail(email)) {
-      _errorMessage = 'Invalid email format';
+      _errorMessage = 'Please enter a valid email address.';
+      _showError(context, _errorMessage!);
       notifyListeners();
       return false;
     }
@@ -147,17 +211,14 @@ class AuthService with ChangeNotifier {
 
     try {
       await _auth.sendPasswordResetEmail(email: email);
+      _showError(context, 'Password reset email sent. Check your inbox.');
       return true;
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        _errorMessage = 'No account found with this email';
-      } else if (e.code == 'invalid-email') {
-        _errorMessage = 'Invalid email format';
-      } else {
-        _errorMessage = e.message ?? 'An error occurred';
-      }
+      _errorMessage = _mapFirebaseError(e);
+      _showError(context, _errorMessage!);
     } catch (e) {
-      _errorMessage = e.toString().replaceAll(RegExp(r'\[.*?\]'), '').trim();
+      _errorMessage = 'An unexpected error occurred: ${e.toString()}';
+      _showError(context, _errorMessage!);
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -173,7 +234,11 @@ class AuthService with ChangeNotifier {
 
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return false;
+      if (googleUser == null) {
+        _errorMessage = 'Google Sign-In was cancelled.';
+        _showError(context, _errorMessage!);
+        return false;
+      }
 
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
@@ -225,8 +290,12 @@ class AuthService with ChangeNotifier {
         notifyListeners();
         return true;
       }
+    } on FirebaseAuthException catch (e) {
+      _errorMessage = _mapFirebaseError(e);
+      _showError(context, _errorMessage!);
     } catch (e) {
-      _errorMessage = e.toString().replaceAll(RegExp(r'\[.*?\]'), '').trim();
+      _errorMessage = 'An unexpected error occurred during Google Sign-In: ${e.toString()}';
+      _showError(context, _errorMessage!);
     } finally {
       _isLoading = false;
       notifyListeners();
