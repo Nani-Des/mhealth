@@ -3,8 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-
+import '../../Services/config_service.dart';
 import '../../Hospital/doctor_profile.dart';
 import '../../Maps/map_screen1.dart';
 
@@ -20,18 +19,28 @@ class _SearchBar1State extends State<SearchBar1> {
   bool _isLoading = false;
   List<Map<String, dynamic>> _doctorSuggestions = [];
   List<Map<String, dynamic>> _placeSuggestions = [];
-  late String googleApiKey;
+  String? googleApiKey;
 
   @override
   void initState() {
     super.initState();
-    dotenv.load().then((_) {
-      googleApiKey = dotenv.env['GOOGLE_API_KEY'] ?? '';
-      if (googleApiKey.isEmpty) {
-        print('Error: GOOGLE_API_KEY not found in .env file');
+    // Initialize ConfigService and fetch google_api_key
+    ConfigService().init().then((_) {
+      if (mounted) {
+        setState(() {
+          googleApiKey = ConfigService().googleApiKey;
+          if (googleApiKey == null || googleApiKey!.isEmpty) {
+            print('Error: google_api_key not found in Firebase Remote Config');
+          }
+        });
       }
     }).catchError((e) {
-      print('Error loading .env file: $e');
+      if (mounted) {
+        print('Error initializing ConfigService: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load configuration: $e')),
+        );
+      }
     });
   }
 
@@ -86,7 +95,7 @@ class _SearchBar1State extends State<SearchBar1> {
   }
 
   Future<void> _fetchPlaceSuggestions(String query) async {
-    if (query.isEmpty) {
+    if (query.isEmpty || googleApiKey == null || googleApiKey!.isEmpty) {
       setState(() {
         _placeSuggestions = [];
       });
@@ -103,6 +112,8 @@ class _SearchBar1State extends State<SearchBar1> {
         setState(() {
           _placeSuggestions = List<Map<String, dynamic>>.from(data['predictions']);
         });
+      } else {
+        print('Error fetching places: Status code ${response.statusCode}');
       }
     } catch (e) {
       print('Error fetching places: $e');

@@ -23,6 +23,7 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:flutter/services.dart';
 
 // Import other pages
+import '../Services/config_service.dart';
 import 'experts_community_page.dart';
 import 'HealthInsightsPage.dart';
 
@@ -30,6 +31,7 @@ import 'HealthInsightsPage.dart';
 class TranslationService {
   static String API_KEY = dotenv.env['NLP_API_KEY'] ?? '';
   static String API_URL = dotenv.env['NLP_API_URL'] ?? '';
+  final _configService = ConfigService();
 
   static final Map<String, String> ghanaianLanguages = {
     'en': 'English',

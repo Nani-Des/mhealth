@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:fluttertoast/fluttertoast.dart';
+import '../Services/config_service.dart';
 import 'chat_module.dart';
 import 'expert_post_details_page.dart'; // Import the ExpertPostDetailsPage
 
@@ -14,6 +15,7 @@ import 'expert_post_details_page.dart'; // Import the ExpertPostDetailsPage
 class TranslationService {
   static String API_KEY = dotenv.env['NLP_API_KEY'] ?? '';
   static String API_URL = dotenv.env['NLP_API_URL'] ?? '';
+  final _configService = ConfigService();
 
   static final Map<String, String> ghanaianLanguages = {
     'en': 'English',

@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -7,65 +6,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:http/http.dart' as http;
 import 'dart:async';
 import 'Home/home_page.dart';
 import 'booking_details.dart';
-
-// Background message handler (must be top-level or static)
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  if (kDebugMode) {
-    print('Handling background message: ${message.messageId}');
-    print('Background message data: ${message.data}');
-  }
-
-  final notification = message.notification;
-  final data = message.data;
-
-  const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const InitializationSettings initSettings = InitializationSettings(android: androidSettings);
-  final FlutterLocalNotificationsPlugin localNotificationsPlugin = FlutterLocalNotificationsPlugin();
-  await localNotificationsPlugin.initialize(initSettings);
-
-  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-    'booking_channel',
-    'Booking Notifications',
-    importance: Importance.max,
-    priority: Priority.high,
-  );
-  const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
-
-  if (notification != null) {
-    await localNotificationsPlugin.show(
-      notification.hashCode,
-      notification.title,
-      notification.body,
-      notificationDetails,
-      payload: jsonEncode(data),
-    );
-  } else if (data.isNotEmpty) {
-    await localNotificationsPlugin.show(
-      data.hashCode,
-      data['title'] ?? 'Booking Update',
-      data['body'] ?? 'You have a new booking notification.',
-      notificationDetails,
-      payload: jsonEncode(data),
-    );
-  }
-
-  final prefs = await SharedPreferences.getInstance();
-  List<String> notifications = prefs.getStringList('pending_notifications') ?? [];
-  notifications.add(jsonEncode({
-    'messageId': message.messageId,
-    'data': message.data,
-    'title': notification?.title,
-    'body': notification?.body,
-  }));
-  await prefs.setStringList('pending_notifications', notifications);
-}
 
 class BookingPage extends StatefulWidget {
   final String currentUserId;
@@ -85,10 +29,8 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
   List<Map<String, dynamic>> _cachedRequests = [];
   List<Map<String, dynamic>> _cachedAppointments = [];
   int _selectedTabIndex = 0;
-  Timer? _reminderTimer;
 
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
-  final FlutterLocalNotificationsPlugin _localNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
   @override
   void initState() {
@@ -100,166 +42,26 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       duration: const Duration(seconds: 2),
     )..repeat();
     _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_animationController);
-    _checkUserRole();
-    _checkConnectivity();
-    _loadCachedData();
-    _setupFCM();
-    _checkPendingNotifications();
-    _checkNewAppointmentsOnLogin();
-    _startReminderChecks();
-  }
 
-  void _startReminderChecks() {
-    _reminderTimer = Timer.periodic(const Duration(hours: 1), (timer) async {
-      if (!_isOffline) {
-        await _checkUpcomingAppointments();
-      }
+    Future.microtask(() async {
+      await _checkUserRole();
+      await _checkConnectivity();
+      await _loadCachedData();
+      await _checkPendingNotifications();
+      await _checkNewAppointmentsOnLogin();
+      await _checkUpcomingAppointments();
     });
-    _checkUpcomingAppointments();
-  }
-
-  Future<void> _sendFCMNotification(String? fcmToken, String title, String body, Map<String, dynamic> data) async {
-    if (fcmToken == null) return;
-    try {
-      final serverKey = 'YOUR_FCM_SERVER_KEY'; // Replace with your FCM server key
-      final response = await http.post(
-        Uri.parse('https://fcm.googleapis.com/fcm/send'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'key=$serverKey',
-        },
-        body: jsonEncode({
-          'to': fcmToken,
-          'notification': {
-            'title': title,
-            'body': body,
-          },
-          'data': data,
-        }),
-      );
-      if (response.statusCode == 200) {
-        if (kDebugMode) {
-          print('FCM notification sent to $fcmToken');
-        }
-      } else {
-        if (kDebugMode) {
-          print('Failed to send FCM notification: ${response.body}');
-        }
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error sending FCM notification: $e');
-      }
-    }
   }
 
   Future<void> _checkUpcomingAppointments() async {
     if (_isOffline) return;
     try {
       final prefs = await SharedPreferences.getInstance();
-      final sentReminders = prefs.getStringList('sent_reminders_${widget.currentUserId}') ?? [];
-
-      QuerySnapshot bookingsSnapshot = await FirebaseFirestore.instance.collection('Bookings').get();
-      List<Map<String, dynamic>> upcomingAppointments = [];
-
-      for (var doc in bookingsSnapshot.docs) {
-        var bookings = doc['Bookings'] as List<dynamic>? ?? [];
-        for (var booking in bookings) {
-          if ((booking['status'] == 'Active' || booking['status'] == 'Pending') &&
-              booking['date'] is Timestamp) {
-            final appointmentDate = booking['date'].toDate();
-            final now = DateTime.now();
-            final difference = appointmentDate.difference(now);
-            if (difference.inHours >= 23 && difference.inHours <= 25) {
-              upcomingAppointments.add({
-                ...booking,
-                'userId': doc.id,
-              });
-            }
-          }
-        }
-      }
-
-      for (var appointment in upcomingAppointments) {
-        final reminderId = '${appointment['userId']}_${appointment['doctorId']}_${appointment['date'].seconds}';
-        if (!sentReminders.contains(reminderId)) {
-          final formattedDate = DateFormat('MMM dd, yyyy HH:mm').format(appointment['date'].toDate());
-          final patientDoc = await FirebaseFirestore.instance
-              .collection('Users')
-              .doc(appointment['userId'])
-              .get();
-          final doctorDoc = await FirebaseFirestore.instance
-              .collection('Users')
-              .doc(appointment['doctorId'])
-              .get();
-
-          final patientName = patientDoc.exists
-              ? '${patientDoc['Fname'] ?? 'Unknown'} ${patientDoc['Lname'] ?? 'Unknown'}'
-              : 'Unknown';
-          final doctorName = doctorDoc.exists
-              ? '${doctorDoc['Fname'] ?? 'Unknown'} ${doctorDoc['Lname'] ?? 'Unknown'}'
-              : 'Unknown';
-          final patientFcmToken = patientDoc.exists ? patientDoc['fcmToken'] : null;
-          final doctorFcmToken = doctorDoc.exists ? doctorDoc['fcmToken'] : null;
-
-          await _sendFCMNotification(
-            patientFcmToken,
-            'Appointment Reminder',
-            'Your appointment with $doctorName on $formattedDate is tomorrow.',
-            {
-              'type': 'appointment_reminder',
-              'bookingDate': appointment['date'].seconds.toString(),
-              'userId': appointment['userId'],
-              'doctorId': appointment['doctorId'],
-            },
-          );
-
-          await _sendFCMNotification(
-            doctorFcmToken,
-            'Appointment Reminder',
-            'Your appointment with $patientName on $formattedDate is tomorrow.',
-            {
-              'type': 'appointment_reminder',
-              'bookingDate': appointment['date'].seconds.toString(),
-              'userId': appointment['userId'],
-              'doctorId': appointment['doctorId'],
-            },
-          );
-
-          if (widget.currentUserId == appointment['userId'] ||
-              widget.currentUserId == appointment['doctorId']) {
-            const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-              'booking_channel',
-              'Booking Notifications',
-              importance: Importance.max,
-              priority: Priority.high,
-            );
-            const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
-            await _localNotificationsPlugin.show(
-              reminderId.hashCode,
-              'Appointment Reminder',
-              widget.currentUserId == appointment['userId']
-                  ? 'Your appointment with $doctorName on $formattedDate is tomorrow.'
-                  : 'Your appointment with $patientName on $formattedDate is tomorrow.',
-              notificationDetails,
-              payload: jsonEncode({
-                'type': 'appointment_reminder',
-                'bookingDate': appointment['date'].seconds.toString(),
-                'userId': appointment['userId'],
-                'doctorId': appointment['doctorId'],
-              }),
-            );
-          }
-
-          sentReminders.add(reminderId);
-          await prefs.setStringList('sent_reminders_${widget.currentUserId}', sentReminders);
-        }
-      }
+      await prefs.remove('sent_reminders_${widget.currentUserId}'); // Clear outdated reminders
     } catch (e) {
       if (kDebugMode) {
-        print('Error checking upcoming appointments: $e');
+        print('Error clearing reminders: $e');
       }
-      _showModernSnackBar(context, 'Failed to check upcoming appointments', isError: true);
     }
   }
 
@@ -277,198 +79,46 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
 
   Future<void> _checkNewAppointmentsOnLogin() async {
     if (_isOffline) return;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final processedAppointments = prefs.getStringList('processed_appointments_${widget.currentUserId}') ?? [];
+    for (int retry = 0; retry < 3; retry++) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final processedAppointments = prefs.getStringList('processed_appointments_${widget.currentUserId}') ?? [];
 
-      QuerySnapshot bookingsSnapshot;
-      if (_isDoctor) {
-        bookingsSnapshot = await FirebaseFirestore.instance.collection('Bookings').get();
-      } else {
-        bookingsSnapshot = await FirebaseFirestore.instance
-            .collection('Bookings')
-            .where(FieldPath.documentId, isEqualTo: widget.currentUserId)
-            .get();
-      }
-
-      List<Map<String, dynamic>> newAppointments = [];
-      for (var doc in bookingsSnapshot.docs) {
-        var bookings = doc['Bookings'] as List<dynamic>? ?? [];
-        for (var booking in bookings) {
-          if (_isDoctor && booking['doctorId'] == widget.currentUserId && booking['status'] == 'Pending') {
-            newAppointments.add({...booking, 'userId': doc.id});
-          }
-          // Skip patient notifications for their own Pending bookings
-        }
-      }
-
-      for (var appointment in newAppointments) {
-        final appointmentId = '${appointment['userId']}_${appointment['date'].seconds}';
-        if (!processedAppointments.contains(appointmentId)) {
-          final formattedDate = DateFormat('MMM dd, yyyy HH:mm').format(appointment['date'].toDate());
-          final userDoc = await FirebaseFirestore.instance
-              .collection('Users')
-              .doc(appointment['userId'])
+        QuerySnapshot bookingsSnapshot;
+        if (_isDoctor) {
+          bookingsSnapshot = await FirebaseFirestore.instance.collection('Bookings').get();
+        } else {
+          bookingsSnapshot = await FirebaseFirestore.instance
+              .collection('Bookings')
+              .where(FieldPath.documentId, isEqualTo: widget.currentUserId)
               .get();
-          final userName = userDoc.exists
-              ? '${userDoc['Fname'] ?? 'Unknown'} ${userDoc['Lname'] ?? 'Unknown'}'
-              : 'Unknown';
-          final doctorFcmToken = _isDoctor ? (await FirebaseFirestore.instance
-              .collection('Users')
-              .doc(widget.currentUserId)
-              .get())['fcmToken'] : null;
+        }
 
-          const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-            'booking_channel',
-            'Booking Notifications',
-            importance: Importance.max,
-            priority: Priority.high,
-          );
-          const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
-
-          // Local notification for doctor (if current user)
-          if (_isDoctor) {
-            await _localNotificationsPlugin.show(
-              appointmentId.hashCode,
-              'New Booking Request',
-              'New booking request from $userName on $formattedDate',
-              notificationDetails,
-              payload: jsonEncode({
-                'type': 'new_booking',
-                'bookingDate': appointment['date'].seconds.toString(),
-                'userId': appointment['userId'],
-                'doctorId': appointment['doctorId'],
-              }),
-            );
+        List<Map<String, dynamic>> newAppointments = [];
+        for (var doc in bookingsSnapshot.docs) {
+          var bookings = doc['Bookings'] as List<dynamic>? ?? [];
+          for (var booking in bookings) {
+            if (_isDoctor && booking['doctorId'] == widget.currentUserId && booking['status'] == 'Pending') {
+              newAppointments.add({...booking, 'userId': doc.id});
+            }
           }
-
-          // FCM push notification for doctor
-          await _sendFCMNotification(
-            doctorFcmToken,
-            'New Booking Request',
-            'New booking request from $userName on $formattedDate',
-            {
-              'type': 'new_booking',
-              'bookingDate': appointment['date'].seconds.toString(),
-              'userId': appointment['userId'],
-              'doctorId': appointment['doctorId'],
-            },
-          );
-
-          processedAppointments.add(appointmentId);
         }
-      }
 
-      await prefs.setStringList('processed_appointments_${widget.currentUserId}', processedAppointments);
-      await _checkUpcomingAppointments();
-    } catch (e) {
-      if (kDebugMode) {
-        print('Error checking new appointments: $e');
-      }
-      _showModernSnackBar(context, 'Failed to check new appointments', isError: true);
-    }
-  }
+        for (var appointment in newAppointments) {
+          final appointmentId = '${appointment['userId']}_${appointment['date'].seconds}';
+          if (!processedAppointments.contains(appointmentId)) {
+            processedAppointments.add(appointmentId);
+          }
+        }
 
-  Future<void> _setupFCM() async {
-    NotificationSettings settings = await _messaging.requestPermission();
-    if (settings.authorizationStatus != AuthorizationStatus.authorized) {
-      _showModernSnackBar(context, 'Notifications disabled', isError: true);
-      return;
-    }
-
-    try {
-      String? token = await _messaging.getToken();
-      if (token != null) {
-        await FirebaseFirestore.instance.collection('Users').doc(widget.currentUserId).set(
-          {'fcmToken': token},
-          SetOptions(merge: true),
-        );
+        await prefs.setStringList('processed_appointments_${widget.currentUserId}', processedAppointments);
+        break;
+      } catch (e) {
         if (kDebugMode) {
-          print('FCM token stored for user ${widget.currentUserId}: $token');
+          print('Error checking new appointments (retry $retry): $e');
         }
+        if (retry < 2) await Future.delayed(const Duration(seconds: 2));
       }
-    } catch (e) {
-      print('Error storing FCM token: $e');
-    }
-
-    const AndroidInitializationSettings androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-    const InitializationSettings initSettings = InitializationSettings(android: androidSettings);
-    await _localNotificationsPlugin.initialize(
-      initSettings,
-      onDidReceiveNotificationResponse: (response) {
-        if (response.payload != null) {
-          _handleNotificationTap(jsonDecode(response.payload!));
-        }
-      },
-    );
-
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      _handleNotificationTap(message.data);
-    });
-
-    RemoteMessage? initialMessage = await _messaging.getInitialMessage();
-    if (initialMessage != null) {
-      _handleNotificationTap(initialMessage.data);
-    }
-
-    _messaging.onTokenRefresh.listen((newToken) async {
-      await FirebaseFirestore.instance.collection('Users').doc(widget.currentUserId).set(
-        {'fcmToken': newToken},
-        SetOptions(merge: true),
-      );
-      if (kDebugMode) {
-        print('FCM token refreshed for user ${widget.currentUserId}: $newToken');
-      }
-    });
-  }
-
-  Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    final notification = message.notification;
-    if (notification != null) {
-      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-        'booking_channel',
-        'Booking Notifications',
-        importance: Importance.max,
-        priority: Priority.high,
-      );
-      const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
-      await _localNotificationsPlugin.show(
-        notification.hashCode,
-        notification.title,
-        notification.body,
-        notificationDetails,
-        payload: jsonEncode(message.data),
-      );
-      if (kDebugMode) {
-        print('Foreground notification: ${notification.title} - ${notification.body}');
-      }
-    }
-  }
-
-  void _handleNotificationTap(Map<String, dynamic> data) {
-    final type = data['type'];
-    final bookingDateSeconds = data['bookingDate'];
-    final userId = data['userId'];
-    final doctorId = data['doctorId'];
-
-    setState(() {
-      _selectedTabIndex = _isDoctor ? 0 : 1;
-    });
-
-    if (bookingDateSeconds != null && userId != null && doctorId != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => BookingDetailsPage(
-            userId: userId,
-            doctorId: doctorId,
-            bookingDate: Timestamp.fromMillisecondsSinceEpoch(int.parse(bookingDateSeconds) * 1000),
-            currentUserId: widget.currentUserId,
-          ),
-        ),
-      );
     }
   }
 
@@ -499,25 +149,42 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
 
     setState(() {
       if (cachedRequests != null) {
-        _cachedRequests = List<Map<String, dynamic>>.from(jsonDecode(cachedRequests));
+        final List<dynamic> decoded = jsonDecode(cachedRequests);
+        _cachedRequests = decoded.map((item) {
+          final map = item as Map<String, dynamic>;
+          return {
+            ...map,
+            'date': map['date'] is String ? Timestamp.fromDate(DateTime.parse(map['date'])) : map['date'],
+          };
+        }).toList();
       }
       if (cachedAppointments != null) {
-        _cachedAppointments = List<Map<String, dynamic>>.from(jsonDecode(cachedAppointments));
+        final List<dynamic> decoded = jsonDecode(cachedAppointments);
+        _cachedAppointments = decoded.map((item) {
+          final map = item as Map<String, dynamic>;
+          return {
+            ...map,
+            'date': map['date'] is String ? Timestamp.fromDate(DateTime.parse(map['date'])) : map['date'],
+          };
+        }).toList();
       }
     });
   }
 
   Future<void> _cacheData(String key, List<Map<String, dynamic>> data) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(key, jsonEncode(data));
+    final serializableData = data.map((item) {
+      return {
+        ...item,
+        'date': item['date'] is Timestamp ? item['date'].toDate().toIso8601String() : item['date'],
+      };
+    }).toList();
+    await prefs.setString(key, jsonEncode(serializableData));
   }
 
   Future<void> _checkUserRole() async {
     try {
-      DocumentSnapshot userDoc = await FirebaseFirestore.instance
-          .collection('Users')
-          .doc(widget.currentUserId)
-          .get();
+      DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(widget.currentUserId).get();
       if (userDoc.exists) {
         setState(() {
           _isDoctor = userDoc['Role'] == true;
@@ -529,7 +196,9 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         _showModernSnackBar(context, 'User not found', isError: true);
       }
     } catch (e) {
-      print('Error checking user role: $e');
+      if (kDebugMode) {
+        print('Error checking user role: $e');
+      }
       _showModernSnackBar(context, 'Failed to load user role', isError: true);
     }
   }
@@ -537,7 +206,6 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
   @override
   void dispose() {
     _animationController.dispose();
-    _reminderTimer?.cancel();
     super.dispose();
   }
 
@@ -751,15 +419,19 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       length: 3,
       child: Column(
         children: [
-          TabBar(
-            indicatorColor: Colors.teal,
-            labelColor: Colors.teal,
-            unselectedLabelColor: Colors.grey[600],
-            tabs: [
-              Tab(text: 'Pending (${pending.length})'),
-              Tab(text: 'Active (${active.length})'),
-              Tab(text: 'Terminated (${terminated.length})'),
-            ],
+          Container(
+            color: Colors.white,
+            child: TabBar(
+              indicatorColor: Colors.teal,
+              labelColor: Colors.teal,
+              unselectedLabelColor: Colors.grey[600],
+              labelStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+              tabs: [
+                Tab(text: 'Pending (${pending.length})'),
+                Tab(text: 'Active (${active.length})'),
+                Tab(text: 'Terminated (${terminated.length})'),
+              ],
+            ),
           ),
           Expanded(
             child: TabBarView(
@@ -796,12 +468,11 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           .get(),
       builder: (context, AsyncSnapshot<DocumentSnapshot> userSnapshot) {
         if (userSnapshot.connectionState == ConnectionState.waiting) {
-          return Card(
+          return const Card(
             elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            child: const Padding(
-              padding: EdgeInsets.all(16),
+            margin: EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+            child: SizedBox(
+              height: 100,
               child: Center(child: CircularProgressIndicator()),
             ),
           );
@@ -816,7 +487,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         var userInfo = userSnapshot.data!.data() as Map<String, dynamic>;
         String formattedDate = appointment['date'] is Timestamp
             ? DateFormat('MMM dd, yyyy HH:mm').format(appointment['date'].toDate())
-            : appointment['date'].toString();
+            : DateFormat('MMM dd, yyyy HH:mm').format(DateTime.parse(appointment['date']));
 
         Color borderColor = appointment['status'] == 'Active'
             ? Colors.teal
@@ -828,22 +499,24 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           elevation: 4,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: borderColor, width: 2),
+            side: BorderSide(color: borderColor, width: 1),
           ),
-          margin: const EdgeInsets.symmetric(vertical: 8),
+          margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 CircleAvatar(
-                  radius: 25,
+                  radius: 24,
                   backgroundColor: Colors.teal.withOpacity(0.1),
                   child: userInfo['User Pic']?.isNotEmpty == true
                       ? ClipOval(
                     child: CachedNetworkImage(
                       imageUrl: userInfo['User Pic'],
                       fit: BoxFit.cover,
+                      width: 48,
+                      height: 48,
                       placeholder: (context, url) => const CircularProgressIndicator(),
                       errorWidget: (context, url, error) => Image.asset(
                         'assets/Images/placeholder.png',
@@ -854,7 +527,12 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                       maxWidthDiskCache: 200,
                     ),
                   )
-                      : Image.asset('assets/Images/placeholder.png'),
+                      : Image.asset(
+                    'assets/Images/placeholder.png',
+                    fit: BoxFit.cover,
+                    width: 48,
+                    height: 48,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -863,50 +541,73 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                     children: [
                       Text(
                         '${userInfo['Fname'] ?? 'Unknown'} ${userInfo['Lname'] ?? 'Unknown'}',
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey),
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Reason: ${appointment['reason'] ?? 'N/A'}',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[600],
+                          fontStyle: FontStyle.italic,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Date: $formattedDate',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[700]),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.grey[700],
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 8),
                       _buildStatusChip(appointment['status']),
                     ],
                   ),
                 ),
                 if (isRequest && appointment['status'] != 'Active' && !_isOffline)
-                  Row(
+                  Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       IconButton(
-                        icon: const Icon(Icons.check, color: Colors.green),
+                        icon: const Icon(Icons.check, color: Colors.green, size: 24),
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
                         onPressed: () => _updateStatus(
                           appointment['userId'],
-                          appointment['date'],
+                          appointment['date'] is Timestamp
+                              ? appointment['date']
+                              : Timestamp.fromDate(DateTime.parse(appointment['date'])),
                           'Active',
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
+                        icon: const Icon(Icons.delete, color: Colors.red, size: 24),
+                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(),
                         onPressed: () => _confirmDelete(
                           appointment['userId'],
-                          appointment['date'],
+                          appointment['date'] is Timestamp
+                              ? appointment['date']
+                              : Timestamp.fromDate(DateTime.parse(appointment['date'])),
                         ),
                       ),
                     ],
                   )
                 else if (!isRequest && appointment['status'] == 'Pending' && !_isOffline)
                   IconButton(
-                    icon: const Icon(Icons.delete, color: Colors.red),
+                    icon: const Icon(Icons.delete, color: Colors.red, size: 24),
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
                     onPressed: () => _confirmDelete(
                       widget.currentUserId,
-                      appointment['date'],
+                      appointment['date'] is Timestamp
+                          ? appointment['date']
+                          : Timestamp.fromDate(DateTime.parse(appointment['date'])),
                     ),
                   ),
               ],
@@ -925,9 +626,16 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       _ => Colors.grey,
     };
     return Chip(
-      label: Text(status ?? 'Unknown', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      label: Text(
+        status ?? 'Unknown',
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
       backgroundColor: color.withOpacity(0.8),
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
     );
   }
 
@@ -936,9 +644,19 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(Icons.event_busy, size: 48, color: Colors.grey),
+          Icon(
+            Icons.event_busy,
+            size: 64,
+            color: Colors.grey[400],
+          ),
           const SizedBox(height: 16),
-          Text(message, style: const TextStyle(fontSize: 18, color: Colors.grey)),
+          Text(
+            message,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.grey[600],
+            ),
+            textAlign: TextAlign.center,
+          ),
         ],
       ),
     );
@@ -953,7 +671,9 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           const SizedBox(height: 16),
           Text(
             'Loading $type${_isOffline ? ' (Offline)' : ''}...',
-            style: const TextStyle(fontSize: 16, color: Colors.teal),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              color: Colors.teal,
+            ),
           ),
         ],
       ),
@@ -1031,73 +751,19 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       });
       _showModernSnackBar(context, 'Status updated to $newStatus');
 
-      // Notify patient if booking is accepted (status changed to Active)
-      if (newStatus == 'Active') {
-        final prefs = await SharedPreferences.getInstance();
-        final sentAcceptedNotifications = prefs.getStringList('sent_accepted_notifications_${widget.currentUserId}') ?? [];
-        final notificationId = '${userId}_${bookings[index]['doctorId']}_${bookings[index]['date'].seconds}';
-
-        if (!sentAcceptedNotifications.contains(notificationId)) {
-          final formattedDate = DateFormat('MMM dd, yyyy HH:mm').format(bookings[index]['date'].toDate());
-          final doctorDoc = await FirebaseFirestore.instance
-              .collection('Users')
-              .doc(bookings[index]['doctorId'])
-              .get();
-          final doctorName = doctorDoc.exists
-              ? '${doctorDoc['Fname'] ?? 'Unknown'} ${doctorDoc['Lname'] ?? 'Unknown'}'
-              : 'Unknown';
-          final patientFcmToken = (await FirebaseFirestore.instance.collection('Users').doc(userId).get())['fcmToken'];
-
-          // FCM notification to patient
-          await _sendFCMNotification(
-            patientFcmToken,
-            'Booking Accepted',
-            'Your appointment with $doctorName on $formattedDate has been accepted.',
-            {
-              'type': 'booking_accepted',
-              'bookingDate': bookings[index]['date'].seconds.toString(),
-              'userId': userId,
-              'doctorId': bookings[index]['doctorId'],
-            },
-          );
-
-          // Local notification if patient is current user
-          if (widget.currentUserId == userId) {
-            const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-              'booking_channel',
-              'Booking Notifications',
-              importance: Importance.max,
-              priority: Priority.high,
-            );
-            const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
-            await _localNotificationsPlugin.show(
-              notificationId.hashCode,
-              'Booking Accepted',
-              'Your appointment with $doctorName on $formattedDate has been accepted.',
-              notificationDetails,
-              payload: jsonEncode({
-                'type': 'booking_accepted',
-                'bookingDate': bookings[index]['date'].seconds.toString(),
-                'userId': userId,
-                'doctorId': bookings[index]['doctorId'],
-              }),
-            );
-          }
-
-          sentAcceptedNotifications.add(notificationId);
-          await prefs.setStringList('sent_accepted_notifications_${widget.currentUserId}', sentAcceptedNotifications);
-        }
-      }
-
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('processed_appointments_${widget.currentUserId}');
+      await prefs.remove('sent_accepted_notifications_${widget.currentUserId}');
     } catch (e) {
       _showModernSnackBar(context, 'Failed to update status: $e', isError: true);
     }
   }
 
   Future<Map<String, dynamic>?> _showUpdateBookingDialog(
-      BuildContext context, Map<String, dynamic> booking, String newStatus) async {
+      BuildContext context,
+      Map<String, dynamic> booking,
+      String newStatus,
+      ) async {
     DateTime selectedDateTime = booking['date'].toDate();
     final reasonController = TextEditingController(text: booking['reason']);
 
@@ -1110,22 +776,30 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
             return Dialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: Padding(
-                padding: const EdgeInsets.all(16.0),
+                padding: const EdgeInsets.all(16),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       'Adjust Booking',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal),
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.teal,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 16),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          '${DateFormat('MMM d, yyyy h:mm a').format(selectedDateTime)}',
-                          style: const TextStyle(fontSize: 14, color: Colors.grey),
+                        Expanded(
+                          child: Text(
+                            DateFormat('MMM d, yyyy h:mm a').format(selectedDateTime),
+                            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: Colors.grey[700],
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
                         TextButton(
                           onPressed: () async {
@@ -1159,7 +833,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                           onPressed: () => Navigator.pop(context, null),
                           child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 8),
                         ElevatedButton(
                           onPressed: () {
                             Navigator.pop(context, {
@@ -1175,6 +849,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.teal,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                           ),
                           child: const Text('Confirm', style: TextStyle(color: Colors.white)),
                         ),
@@ -1292,7 +967,9 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         'Bookings': bookings,
       });
     } catch (e) {
-      print('Error updating booking status: $e');
+      if (kDebugMode) {
+        print('Error updating booking status: $e');
+      }
     }
   }
 
@@ -1306,7 +983,12 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
               color: Colors.white,
             ),
             const SizedBox(width: 10),
-            Expanded(child: Text(message, style: const TextStyle(color: Colors.white))),
+            Expanded(
+              child: Text(
+                message,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
           ],
         ),
         backgroundColor: isError ? Colors.redAccent : Colors.teal,
@@ -1316,5 +998,30 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         duration: const Duration(seconds: 3),
       ),
     );
+  }
+
+  void _handleNotificationTap(Map<String, dynamic> data) {
+    final type = data['type'];
+    final bookingDateSeconds = data['bookingDate'];
+    final userId = data['userId'];
+    final doctorId = data['doctorId'];
+
+    setState(() {
+      _selectedTabIndex = _isDoctor ? 0 : 1;
+    });
+
+    if (bookingDateSeconds != null && userId != null && doctorId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BookingDetailsPage(
+            userId: userId,
+            doctorId: doctorId,
+            bookingDate: Timestamp.fromMillisecondsSinceEpoch(int.parse(bookingDateSeconds) * 1000),
+            currentUserId: widget.currentUserId,
+          ),
+        ),
+      );
+    }
   }
 }

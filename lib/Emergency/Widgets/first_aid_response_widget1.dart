@@ -3,9 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:dio/dio.dart';
+
+import '../../Services/config_service.dart';
 
 class FirstAidResponseWidget extends StatefulWidget {
   final String responseText;
@@ -52,6 +53,13 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
     audioPlayer = AudioPlayer();
     _cancelToken = CancelToken();
     displayText = widget.responseText;
+
+    // Initialize ConfigService
+    ConfigService().init().then((_) {
+      print("ConfigService initialized in FirstAidResponseWidget");
+    }).catchError((e) {
+      print("ConfigService initialization failed: $e");
+    });
 
     // Initialize TTS with strict cleanup
     _initializeTts();
@@ -132,7 +140,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
       return;
     }
 
-    String? apiKey = dotenv.env['GOOGLE_TRANSLATE_API_KEY'];
+    String? apiKey = ConfigService().googleTranslateApiKey; // Updated to use ConfigService
     if (apiKey == null || apiKey.isEmpty) {
       if (mounted) {
         setState(() {
@@ -293,7 +301,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
           }
         }
       } else {
-        String? ghanaNlpApiKey = dotenv.env['GHANA_NLP_API_KEY'];
+        String? ghanaNlpApiKey = ConfigService().ghanaNlpApiKey; // Updated to use ConfigService
         if (ghanaNlpApiKey == null || ghanaNlpApiKey.isEmpty) {
           print("toggleSpeech: Missing Ghana NLP API key"); // Debug log
           if (mounted) {
@@ -484,32 +492,32 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
     print("Building widget with displayText: $displayText");
     return Container(
       decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(20),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(0.1),
-          spreadRadius: 2,
-          blurRadius: 10,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    padding: const EdgeInsets.all(20),
-    child: Stack(
-    children: [
-    Column(
-    mainAxisSize: MainAxisSize.min,
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-    _buildHeader(),
-    const SizedBox(height: 16),
-    _buildContent(),
-    ],
-    ),
-    if (isLoading) _buildLoadingOverlay(),
-    ],
-    ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            spreadRadius: 2,
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(20),
+      child: Stack(
+        children: [
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHeader(),
+              const SizedBox(height: 16),
+              _buildContent(),
+            ],
+          ),
+          if (isLoading) _buildLoadingOverlay(),
+        ],
+      ),
     );
   }
 

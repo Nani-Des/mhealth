@@ -15,12 +15,12 @@ if (localPropertiesFile.exists()) {
 
 def flutterVersionCode = localProperties.getProperty('flutter.versionCode')
 if (flutterVersionCode == null) {
-    flutterVersionCode = '2' // Match pubspec.yaml version: 1.0.0+2
+    flutterVersionCode = '3' // Match pubspec.yaml version: 1.0.0+2
 }
 
 def flutterVersionName = localProperties.getProperty('flutter.versionName')
 if (flutterVersionName == null) {
-    flutterVersionName = '1.0.0'
+    flutterVersionName = '1.0.1'
 }
 
 def keystoreProperties = new Properties()

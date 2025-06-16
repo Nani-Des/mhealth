@@ -4,13 +4,13 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:string_similarity/string_similarity.dart';
 import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../Services/config_service.dart';
 import 'Widgets/article_detail_page.dart';
 import 'Widgets/emergency_hompage_content.dart';
 import 'Widgets/first_aid_response_widget1.dart';
@@ -26,7 +26,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
   late stt.SpeechToText _speechToText;
 
   bool _isListening = false;
-  bool _showResponsePopup = false;
   bool _isOffline = false;
   bool _isLoading = false;
   String _responseText = "";
@@ -48,6 +47,13 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     _translationBox = Hive.box('translations');
     _loadEmergencyData();
     _checkConnectivity();
+
+    // Initialize ConfigService
+    ConfigService().init().catchError((e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to initialize configuration: $e')),
+      );
+    });
 
     _progressAnimationController = AnimationController(
       vsync: this,
@@ -162,9 +168,9 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
 
   Future<String> _fetchFirstAidResponse(String query) async {
     try {
-      final String apiKey = dotenv.env['OPENAI_API_KEY'] ?? '';
+      final String apiKey = ConfigService().openAiApiKey;
       if (apiKey.isEmpty) {
-        return "API key is missing. Please check the environment variables.";
+        return "API key is missing. Please check Firebase Remote Config settings.";
       }
 
       const String prefix =
@@ -476,7 +482,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           color: Colors.white,
           size: 24,
         ),
-        title: SizedBox.shrink(), // Optional: removes extra space if no title is needed
+        title: SizedBox.shrink(),
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
@@ -487,7 +493,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           ),
         ),
         actions: [
-          // Your existing Police, Fire, and Ambulance buttons here
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6.0),
             child: Tooltip(
@@ -518,7 +523,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
               ),
             ),
           ),
-          // Fire Service Button (Orange)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6.0),
             child: Tooltip(
@@ -549,7 +553,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
               ),
             ),
           ),
-          // Ambulance Button (Red)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6.0),
             child: Tooltip(

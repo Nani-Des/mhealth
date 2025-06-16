@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:dio/dio.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
+import '../Services/config_service.dart';
 import 'directions_model.dart';
 import 'directions_repository.dart';
 import 'place_search_service.dart';
@@ -12,14 +12,16 @@ import 'place_search_service.dart';
 class MapScreen1 extends StatefulWidget {
   final String? initialPlace;
 
-  const MapScreen1({Key? key, this.initialPlace}) : super(key: key);
+  const MapScreen1({
+    Key? key,
+    this.initialPlace,
+  }) : super(key: key);
 
   @override
   _MapScreen1State createState() => _MapScreen1State();
 }
 
 class _MapScreen1State extends State<MapScreen1> {
-  // Default camera position (will be updated based on initialPlace or current location)
   CameraPosition _initialCameraPosition = const CameraPosition(
     target: LatLng(6.6666, -1.6163), // Kumasi as fallback
     zoom: 12.5,
@@ -40,44 +42,46 @@ class _MapScreen1State extends State<MapScreen1> {
   final GlobalKey _hospitalKey = GlobalKey();
 
   @override
-  void dispose() {
-    _googleMapController.dispose();
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   void initState() {
     super.initState();
-    // Print initialPlace if available
     if (widget.initialPlace != null) {
       print('Initial Place: ${widget.initialPlace}');
     }
-    // Start location fetching and handle initialPlace
+    // Initialize ConfigService
+    ConfigService().init().then((_) {
+      if (mounted && ConfigService().googleApiKey.isEmpty) {
+        print('Error: google_api_key not found in Firebase Remote Config');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Configuration error: Missing Google API key')),
+        );
+      }
+    }).catchError((e) {
+      if (mounted) {
+        print('Error initializing ConfigService: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load configuration: $e')),
+        );
+      }
+    });
     _initializeMap();
   }
 
   Future<void> _initializeMap() async {
     await _getCurrentLocation();
-    // If initialPlace is provided, fetch its coordinates and set camera position
     if (widget.initialPlace != null && widget.initialPlace!.isNotEmpty) {
       await _searchAndShowRoute(widget.initialPlace!);
-    } else {
-      // If no initialPlace, use current location for initial camera position
-      if (_currentPosition != null) {
-        setState(() {
-          _initialCameraPosition = CameraPosition(
-            target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
-            zoom: 14.0,
-          );
-        });
-      }
+    } else if (_currentPosition != null) {
+      setState(() {
+        _initialCameraPosition = CameraPosition(
+          target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+          zoom: 14.0,
+        );
+      });
     }
 
-    // Handle showcase view
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('hasSeenEmergencyWalkthrough');
+      // await prefs.remove('hasSeenEmergencyWalkthrough'); // Uncomment for testing
       final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
       if (!hasSeenWalkthrough && mounted) {
         ShowCaseWidget.of(context)?.startShowCase([_chipKey, _hospitalKey]);
@@ -90,7 +94,7 @@ class _MapScreen1State extends State<MapScreen1> {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       setState(() {
-        _selectedPlaceName = 'Location services are deleted. Please enable them in your settings.';
+        _selectedPlaceName = 'Location services are disabled. Please enable them in your settings.';
       });
       return;
     }
@@ -113,7 +117,6 @@ class _MapScreen1State extends State<MapScreen1> {
     setState(() {
       _currentPosition = position;
       _selectedPlaceName = 'Current Location: ${position.latitude}, ${position.longitude}';
-
       _origin = Marker(
         markerId: const MarkerId('origin'),
         position: LatLng(position.latitude, position.longitude),
@@ -122,7 +125,6 @@ class _MapScreen1State extends State<MapScreen1> {
       );
     });
 
-    // Only update camera if no initialPlace is provided
     if (widget.initialPlace == null || widget.initialPlace!.isEmpty) {
       _googleMapController.animateCamera(
         CameraUpdate.newLatLngZoom(LatLng(position.latitude, position.longitude), 14.0),
@@ -138,8 +140,19 @@ class _MapScreen1State extends State<MapScreen1> {
       return;
     }
 
+    String apiKey = ConfigService().googleApiKey;
+    if (apiKey.isEmpty) {
+      setState(() {
+        _selectedPlaceName = 'Error: Missing Google API key.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Configuration error: Missing Google API key')),
+      );
+      return;
+    }
+
     try {
-      final result = await _placeSearchService.searchPlace(query, dotenv.env['GOOGLE_API_KEY']!);
+      final result = await _placeSearchService.searchPlace(query, apiKey);
       final destinationLatLng = LatLng(result['lat'], result['lng']);
 
       setState(() {
@@ -150,14 +163,12 @@ class _MapScreen1State extends State<MapScreen1> {
           position: destinationLatLng,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
         );
-        // Update initial camera position to focus on initialPlace
         _initialCameraPosition = CameraPosition(
           target: destinationLatLng,
           zoom: 14.0,
         );
       });
 
-      // Get directions for polyline
       final directions = await DirectionsRepository(dio: Dio())
           .getDirections(origin: _origin!.position, destination: destinationLatLng);
 
@@ -180,6 +191,9 @@ class _MapScreen1State extends State<MapScreen1> {
       setState(() {
         _selectedPlaceName = 'Error finding place: $e';
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Search error: $e')),
+      );
     }
   }
 
@@ -191,11 +205,22 @@ class _MapScreen1State extends State<MapScreen1> {
       return;
     }
 
+    String apiKey = ConfigService().googleApiKey;
+    if (apiKey.isEmpty) {
+      setState(() {
+        _selectedPlaceName = 'Error: Missing Google API key.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Configuration error: Missing Google API key')),
+      );
+      return;
+    }
+
     final lat = _currentPosition!.latitude;
     final lng = _currentPosition!.longitude;
 
     final url =
-        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=health&keyword=health%20center&key=${dotenv.env['GOOGLE_API_KEY']}';
+        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=health&keyword=health%20center&key=$apiKey';
 
     try {
       final response = await Dio().get(url);
@@ -225,7 +250,7 @@ class _MapScreen1State extends State<MapScreen1> {
             points: _info!.polylinePoints
                 .map((point) => LatLng(point.latitude, point.longitude))
                 .toList(),
-            color: Colors.blue,
+            color: Colors.teal,
             width: 5,
           );
         });
@@ -237,11 +262,17 @@ class _MapScreen1State extends State<MapScreen1> {
         setState(() {
           _selectedPlaceName = 'No health centers found nearby.';
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No health centers found nearby')),
+        );
       }
     } catch (e) {
       setState(() {
         _selectedPlaceName = 'Error finding nearest health center: $e';
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Health center search error: $e')),
+      );
     }
   }
 
@@ -253,11 +284,22 @@ class _MapScreen1State extends State<MapScreen1> {
       return;
     }
 
+    String apiKey = ConfigService().googleApiKey;
+    if (apiKey.isEmpty) {
+      setState(() {
+        _selectedPlaceName = 'Error: Missing Google API key.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Configuration error: Missing Google API key')),
+      );
+      return;
+    }
+
     final lat = _currentPosition!.latitude;
     final lng = _currentPosition!.longitude;
 
     final url =
-        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=hospital&key=${dotenv.env['GOOGLE_API_KEY']}';
+        'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=$lat,$lng&radius=5000&type=hospital&key=$apiKey';
 
     try {
       final response = await Dio().get(url);
@@ -299,108 +341,123 @@ class _MapScreen1State extends State<MapScreen1> {
         setState(() {
           _selectedPlaceName = 'No hospitals found nearby.';
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No hospitals found nearby')),
+        );
       }
     } catch (e) {
       setState(() {
         _selectedPlaceName = 'Error finding nearest hospital: $e';
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Hospital search error: $e')),
+      );
     }
   }
 
   @override
+  void dispose() {
+    _googleMapController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Stack(
-        children: [
-          GoogleMap(
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            initialCameraPosition: _initialCameraPosition,
-            onMapCreated: (controller) => _googleMapController = controller,
-            markers: {
-              if (_origin != null) _origin!,
-              if (_destination != null) _destination!,
-            },
-            polylines: _routePolyline != null ? {_routePolyline!} : {},
-            onLongPress: _addMarker,
-          ),
-          Positioned(
-            top: 10.0,
-            left: 10.0,
-            right: 10.0,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(8.0),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black26,
-                    offset: Offset(0, 2),
-                    blurRadius: 6.0,
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _searchController,
-                      textInputAction: TextInputAction.search,
-                      onSubmitted: _searchPlace,
-                      decoration: const InputDecoration(
-                        hintText: 'Search for nearest Hospital',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.only(left: 8.0),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.search),
-                    onPressed: () => _searchPlace(_searchController.text),
-                  ),
-                  Showcase(
-                    key: _hospitalKey,
-                    description: 'Tap To Locate Nearest Hospital',
-                    child: IconButton(
-                      icon: const Icon(Icons.local_hospital_sharp),
-                      onPressed: _findNearestHospital,
-                      color: Colors.redAccent,
-                    ),
-                  ),
-                ],
-              ),
+    return SafeArea(
+      child: Scaffold(
+        body: Stack(
+          children: [
+            GoogleMap(
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              initialCameraPosition: _initialCameraPosition,
+              onMapCreated: (controller) => _googleMapController = controller,
+              markers: {
+                if (_origin != null) _origin!,
+                if (_destination != null) _destination!,
+              },
+              polylines: _routePolyline != null ? {_routePolyline!} : {},
+              onLongPress: _addMarker,
             ),
-          ),
-          if (_selectedPlaceName != null)
             Positioned(
-              bottom: 50.0,
-              left: 50.0,
-              right: 50.0,
+              top: 10.0,
+              left: 10.0,
+              right: 10.0,
               child: Container(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(10.0),
-                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 6.0)],
+                  borderRadius: BorderRadius.circular(8.0),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      offset: Offset(0, 2),
+                      blurRadius: 6.0,
+                    ),
+                  ],
                 ),
-                child: Text(
-                  _selectedPlaceName!,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 10.0, fontWeight: FontWeight.w600),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: _searchPlace,
+                        decoration: const InputDecoration(
+                          hintText: 'Search for nearest Hospital',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.only(left: 8.0),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.search),
+                      onPressed: () => _searchPlace(_searchController.text),
+                    ),
+                    Showcase(
+                      key: _hospitalKey,
+                      description: 'Tap To Locate Nearest Hospital',
+                      child: IconButton(
+                        icon: const Icon(Icons.local_hospital_sharp),
+                        onPressed: _findNearestHospital,
+                        color: Colors.redAccent,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-        ],
-      ),
-      floatingActionButton: Showcase(
-        key: _chipKey,
-        description: 'Tap To Find Nearest CHIP Facility',
-        child: FloatingActionButton(
-          backgroundColor: Colors.green,
-          foregroundColor: Colors.white,
-          onPressed: _findHealthCenter,
-          child: const Icon(Icons.local_hospital),
+            if (_selectedPlaceName != null)
+              Positioned(
+                bottom: 50.0,
+                left: 50.0,
+                right: 50.0,
+                child: Container(
+                  padding: const EdgeInsets.all(8.0),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10.0),
+                    boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 6.0)],
+                  ),
+                  child: Text(
+                    _selectedPlaceName!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 10.0, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        floatingActionButton: Showcase(
+          key: _chipKey,
+          description: 'Tap To Find Nearest CHIP Facility',
+          child: FloatingActionButton(
+            backgroundColor: Colors.green,
+            foregroundColor: Colors.white,
+            onPressed: _findHealthCenter,
+            child: const Icon(Icons.local_hospital),
+          ),
         ),
       ),
     );
@@ -446,12 +503,23 @@ class _MapScreen1State extends State<MapScreen1> {
   }
 
   Future<void> _searchPlace(String query) async {
+    String apiKey = ConfigService().googleApiKey;
+    if (apiKey.isEmpty) {
+      setState(() {
+        _selectedPlaceName = 'Error: Missing Google API key.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Configuration error: Missing Google API key')),
+      );
+      return;
+    }
+
     try {
-      final result = await _placeSearchService.searchPlace(query, dotenv.env['GOOGLE_API_KEY']!);
+      final result = await _placeSearchService.searchPlace(query, apiKey);
       setState(() {
         _selectedPlaceName = result['name'];
         _destination = Marker(
-          markerId: MarkerId('searched_place'),
+          markerId: const MarkerId('searched_place'),
           infoWindow: InfoWindow(title: result['name']),
           position: LatLng(result['lat'], result['lng']),
         );
@@ -464,6 +532,9 @@ class _MapScreen1State extends State<MapScreen1> {
       setState(() {
         _selectedPlaceName = 'Error: $e';
       });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Search error: $e')),
+      );
     }
   }
 }
