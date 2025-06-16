@@ -20,13 +20,63 @@ import 'Maps/map_screen.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 import 'booking_page.dart';
 
+// Global navigator key for notification navigation
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 // Background message handler
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp();
-  print('Handling background message: ${message.messageId}');
+
+  // Get current user ID if available
+  final userId = FirebaseAuth.instance.currentUser?.uid;
+  final data = message.data;
+
+  // Only process if the message is for the current user
+  if (userId != null && data['toUid'] == userId) {
+    final flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
+
+    // Initialize notifications
+    await flutterLocalNotificationsPlugin.initialize(
+      const InitializationSettings(android: AndroidInitializationSettings('@mipmap/ic_launcher')),
+    );
+
+    // Common notification details
+    final androidDetails = AndroidNotificationDetails(
+      data['type'] == 'new_message' ? 'chat_channel' : 'booking_channel',
+      data['type'] == 'new_message' ? 'Chat Notifications' : 'Booking Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+    );
+    final notificationDetails = NotificationDetails(android: androidDetails);
+
+    // Show notification
+    await flutterLocalNotificationsPlugin.show(
+      0,
+      message.notification?.title ?? (data['type'] == 'new_message' ? 'New Message' : 'Booking Update'),
+      message.notification?.body ?? 'You have a new notification',
+      notificationDetails,
+      payload: jsonEncode(data),
+    );
+  }
+}
+
+Future<void> _requestLocationPermission() async {
+  LocationPermission permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) {
+      print('Location permissions denied');
+      return;
+    }
+  }
+  if (permission == LocationPermission.deniedForever) {
+    print('Location permissions permanently denied');
+    return;
+  }
+  print('Location permissions granted');
 }
 
 void main() async {
@@ -43,6 +93,7 @@ void main() async {
       storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
     ),
   );
+
   FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true);
 
   // Initialize FCM
@@ -66,20 +117,38 @@ void main() async {
     const InitializationSettings initSettings = InitializationSettings(android: androidSettings);
     await localNotificationsPlugin.initialize(
       initSettings,
+      // Update the notification tap handler
       onDidReceiveNotificationResponse: (response) async {
         if (response.payload != null) {
           final data = Map<String, dynamic>.from(jsonDecode(response.payload!));
           final userId = FirebaseAuth.instance.currentUser?.uid;
-          if (userId != null && (data['type'] == 'new_booking' || data['type'] == 'status_update' || data['type'] == 'reminder')) {
-            Navigator.of(navigatorKey.currentContext!).pushReplacement(
-              MaterialPageRoute(builder: (context) => BookingPage(currentUserId: userId)),
-            );
+
+          // Verify the notification is for this user
+          if (userId != null && data['toUid'] == userId) {
+            if (data['type'] == 'new_message') {
+              navigatorKey.currentState?.push(
+                MaterialPageRoute(
+                  builder: (context) => ChatThreadDetailsPage(
+                    chatId: data['chatId'],
+                    toName: data['senderName'] ?? 'User',
+                    toUid: data['fromUid'],
+                    fromUid: userId,
+                  ),
+                ),
+              );
+            } else if (data['type'] == 'new_booking' ||
+                data['type'] == 'status_update' ||
+                data['type'] == 'reminder') {
+              navigatorKey.currentState?.pushReplacement(
+                MaterialPageRoute(builder: (context) => BookingPage(currentUserId: userId)),
+              );
+            }
           }
         }
       },
     );
 
-    // Store FCM token
+    // Store FCM token and handle refreshes
     String? token = await messaging.getToken();
     final userId = FirebaseAuth.instance.currentUser?.uid;
     if (token != null && userId != null) {
@@ -88,14 +157,42 @@ void main() async {
       });
     }
 
+    // Handle token refreshes
+    FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId != null) {
+        await FirebaseFirestore.instance.collection('Users').doc(userId).update({
+          'fcmToken': newToken,
+        });
+      }
+    });
+
     // Handle initial message
     RemoteMessage? initialMessage = await messaging.getInitialMessage();
-    if (initialMessage != null && userId != null) {
-      if (initialMessage.data['type'] == 'new_booking' || initialMessage.data['type'] == 'status_update' || initialMessage.data['type'] == 'reminder') {
+    if (initialMessage != null) {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      final data = initialMessage.data;
+
+      if (userId != null && data['toUid'] == userId) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          Navigator.of(navigatorKey.currentContext!).pushReplacement(
-            MaterialPageRoute(builder: (context) => BookingPage(currentUserId: userId)),
-          );
+          if (data['type'] == 'new_message') {
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(
+                builder: (context) => ChatThreadDetailsPage(
+                  chatId: data['chatId'],
+                  toName: data['senderName'] ?? 'User',
+                  toUid: data['fromUid'],
+                  fromUid: userId,
+                ),
+              ),
+            );
+          } else if (data['type'] == 'new_booking' ||
+              data['type'] == 'status_update' ||
+              data['type'] == 'reminder') {
+            navigatorKey.currentState?.pushReplacement(
+              MaterialPageRoute(builder: (context) => BookingPage(currentUserId: userId)),
+            );
+          }
         });
       }
     }
@@ -103,9 +200,50 @@ void main() async {
     // Handle message opened from background
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId != null && (message.data['type'] == 'new_booking' || message.data['type'] == 'status_update' || message.data['type'] == 'reminder')) {
-        Navigator.of(navigatorKey.currentContext!).pushReplacement(
-          MaterialPageRoute(builder: (context) => BookingPage(currentUserId: userId)),
+      if (userId != null) {
+        if (message.data['type'] == 'new_message') {
+          Navigator.of(navigatorKey.currentContext!).push(
+            MaterialPageRoute(
+              builder: (context) => ChatThreadDetailsPage(
+                chatId: message.data['chatId'],
+                toName: 'User',
+                toUid: message.data['fromUid'],
+                fromUid: message.data['toUid'],
+              ),
+            ),
+          );
+        } else if (message.data['type'] == 'new_booking' ||
+            message.data['type'] == 'status_update' ||
+            message.data['type'] == 'reminder') {
+          Navigator.of(navigatorKey.currentContext!).pushReplacement(
+            MaterialPageRoute(builder: (context) => BookingPage(currentUserId: userId)),
+          );
+        }
+      }
+    });
+
+    // Handle foreground messages
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      final data = message.data;
+
+      // Only show if message is for this user
+      if (userId != null && data['toUid'] == userId && message.notification != null) {
+        final notification = message.notification!;
+        final androidDetails = AndroidNotificationDetails(
+          data['type'] == 'new_message' ? 'chat_channel' : 'booking_channel',
+          data['type'] == 'new_message' ? 'Chat Notifications' : 'Booking Notifications',
+          importance: Importance.max,
+          priority: Priority.high,
+        );
+        final notificationDetails = NotificationDetails(android: androidDetails);
+
+        localNotificationsPlugin.show(
+          0,
+          notification.title,
+          notification.body,
+          notificationDetails,
+          payload: jsonEncode(data),
         );
       }
     });
@@ -127,25 +265,6 @@ void main() async {
   CallService().initialize();
 
   runApp(const MyApp());
-}
-
-// Global navigator key for notification navigation
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
-
-Future<void> _requestLocationPermission() async {
-  LocationPermission permission = await Geolocator.checkPermission();
-  if (permission == LocationPermission.denied) {
-    permission = await Geolocator.requestPermission();
-    if (permission == LocationPermission.denied) {
-      print('Location permissions denied');
-      return;
-    }
-  }
-  if (permission == LocationPermission.deniedForever) {
-    print('Location permissions permanently denied');
-    return;
-  }
-  print('Location permissions granted');
 }
 
 class MyApp extends StatelessWidget {
@@ -178,7 +297,7 @@ class MyApp extends StatelessWidget {
           ),
           home: const CustomTransitionScreen(),
           debugShowCheckedModeBanner: false,
-          navigatorKey: navigatorKey, // Add navigator key
+          navigatorKey: navigatorKey,
         ),
       ),
     );
