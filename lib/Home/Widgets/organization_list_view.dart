@@ -41,7 +41,11 @@ class _OrganizationListViewState extends State<OrganizationListView> {
     _scrollController = ScrollController();
     _checkConnectivity();
     _loadCachedData();
-    _loadSearchQuery();
+    if (widget.showSearchBar) {
+      _loadSearchQuery();
+    } else {
+      _clearSearchQuery();
+    }
   }
 
   // Check network connectivity
@@ -86,6 +90,15 @@ class _OrganizationListViewState extends State<OrganizationListView> {
         searchQuery = cachedQuery;
       });
     }
+  }
+
+  // Clear cached search query
+  Future<void> _clearSearchQuery() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('search_query_organization');
+    setState(() {
+      searchQuery = "";
+    });
   }
 
   // Cache hospital data and ratings
@@ -152,7 +165,9 @@ class _OrganizationListViewState extends State<OrganizationListView> {
                 return const Center(child: Text("No hospitals found"));
               }
 
-              final hospitals = _filterHospitals(snapshot.data!.docs);
+              final hospitals = widget.showSearchBar
+                  ? _filterHospitals(snapshot.data!.docs)
+                  : snapshot.data!.docs;
               final hospitalDataList = hospitals.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 return {
@@ -204,7 +219,7 @@ class _OrganizationListViewState extends State<OrganizationListView> {
 
                       return HospitalCard(
                         backgroundImage: backgroundImage,
-                        city: hospitalData['City'] ?? 'Unknown City',
+                        hospitalName: hospitalData['Hospital Name'] ?? 'Unknown Hospital',
                         contact: hospitalData['Contact'] ?? 'No Contact Info',
                         hospitalId: hospital.id,
                         onTap: () => _navigateToHospitalPage(context, hospital.id),
@@ -222,7 +237,9 @@ class _OrganizationListViewState extends State<OrganizationListView> {
   }
 
   Widget _buildOfflineHospitalList() {
-    final filteredHospitals = _filterCachedHospitals(_cachedHospitals);
+    final filteredHospitals = widget.showSearchBar
+        ? _filterCachedHospitals(_cachedHospitals)
+        : _cachedHospitals;
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -253,7 +270,7 @@ class _OrganizationListViewState extends State<OrganizationListView> {
             final hospital = filteredHospitals[index];
             return HospitalCard(
               backgroundImage: hospital['Background Image'],
-              city: hospital['City'],
+              hospitalName: hospital['Hospital Name'],
               contact: hospital['Contact'],
               hospitalId: hospital['id'],
               onTap: () => _navigateToHospitalPage(context, hospital['id']),
@@ -321,7 +338,7 @@ class _OrganizationListViewState extends State<OrganizationListView> {
 
 class HospitalCard extends StatelessWidget {
   final String backgroundImage;
-  final String city;
+  final String hospitalName;
   final String contact;
   final String hospitalId;
   final VoidCallback onTap;
@@ -330,7 +347,7 @@ class HospitalCard extends StatelessWidget {
   const HospitalCard({
     super.key,
     required this.backgroundImage,
-    required this.city,
+    required this.hospitalName,
     required this.contact,
     required this.hospitalId,
     required this.onTap,
@@ -373,6 +390,11 @@ class HospitalCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Truncate hospital name to 20 characters and append "..." if longer
+    final displayName = hospitalName.length > 20
+        ? '${hospitalName.substring(0, 20)}...'
+        : hospitalName;
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 5.0),
       elevation: 8.0,
@@ -412,7 +434,8 @@ class HospitalCard extends StatelessWidget {
                       }
                       final rating = snapshot.data ?? 4.5;
                       // Cache the rating
-                      _OrganizationListViewState? state = context.findAncestorStateOfType<_OrganizationListViewState>();
+                      _OrganizationListViewState? state =
+                      context.findAncestorStateOfType<_OrganizationListViewState>();
                       state?._cachedRatings[hospitalId] = rating;
                       state?._cacheData(state._cachedHospitals, state._cachedRatings);
                       return _RatingWidget(rating: rating);
@@ -422,12 +445,14 @@ class HospitalCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       Text(
-                        city,
+                        displayName,
                         style: const TextStyle(
                           fontSize: 14.0,
                           color: Colors.black87,
                           fontWeight: FontWeight.bold,
                         ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                       Text(
                         contact,

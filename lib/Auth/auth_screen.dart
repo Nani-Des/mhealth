@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'auth_service.dart';
 import 'package:nhap/Home/home_page.dart';
+import 'dart:io' show Platform;
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -235,7 +236,43 @@ class _AuthScreenState extends State<AuthScreen> {
                 const SizedBox(height: 20),
                 if (!_isForgotPassword)
                   Center(
-                    child: OutlinedButton.icon(
+                    child: Platform.isIOS
+                        ? OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Colors.teal),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 40,
+                          vertical: 15,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                      onPressed: authService.isLoading
+                          ? null
+                          : () async {
+                        bool success =
+                        await authService.signInWithApple(context);
+                        if (success) {
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>  HomePage(),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(
+                        Icons.apple,
+                        color: Colors.teal,
+                        size: 24,
+                      ),
+                      label: const Text(
+                        'Sign in with Apple',
+                        style: TextStyle(fontSize: 16, color: Colors.teal),
+                      ),
+                    )
+                        : OutlinedButton.icon(
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Colors.teal),
                         padding: const EdgeInsets.symmetric(
@@ -255,7 +292,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           Navigator.pushReplacement(
                             context,
                             MaterialPageRoute(
-                              builder: (context) =>  HomePage(),
+                              builder: (context) => HomePage(),
                             ),
                           );
                         }

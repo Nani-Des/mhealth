@@ -92,6 +92,7 @@ dependencies:
   firebase_messaging: ^15.2.6
   flutter_local_notifications: ^19.2.1
   cloud_functions: ^5.5.1
+  sign_in_with_apple: ^7.0.1
 
 dev_dependencies:
   hive_generator: ^2.0.0

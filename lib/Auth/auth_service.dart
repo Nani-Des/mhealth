@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class AuthService with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -295,6 +296,82 @@ class AuthService with ChangeNotifier {
       _showError(context, _errorMessage!);
     } catch (e) {
       _errorMessage = 'An unexpected error occurred during Google Sign-In: ${e.toString()}';
+      _showError(context, _errorMessage!);
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+    return false;
+  }
+
+  // Sign in with Apple
+  Future<bool> signInWithApple(BuildContext context) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+      );
+
+      final oauthCredential = OAuthProvider("apple.com").credential(
+        idToken: appleCredential.identityToken,
+        accessToken: appleCredential.authorizationCode,
+      );
+
+      final UserCredential userCredential = await _auth.signInWithCredential(oauthCredential);
+      final User? user = userCredential.user;
+
+      if (user != null) {
+        DocumentSnapshot userDoc = await _firestore.collection('Users').doc(user.uid).get();
+        if (!userDoc.exists) {
+          String firstName = appleCredential.givenName ?? 'User';
+          String lastName = appleCredential.familyName ?? '';
+          String email = appleCredential.email ?? user.email ?? 'no-email-${user.uid}@example.com';
+
+          await _firestore.collection('Users').doc(user.uid).set({
+            'Role': false,
+            'Fname': firstName,
+            'Lname': lastName,
+            'Email': email,
+            'User ID': user.uid,
+            'Mobile Number': '',
+            'Region': '',
+            'Status': true,
+            'User Pic': defaultProfilePic,
+            'CreatedAt': Timestamp.now(),
+          });
+        } else if (userDoc['Status'] != true) {
+          String firstName = appleCredential.givenName ?? userDoc['Fname'] ?? 'User';
+          String lastName = appleCredential.familyName ?? userDoc['Lname'] ?? '';
+          String email = appleCredential.email ?? user.email ?? userDoc['Email'] ?? 'no-email-${user.uid}@example.com';
+
+          await _firestore.collection('Users').doc(user.uid).update({
+            'Role': false,
+            'Fname': firstName,
+            'Lname': lastName,
+            'Email': email,
+            'Mobile Number': userDoc['Mobile Number'] ?? '',
+            'Region': userDoc['Region'] ?? '',
+            'Status': true,
+            'User Pic': userDoc['User Pic'] ?? defaultProfilePic,
+            'UpdatedAt': Timestamp.now(),
+          });
+        }
+
+        _currentUser = user;
+        notifyListeners();
+        return true;
+      }
+    } on FirebaseAuthException catch (e) {
+      _errorMessage = _mapFirebaseError(e);
+      _showError(context, _errorMessage!);
+    } catch (e) {
+      _errorMessage = 'An unexpected error occurred during Apple Sign-In: ${e.toString()}';
       _showError(context, _errorMessage!);
     } finally {
       _isLoading = false;
