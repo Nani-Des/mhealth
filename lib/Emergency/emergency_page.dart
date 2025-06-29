@@ -168,9 +168,25 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
 
   Future<String> _fetchFirstAidResponse(String query) async {
     try {
-      final String apiKey = ConfigService().openAiApiKey;
+      final configService = ConfigService();
+      if (!configService.isInitialized) {
+        print('Error: ConfigService not initialized, falling back to offline mode');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Configuration not loaded. Using offline mode.')),
+        );
+        setState(() => _isOffline = true);
+        return _findClosestMatch(query);
+      }
+
+      final String apiKey = configService.openAiApiKey;
+      print('Fetching response with API Key: $apiKey');
       if (apiKey.isEmpty) {
-        return "API key is missing. Please check Firebase Remote Config settings.";
+        print('Error: openai_api_key is empty, falling back to offline mode');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to fetch emergency instructions. Using offline mode.')),
+        );
+        setState(() => _isOffline = true);
+        return _findClosestMatch(query);
       }
 
       const String prefix =
@@ -187,7 +203,20 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       );
       return response.data['choices'][0]['message']['content'];
     } catch (e) {
-      return "Sorry, I couldn't fetch the response.";
+      print('Error fetching response: $e');
+      if (e is DioError) {
+        print('Dio Error: ${e.response?.statusCode} - ${e.response?.data}');
+        if (e.response?.statusCode == 429) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Rate limit exceeded. Please try again later.')),
+          );
+          setState(() => _isOffline = true);
+          return _findClosestMatch(query);
+        }
+      }
+      print('Falling back to offline mode due to error');
+      setState(() => _isOffline = true);
+      return _findClosestMatch(query);
     }
   }
 

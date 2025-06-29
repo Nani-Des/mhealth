@@ -8,6 +8,7 @@ class ConfigService {
   ConfigService._internal();
 
   final _remoteConfig = FirebaseRemoteConfig.instance;
+  bool _isInitialized = false;
 
   Future<void> init() async {
     try {
@@ -18,7 +19,7 @@ class ConfigService {
       await _remoteConfig.setConfigSettings(
         RemoteConfigSettings(
           fetchTimeout: const Duration(seconds: 30),
-          minimumFetchInterval: kDebugMode ? Duration.zero : const Duration(hours: 12),
+          minimumFetchInterval: kDebugMode ? Duration.zero : const Duration(seconds: 3600),
         ),
       );
       print('ConfigService: RemoteConfig settings applied');
@@ -31,16 +32,34 @@ class ConfigService {
         'google_translate_api_key': '',
       });
       print('ConfigService: Default values set');
-      _remoteConfig.fetchAndActivate().then((fetched) {
-        print('ConfigService: Background fetch ${fetched ? 'successful' : 'failed'}');
-        print('ConfigService: Google API Key: ${googleApiKey}');
-      }).catchError((e) {
-        print('ConfigService: Background fetch failed: $e');
-      });
+
+      // Retry fetch up to 3 times
+      for (int i = 0; i < 3; i++) {
+        try {
+          bool updated = await _remoteConfig.fetchAndActivate();
+          print('ConfigService: Fetch attempt ${i + 1} ${updated ? 'successful' : 'no new values'}');
+          _isInitialized = true;
+          break;
+        } catch (e) {
+          print('ConfigService: Fetch attempt ${i + 1} failed: $e');
+          if (i == 2) {
+            print('ConfigService: All fetch attempts failed');
+            break;
+          }
+          await Future.delayed(Duration(seconds: 2));
+        }
+      }
+
+      // Log all fetched values
+      print('ConfigService: openai_api_key: ${_remoteConfig.getString('openai_api_key')}');
+      print('ConfigService: google_api_key: ${_remoteConfig.getString('google_api_key')}');
+      print('ConfigService: nlp_api_url: ${_remoteConfig.getString('nlp_api_url')}');
     } catch (e) {
       print('ConfigService: Initialization failed: $e');
     }
   }
+
+  bool get isInitialized => _isInitialized;
 
   String get googleApiKey => _remoteConfig.getString('google_api_key');
   String get openAiApiKey => _remoteConfig.getString('openai_api_key');
