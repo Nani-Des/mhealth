@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>346868082875-usafcobcv0d2sbv6pd63pg74q3l7nuej.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.346868082875-usafcobcv0d2sbv6pd63pg74q3l7nuej</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>346868082875-jtrm0aj32pvaknutgnhco5kpg2b0lt5k.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyCfzHKLMBA3XEvGztkt40Jn7tT4fPJeKpU</string>
+	<key>GCM_SENDER_ID</key>
+	<string>346868082875</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.example.mhealth</string>
+	<key>PROJECT_ID</key>
+	<string>mhealth-6191e</string>
+	<key>STORAGE_BUCKET</key>
+	<string>mhealth-6191e.appspot.com</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:346868082875:ios:c0682420bcc6d0b1c7e19e</string>
+	<key>DATABASE_URL</key>
+	<string>https://mhealth-6191e-default-rtdb.firebaseio.com</string>
+</dict>
+</plist>
