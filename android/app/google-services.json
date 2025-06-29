@@ -46,6 +46,13 @@
             {
               "client_id": "346868082875-so5iejmfq6eq63hc4pc1r84ufm7gickk.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "346868082875-j29ohp4vireokvcnuappkvbrb8ijfrfk.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.mhealth.nhap"
+              }
             }
           ]
         }
