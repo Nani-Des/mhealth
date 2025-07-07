@@ -46,3 +46,7 @@ app.*.map.json
 
 # FVM Version Cache
 .fvm/
+
+# 🔒 Keystore and signing properties (DO NOT COMMIT)
+android/key.properties
+android/app/keystore.jks

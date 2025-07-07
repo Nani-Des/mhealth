@@ -60,27 +60,35 @@ android {
     }
 
     signingConfigs {
-        release {
+    release {
+        if (keystoreProperties['storeFile']) {
             keyAlias keystoreProperties['keyAlias']
             keyPassword keystoreProperties['keyPassword']
             storeFile file(keystoreProperties['storeFile'])
             storePassword keystoreProperties['storePassword']
         }
     }
+}
 
     buildTypes {
-        debug {
-            debuggable true
-        }
-        release {
-            signingConfig signingConfigs.release
-            minifyEnabled true
-            shrinkResources true
-            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            ndk.debugSymbolLevel 'FULL'
-            zipAlignEnabled true // Ensures 16 KB alignment
-        }
+    debug {
+        debuggable true
     }
+    release {
+        // Only apply signing config if keystore is present
+        if (keystoreProperties['storeFile']) {
+            signingConfig signingConfigs.release
+        } else {
+            println("⚠️ Warning: No keystore found. Release APK will not be signed.")
+        }
+
+        minifyEnabled true
+        shrinkResources true
+        proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        ndk.debugSymbolLevel 'FULL'
+        zipAlignEnabled true // Ensures 16 KB alignment
+    }
+}
 }
 
 flutter {

@@ -13,10 +13,6 @@ import 'expert_post_details_page.dart'; // Import the ExpertPostDetailsPage
 
 
 class TranslationService {
-  static String API_KEY = dotenv.env['NLP_API_KEY'] ?? '';
-  static String API_URL = dotenv.env['NLP_API_URL'] ?? '';
-  final _configService = ConfigService();
-
   static final Map<String, String> ghanaianLanguages = {
     'en': 'English',
     'tw': 'Twi',
@@ -40,9 +36,22 @@ class TranslationService {
     try {
       print('Starting translation for text: $text to language: $targetLanguage');
 
-      final url = Uri.parse('$API_URL?subscription-key=$API_KEY');
+      // Initialize ConfigService
+      final configService = ConfigService();
+      if (!configService.isInitialized) {
+        await configService.init();
+      }
 
-      // Ensure proper UTF-8 encoding in the request
+      // Get API values from ConfigService
+      final apiKey = configService.ghanaNlpApiKey;
+      final apiUrl = configService.nlpApiUrl;
+
+      if (apiKey.isEmpty || apiUrl.isEmpty) {
+        throw Exception('Translation API configuration not properly initialized');
+      }
+
+      final url = Uri.parse('$apiUrl?subscription-key=$apiKey');
+
       final response = await http.post(
         url,
         headers: {
@@ -57,7 +66,6 @@ class TranslationService {
       );
 
       print('Translation Response Status: ${response.statusCode}');
-      // Decode the response body with UTF-8
       final decodedBody = utf8.decode(response.bodyBytes);
       print('Translation Response Body: $decodedBody');
 
@@ -74,7 +82,6 @@ class TranslationService {
           }
 
           if (translatedText != null) {
-            // Ensure the translated text is properly decoded
             final decodedText = _decodeSpecialCharacters(translatedText);
             print('Successfully translated to: $decodedText');
             return decodedText;
@@ -94,21 +101,16 @@ class TranslationService {
     }
   }
 
-  // Helper method to decode special characters
   static String _decodeSpecialCharacters(String text) {
-    // Replace HTML entities if they appear in the text
     return text
         .replaceAll('&amp;', '&')
         .replaceAll('&lt;', '<')
         .replaceAll('&gt;', '>')
         .replaceAll('&quot;', '"')
         .replaceAll('&#039;', "'")
-    // Add more replacements if needed for specific characters
-        .replaceAll('\\u', '\\\\u'); // Handle Unicode escape sequences
+        .replaceAll('\\u', '\\\\u');
   }
 }
-
-
 
 class ExpertsCommunityPage extends StatefulWidget {
   const ExpertsCommunityPage({super.key});
@@ -221,8 +223,8 @@ class _ExpertsCommunityPageState extends State<ExpertsCommunityPage> {
                                 Text(
                                   'Posted by: $username',
                                   style: TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.teal[800],),
+                                    fontSize: 12,
+                                    color: Colors.teal[800],),
                                 ),
                               ],
                             ),
@@ -719,8 +721,8 @@ void _showAddPostDialog(BuildContext context, FirebaseFirestore firestore) {
               Navigator.pop(context);
             },
             child: Text(
-                'Cancel',
-                style: TextStyle(color: Colors.teal[800]),
+              'Cancel',
+              style: TextStyle(color: Colors.teal[800]),
             ),
           ),
           TextButton(

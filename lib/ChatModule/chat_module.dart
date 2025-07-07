@@ -7,9 +7,11 @@ import 'dart:convert';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -29,10 +31,6 @@ import 'HealthInsightsPage.dart';
 
 // ====================== Translation Service ======================
 class TranslationService {
-  static String API_KEY = dotenv.env['NLP_API_KEY'] ?? '';
-  static String API_URL = dotenv.env['NLP_API_URL'] ?? '';
-  final _configService = ConfigService();
-
   static final Map<String, String> ghanaianLanguages = {
     'en': 'English',
     'tw': 'Twi',
@@ -56,7 +54,21 @@ class TranslationService {
     try {
       print('Starting translation for text: $text to language: $targetLanguage');
 
-      final url = Uri.parse('$API_URL?subscription-key=$API_KEY');
+      // Initialize ConfigService
+      final configService = ConfigService();
+      if (!configService.isInitialized) {
+        await configService.init();
+      }
+
+      // Get API values from ConfigService
+      final apiKey = configService.ghanaNlpApiKey;
+      final apiUrl = configService.nlpApiUrl;
+
+      if (apiKey.isEmpty || apiUrl.isEmpty) {
+        throw Exception('Translation API configuration not properly initialized');
+      }
+
+      final url = Uri.parse('$apiUrl?subscription-key=$apiKey');
 
       final response = await http.post(
         url,
@@ -327,7 +339,7 @@ void _showUserList(BuildContext context, String currentUserId) {
       return FutureBuilder<QuerySnapshot>(
         future: FirebaseFirestore.instance
             .collection('Users')
-            .where(FieldPath.documentId, isNotEqualTo: currentUserId) // Exclude current user
+            .where(FieldPath.documentId, isNotEqualTo: currentUserId)
             .get(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -337,7 +349,14 @@ void _showUserList(BuildContext context, String currentUserId) {
             return const Center(child: Text("No users found"));
           }
 
+          // Cache all user data immediately
           final users = snapshot.data!.docs;
+          final chatPageState = context.findAncestorStateOfType<_ChatPageState>();
+          if (chatPageState != null) {
+            for (final userDoc in users) {
+              chatPageState._userCache[userDoc.id] = userDoc.data() as Map<String, dynamic>;
+            }
+          }
 
           return Column(
             children: [
@@ -356,80 +375,86 @@ void _showUserList(BuildContext context, String currentUserId) {
                 child: ListView.separated(
                   itemCount: users.length,
                   separatorBuilder: (context, index) => const Divider(
-                    color: Colors.grey, // Thin grey divider
+                    color: Colors.grey,
                     thickness: 0.5,
                     height: 1,
                   ),
                   itemBuilder: (context, index) {
-                    final user = users[index].data() as Map<String, dynamic>;
-                    final userId = users[index].id;
-                    final userFname = user['Fname'] ?? 'Unknown';
-                    final userLname = user['Lname'] ?? '';
+                    final userDoc = users[index];
+                    final userData = userDoc.data() as Map<String, dynamic>;
+                    final userId = userDoc.id;
+                    final userFname = userData['Fname'] ?? 'Unknown';
+                    final userLname = userData['Lname'] ?? '';
                     final fullName = "$userFname $userLname";
-                    //final userPhone = user['Mobile Number'] ?? 'No Phone';
-                    final userPic = user['User Pic'] ?? '';
-                    final isOnline = user['Status'] ?? false;
+                    final userPic = userData['User Pic'] ?? '';
+                    final isOnline = userData['Status'] ?? false;
+
+                    // Ensure this user is in the cache
+                    if (chatPageState != null) {
+                      chatPageState._userCache[userId] = userData;
+                    }
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundImage: userPic.isNotEmpty ? NetworkImage(userPic) : null,
-                        child: userPic.isEmpty ? Text(userFname[0]) : null,
+                        backgroundImage: userPic.isNotEmpty
+                            ? NetworkImage(userPic)
+                            : null,
+                        child: userPic.isEmpty
+                            ? Text(userFname[0])
+                            : null,
                       ),
                       title: Text(fullName),
-                      //subtitle: Text(userPhone),
                       trailing: isOnline
                           ? const Icon(Icons.circle, color: Colors.green, size: 12)
                           : null,
                       onTap: () async {
                         Navigator.pop(context); // Close modal
 
-                        // Get the current user details
+                        // Get current user details
                         String? fromUid = FirebaseAuth.instance.currentUser?.uid;
-                        if (fromUid == null) {
-                          print("Error: fromUid is null");
-                          return;
-                        }
+                        if (fromUid == null) return;
 
-                        DocumentSnapshot fromUserSnapshot = await FirebaseFirestore.instance.collection('Users').doc(fromUid).get();
+                        DocumentSnapshot fromUserSnapshot = await FirebaseFirestore.instance
+                            .collection('Users')
+                            .doc(fromUid)
+                            .get();
                         String fromName = '${fromUserSnapshot['Fname'] ?? 'Unknown'} ${fromUserSnapshot['Lname'] ?? ''}'.trim();
                         String fromPic = fromUserSnapshot['User Pic'] ?? '';
 
-                        // Get the tapped user's details
+                        // Get tapped user's details from the cached data
                         String toUid = userId;
                         String toName = fullName;
-                        String toPic = userPic ?? '';
+                        String toPic = userPic;
 
-                        String chatId = await _getOrCreateChatThread(fromUid, fromName, fromPic, toUid, toName, toPic);
+                        print('Creating chat thread between:');
+                        print('From UID: $fromUid');
+                        print('From Name: $fromName');
+                        print('From Pic: $fromPic');
+                        print('To UID: $toUid');
+                        print('To Name: $toName');
+                        print('To Pic: $toPic');
+                        print('Creating/Getting chat thread between $fromUid and $toUid');
 
-                        if (chatId.isEmpty) {
-                          print("Error: chatId is empty!");
-                          return;
-                        }
-
-                        print("chatId retrieved: $chatId");
-
-                        if (!context.mounted) return; // Ensure the context is still active
-
-                        // Debug logs
-                        print("Navigating to ChatThreadDetailsPage with:");
-                        print("chatId: $chatId");
-                        print("toName: $toName");
-                        print("toUid: $toUid");
-                        print("fromUid: $fromUid");
-
-
-                        // Navigate to ChatThreadDetailsPage
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => ChatThreadDetailsPage(
-                              chatId: chatId,
-                              toName: toName,
-                              toUid: toUid,
-                              fromUid: fromUid,
-                            ),
-                          ),
+                        String chatId = await _getOrCreateChatThread(
+                            fromUid, fromName, fromPic,
+                            toUid, toName, toPic
                         );
+
+                        if (chatId.isEmpty) return;
+
+                        if (context.mounted) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatThreadDetailsPage(
+                                chatId: chatId,
+                                toName: toName,
+                                toUid: toUid,
+                                fromUid: fromUid,
+                              ),
+                            ),
+                          );
+                        }
                       },
                     );
                   },
@@ -443,50 +468,67 @@ void _showUserList(BuildContext context, String currentUserId) {
   );
 }
 
-
 Future<String> _getOrCreateChatThread(
     String fromUid, String fromName, String fromPic,
     String toUid, String toName, String toPic) async {
-  final chatRef = FirebaseFirestore.instance.collection('ChatMessages');
+  try {
+    final chatRef = FirebaseFirestore.instance.collection('ChatMessages');
 
-  // Step 1: Check if a chat already exists
-  QuerySnapshot existingChat = await chatRef
-      .where('participants', arrayContainsAny: [fromUid, toUid])
-      .get();
+    // Step 1: Check if a chat already exists
+    QuerySnapshot existingChat = await chatRef
+        .where('participants', arrayContainsAny: [fromUid, toUid])
+        .get();
 
-  for (var doc in existingChat.docs) {
-    List<dynamic> participants = doc['participants'];
-    if (participants.contains(fromUid) && participants.contains(toUid)) {
-      print("Existing chat found: ${doc['chat_id']}");
-      return doc['chat_id']; // Return the chat_id field
+    // Check for existing chat between these two users
+    for (var doc in existingChat.docs) {
+      List<dynamic> participants = doc['participants'];
+      if (participants.contains(fromUid) && participants.contains(toUid)) {
+        print("Existing chat found: ${doc.id}");
+        return doc.id; // Return the document ID
+      }
     }
+
+    // Step 2: If no chat exists, create a new one
+    // First get the user pictures from Firestore with null checks
+    final usersSnapshot = await FirebaseFirestore.instance
+        .collection('Users')
+        .where(FieldPath.documentId, whereIn: [fromUid, toUid])
+        .get();
+
+    String finalFromPic = fromPic;
+    String finalToPic = toPic;
+
+    for (var userDoc in usersSnapshot.docs) {
+      if (userDoc.id == fromUid) {
+        finalFromPic = userDoc.data()?['User Pic'] ?? ''; // Handle null case
+      } else if (userDoc.id == toUid) {
+        finalToPic = userDoc.data()?['User Pic'] ?? ''; // Handle null case
+      }
+    }
+
+    // Create the new chat thread with the proper user pics
+    final newChatRef = chatRef.doc();
+    final chatId = newChatRef.id;
+
+    await newChatRef.set({
+      'participants': [fromUid, toUid],
+      'last_message': '',
+      'last_time': FieldValue.serverTimestamp(),
+      'from_uid': fromUid,
+      'from_name': fromName,
+      'from_pic': finalFromPic,
+      'to_uid': toUid,
+      'to_name': toName,
+      'to_pic': finalToPic,
+      'chat_id': chatId,
+    });
+
+    print("New chat created with ID: $chatId");
+    return chatId;
+  } catch (e) {
+    print("Error creating/finding chat: $e");
+    rethrow;
   }
-
-  // Step 2: If no chat exists, create a new one
-  DocumentReference newChat = await chatRef.add({
-    'participants': [fromUid, toUid],
-    'last_message': '',
-    'last_time': FieldValue.serverTimestamp(),
-
-    // Storing both users' details
-    'from_uid': fromUid,
-    'from_name': fromName,
-    'from_pic': fromPic,
-
-    'to_uid': toUid,
-    'to_name': toName,
-    'to_pic': toPic,
-
-    'chat_id': '', // Placeholder
-  });
-
-  // Step 3: Update the chat_id field
-  await newChat.update({'chat_id': newChat.id});
-
-  print("New chat created with ID: ${newChat.id}");
-
-
-  return newChat.id; // Return the chat thread ID
 }
 
 
@@ -510,6 +552,19 @@ class _ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin 
   final Map<String, Map<String, dynamic>> _userCache = {};
   bool _isLoadingUsers = true;
 
+  Future<void> _cacheUserData(String userId) async {
+    if (_userCache.containsKey(userId)) return;
+
+    try {
+      final userDoc = await _firestore.collection('Users').doc(userId).get();
+      if (userDoc.exists) {
+        _userCache[userId] = userDoc.data() as Map<String, dynamic>;
+      }
+    } catch (e) {
+      print('Error caching user data: $e');
+    }
+  }
+
   @override
   bool get wantKeepAlive => true;
 
@@ -517,6 +572,64 @@ class _ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin 
   void initState() {
     super.initState();
     _preloadUserData();
+    _setupMessageNotifications();
+  }
+
+  void _setupMessageNotifications() {
+    // Handle notifications when app is in foreground
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      if (message.data['type'] == 'new_message') {
+        // Show local notification
+        const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+          'chat_channel',
+          'Chat Notifications',
+          importance: Importance.max,
+          priority: Priority.high,
+        );
+        const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
+
+        FlutterLocalNotificationsPlugin().show(
+          0,
+          message.notification?.title,
+          message.notification?.body,
+          notificationDetails,
+          payload: jsonEncode(message.data),
+        );
+      }
+    });
+
+    // Handle notification taps
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      if (message.data['type'] == 'new_message') {
+        _handleMessageNotificationTap(message.data);
+      }
+    });
+
+    // Handle initial notification if app was terminated
+    FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
+      if (message != null && message.data['type'] == 'new_message') {
+        _handleMessageNotificationTap(message.data);
+      }
+    });
+  }
+
+  void _handleMessageNotificationTap(Map<String, dynamic> data) {
+    final chatId = data['chatId'];
+    final fromUid = data['fromUid'];
+    final toUid = data['toUid'];
+
+    // Navigate to the chat thread
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChatThreadDetailsPage(
+          chatId: chatId,
+          toName: 'User', // You might want to fetch the actual name
+          toUid: fromUid, // The sender becomes the "to" user in this context
+          fromUid: toUid, // The recipient becomes the "from" user
+        ),
+      ),
+    );
   }
 
   // Preload all user data at once
@@ -568,51 +681,6 @@ class _ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin 
       return DateFormat.yMMMd().format(messageDate);
     }
   }
-
-  // Get or create chat thread
-  Future<String> _getOrCreateChatThread(
-      String fromUid, String fromName, String fromPic,
-      String toUid, String toName, String toPic) async {
-    final chatRef = FirebaseFirestore.instance.collection('ChatMessages');
-
-    // Step 1: Check if a chat already exists
-    QuerySnapshot existingChat = await chatRef
-        .where('participants', arrayContainsAny: [fromUid, toUid])
-        .get();
-
-    for (var doc in existingChat.docs) {
-      List<dynamic> participants = doc['participants'];
-      if (participants.contains(fromUid) && participants.contains(toUid)) {
-        print("Existing chat found: ${doc['chat_id']}");
-        return doc['chat_id']; // Return the chat_id field
-      }
-    }
-
-    // Step 2: If no chat exists, create a new one
-    DocumentReference newChat = await chatRef.add({
-      'participants': [fromUid, toUid],
-      'last_msg': '',
-      'last_time': FieldValue.serverTimestamp(),
-
-      // Storing both users' details
-      'from_uid': fromUid,
-      'from_name': fromName,
-      'from_pic': fromPic,
-
-      'to_uid': toUid,
-      'to_name': toName,
-      'to_pic': toPic,
-
-      'chat_id': '', // Placeholder
-    });
-
-    // Step 3: Update the chat_id field
-    await newChat.update({'chat_id': newChat.id});
-
-    print("New chat created with ID: ${newChat.id}");
-    return newChat.id; // Return the chat thread ID
-  }
-
 
   // Mark messages as read when the chat thread is opened
   Future<void> _markMessagesAsRead(String chatId, String currentUserId) async {
@@ -668,7 +736,7 @@ class _ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin 
                 ),
                 SizedBox(height: 8),
                 Text(
-                  "Tap on the blue action button below to start a healthy chat...",
+                  "Tap on the + button below to start a new chat...",
                   style: TextStyle(fontSize: 14, color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
@@ -692,7 +760,17 @@ class _ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin 
             final lastMessageType = chat['type'] ?? '';
             final isCurrentUserSender = chat['from_uid'] == currentUserId;
             final otherParticipantId = isCurrentUserSender ? chat['to_uid'] : chat['from_uid'];
-            final userData = _userCache[otherParticipantId];
+
+            if (!_userCache.containsKey(otherParticipantId)) {
+              _cacheUserData(otherParticipantId);
+            }
+
+            final userData = _userCache[otherParticipantId] ?? {
+              'Fname': 'User',
+              'Lname': '',
+              'User Pic': '',
+              'Status': false,
+            };
 
             // Skeleton loading if user data isn't loaded yet (shouldn't happen after preload)
             if (userData == null) {
@@ -715,65 +793,71 @@ class _ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin 
               builder: (context, unreadSnapshot) {
                 final unreadCount = unreadSnapshot.hasData ? unreadSnapshot.data!.docs.length : 0;
 
-                return ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: userPic != null ? NetworkImage(userPic) : null,
-                    child: userPic == null ? Text(firstName[0].toUpperCase()) : null,
-                  ),
-                  title: Text(fullName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          lastMessageType == 'audio'
-                              ? '🎤 Voice message (${_formatDuration(Duration(seconds: chat['audio_duration'] ?? 0))})'
-                              : truncateMessage(lastMessage),
-                          overflow: TextOverflow.ellipsis,
-                          maxLines: 1,
-                          softWrap: false,
-                        ),
-                      ),
-                    ],
-                  ),
-                  trailing: unreadCount > 0
-                      ? AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black54.withOpacity(0.3),
-                          blurRadius: 6,
-                          spreadRadius: 2,
-                          offset: const Offset(0, 2),
+                // In the _ChatPageState class, update the ListTile builder in the build method:
+
+                return GestureDetector(
+                  onLongPress: () => _showChatContextMenu(chatId, fullName),
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundImage: userPic != null ? NetworkImage(userPic) : null,
+                      child: userPic == null ? Text(firstName[0].toUpperCase()) : null,
+                    ),
+                    title: Text(fullName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            lastMessageType == 'audio'
+                                ? '🎤 Voice message (${_formatDuration(Duration(seconds: chat['audio_duration'] ?? 0))})'
+                                : truncateMessage(lastMessage),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            softWrap: false,
+                          ),
                         ),
                       ],
                     ),
-                    child: Text(
-                      unreadCount.toString(),
-                      style: const TextStyle(color: Colors.white, fontSize: 12),
-                    ),
-                  )
-                      : Text(
-                    formatTimestamp(chat['last_time']),
-                    style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
-                  ),
-                  onTap: () async {
-                    await _markMessagesAsRead(chatId, currentUserId);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => ChatThreadDetailsPage(
-                          chatId: chatId,
-                          toName: fullName,
-                          toUid: otherParticipantId,
-                          fromUid: currentUserId,
+                    trailing: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          formatTimestamp(chat['last_time']),
+                          style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
                         ),
-                      ),
-                    );
-                  },
+                        if (unreadCount > 0)
+                          Container(
+                            margin: const EdgeInsets.only(top: 4),
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              shape: BoxShape.circle,
+                            ),
+                            child: Text(
+                              unreadCount.toString(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    onTap: () async {
+                      await _markMessagesAsRead(chatId, currentUserId);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => ChatThreadDetailsPage(
+                            chatId: chatId,
+                            toName: fullName,
+                            toUid: otherParticipantId,
+                            fromUid: currentUserId,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 );
               },
             );
@@ -782,6 +866,93 @@ class _ChatPageState extends State<ChatPage> with AutomaticKeepAliveClientMixin 
 
       },
     );
+  }
+
+  void _showChatContextMenu(String chatId, String chatName) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: const Text('Delete Chat'),
+                onTap: () {
+                  Navigator.pop(context); // Close the menu
+                  _showDeleteConfirmationDialog(chatId, chatName);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel),
+                title: const Text('Cancel'),
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showDeleteConfirmationDialog(String chatId, String chatName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Chat'),
+        content: Text('Are you sure you want to delete your chat with $chatName?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context); // Close the dialog
+              _deleteChatThread(chatId);
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+
+  Future<void> _deleteChatThread(String chatId) async {
+    try {
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Deleting chat...')),
+      );
+
+      // First delete all messages in the thread
+      final messagesSnapshot = await _firestore
+          .collection('ChatMessages')
+          .doc(chatId)
+          .collection('messages')
+          .get();
+
+      final batch = _firestore.batch();
+      for (var doc in messagesSnapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      // Then delete the chat thread document
+      await _firestore.collection('ChatMessages').doc(chatId).delete();
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chat deleted successfully')),
+      );
+    } catch (e) {
+      print('Error deleting chat: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to delete chat: ${e.toString()}')),
+      );
+    }
   }
 
   String _formatDuration(Duration duration) {
@@ -1612,24 +1783,23 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
   final GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final ScrollController _scrollController = ScrollController();
   final TextEditingController commentController = TextEditingController();
-  final FocusNode _focusNode = FocusNode(); // FocusNode to manage focus
-  String? _replyingToUserId; // To track the user being replied to
-  String? _repliedContent; // To store the original message content being replied to
-  String? _replyingToCommentId; // To track the comment being replied to
-  String? _replyingToUserName; // To store the name of the user being replied to
+  final FocusNode _focusNode = FocusNode();
+  String? _replyingToUserId;
+  String? _repliedContent;
+  String? _replyingToCommentId;
+  String? _replyingToUserName;
 
-  // Animation controller for the reply button
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
 
-  // Cache for user data
-  final Map<String, Map<String, dynamic>> _userDataCache = {};
+  bool _isInitialLoadComplete = false;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _cachedComments = [];
+  Map<String, Map<String, dynamic>> _userDataCache = {};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _commentsSubscription;
 
   @override
   void initState() {
     super.initState();
-
-    // Initialize animation controller and animation
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 100),
@@ -1640,56 +1810,89 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
         curve: Curves.easeInOut,
       ),
     );
-
-    // Fetch and cache user data
-    _fetchAndCacheUserData();
-  }
-
-  Future<void> _fetchAndCacheUserData() async {
-    try {
-      // Fetch all users from Firestore
-      final usersSnapshot = await FirebaseFirestore.instance.collection('Users').get();
-      for (final userDoc in usersSnapshot.docs) {
-        _userDataCache[userDoc.id] = userDoc.data() as Map<String, dynamic>;
-      }
-    } catch (e) {
-      print('Error fetching user data: $e');
-    }
+    _loadInitialData();
   }
 
   @override
   void dispose() {
-    _animationController.dispose(); // Dispose the animation controller
+    _animationController.dispose();
+    _scrollController.dispose();
+    _commentsSubscription?.cancel();
     super.dispose();
   }
 
-  void _replyToMessage(BuildContext context, String shortUserName, String content, String replyUserId, String commentId) {
-    // Focus the reply TextField to activate the keyboard
-    _focusNode.requestFocus();
+  Future<void> _loadInitialData() async {
+    try {
+      // Load all users first
+      final usersSnapshot = await FirebaseFirestore.instance.collection('Users').get();
+      final newUserCache = <String, Map<String, dynamic>>{};
 
+      for (final userDoc in usersSnapshot.docs) {
+        newUserCache[userDoc.id] = userDoc.data() as Map<String, dynamic>;
+      }
+
+      // Then load initial comments
+      final commentsSnapshot = await FirebaseFirestore.instance
+          .collection('ForumPosts')
+          .doc(widget.postId)
+          .collection('comments')
+          .orderBy('timestamp')
+          .get();
+
+      setState(() {
+        _userDataCache = newUserCache;
+        _cachedComments = commentsSnapshot.docs;
+        _isInitialLoadComplete = true;
+      });
+
+      // Finally setup real-time updates
+      _setupCommentStream();
+    } catch (e) {
+      print('Initial load error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load data: ${e.toString()}')),
+      );
+    }
+  }
+
+  void _setupCommentStream() {
+    _commentsSubscription = FirebaseFirestore.instance
+        .collection('ForumPosts')
+        .doc(widget.postId)
+        .collection('comments')
+        .orderBy('timestamp')
+        .snapshots()
+        .listen((snapshot) {
+      if (mounted) {
+        setState(() {
+          _cachedComments = snapshot.docs;
+        });
+      }
+    });
+  }
+
+  void _replyToMessage(BuildContext context, String shortUserName, String content, String replyUserId, String commentId) {
+    _focusNode.requestFocus();
     setState(() {
-      // Set the user and comment details for reply tracking
       _replyingToUserId = replyUserId;
       _repliedContent = content;
       _replyingToCommentId = commentId;
-      _replyingToUserName = shortUserName; // Store the name of the user being replied to
+      _replyingToUserName = shortUserName;
     });
   }
 
   void _cancelReply() {
-    // Clear the reply state and hide the reply bar
     setState(() {
       _replyingToUserId = null;
       _repliedContent = null;
       _replyingToCommentId = null;
       _replyingToUserName = null;
     });
-    commentController.clear(); // Clear the text input
-    _focusNode.unfocus(); // Remove focus from the text input
+    commentController.clear();
+    _focusNode.unfocus();
   }
 
   void _animateReplyButton() {
-    // Play the animation when the reply button is tapped
     _animationController.forward().then((_) {
       _animationController.reverse();
     });
@@ -1698,8 +1901,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
   @override
   Widget build(BuildContext context) {
     final String? currentUserId = FirebaseAuth.instance.currentUser?.uid;
-    // Add a cache map for user data
-    final Map<String, Map<String, dynamic>> userDataCache = {};
 
     return Scaffold(
       key: scaffoldMessengerKey,
@@ -1711,7 +1912,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       ),
       body: Column(
         children: [
-          // Post topic at the top (full-width background)
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16.0),
@@ -1731,148 +1931,92 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
             ),
           ),
           Expanded(
-            // Use StreamBuilder with keepAlive to prevent rebuilding
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance
-                  .collection('ForumPosts')
-                  .doc(widget.postId)
-                  .collection('comments')
-                  .orderBy('timestamp')
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            child: !_isInitialLoadComplete
+                ? const Center(child: CircularProgressIndicator())
+                : ListView.builder(
+              controller: _scrollController,
+              itemCount: _cachedComments.length,
+              itemBuilder: (context, index) {
+                final comment = _cachedComments[index].data();
+                final userId = comment['userId'];
+                final commentId = _cachedComments[index].id;
+                final repliedTo = comment['repliedTo'] ?? '';
+                final repliedContent = comment['repliedContent'] ?? '';
+                final timestamp = comment['timestamp'] != null
+                    ? (comment['timestamp'] as Timestamp).toDate()
+                    : DateTime.now();
 
-                final comments = snapshot.data!.docs;
+                final userData = _userDataCache[userId] ?? {};
+                final fname = userData['Fname'] ?? 'Unknown';
+                final lname = userData['Lname'] ?? 'User';
+                final fullName = '$fname $lname';
 
-                // Pre-fetch all user data at once to avoid multiple FutureBuilders
-                final Set<String> userIds = {};
-                for (var comment in comments) {
-                  final data = comment.data() as Map<String, dynamic>;
-                  userIds.add(data['userId'] as String);
-                  if (data['repliedTo'] != null && data['repliedTo'].isNotEmpty) {
-                    userIds.add(data['repliedTo'] as String);
-                  }
-                }
-
-                return FutureBuilder<void>(
-                  // Pre-fetch all user data
-                  future: _fetchUserData(userIds, userDataCache),
-                  builder: (context, fetchSnapshot) {
-                    if (fetchSnapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-
-                    return ListView.builder(
-                      controller: _scrollController,
-                      // Enable caching of items that are off-screen
-                      cacheExtent: 1000, // Cache more items than default
-                      itemCount: comments.length,
-                      itemBuilder: (context, index) {
-                        final comment = comments[index].data() as Map<String, dynamic>;
-                        final userId = comment['userId'];
-                        final commentId = comments[index].id;
-                        final repliedTo = comment['repliedTo'] ?? '';
-                        final repliedContent = comment['repliedContent'] ?? '';
-                        final timestamp = comment['timestamp'] != null
-                            ? (comment['timestamp'] as Timestamp).toDate()
-                            : DateTime.now();
-
-                        // Use cached user data instead of FutureBuilder
-                        final userData = userDataCache[userId];
-                        final fname = userData?['Fname'] ?? 'Unknown';
-                        final lname = userData?['Lname'] ?? 'User';
-                        final fullName = '$fname $lname';
-
-                        return Column(
+                return Column(
+                  children: [
+                    Card(
+                      key: ValueKey('comment_$commentId'),
+                      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Card(
-                              key: ValueKey('comment_$commentId'), // Add a key for better list management
-                              margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    if (repliedTo.isNotEmpty) _buildReplyWidget(
-                                        repliedTo,
-                                        repliedContent,
-                                        userDataCache,
-                                        comment['repliedToCommentId'] ?? '', // Fixed: Provide empty string as fallback
-                                        comments
+                            if (repliedTo.isNotEmpty)
+                              _buildReplyWidget(repliedTo, repliedContent, comment['repliedToCommentId'] ?? ''),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                      comment['content'] ?? 'No Content',
+                                      style: const TextStyle(fontSize: 16),
                                     ),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: ListTile(
-                                            contentPadding: EdgeInsets.zero,
-                                            title: Text(
-                                              comment['content'] ?? 'No Content',
-                                              style: const TextStyle(fontSize: 16),
-                                            ),
-                                            subtitle: Padding(
-                                              padding: const EdgeInsets.only(top: 8.0),
-                                              child: Text(
-                                                'Posted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}',
-                                                style: TextStyle(color: Colors.grey[600]),
-                                              ),
-                                            ),
-                                          ),
-                                        ),
-                                        // Reply Icon
-                                        IconButton(
-                                          icon: ScaleTransition(
-                                            scale: _scaleAnimation,
-                                            child: const Icon(Icons.reply, color: Colors.tealAccent),
-                                          ),
-                                          onPressed: () {
-                                            _animateReplyButton();
-                                            _focusNode.requestFocus();
-                                            _replyToMessage(context, '$fname $lname', comment['content'], comment['userId'], commentId);
-                                          },
-                                        ),
-                                        // Vertical Dot Icon for Comment Menu
-                                        IconButton(
-                                          icon: Icon(Icons.more_vert, color: Colors.grey[600]),
-                                          onPressed: () {
-                                            try {
-                                              final commentDoc = comments[index] as QueryDocumentSnapshot<Map<String, dynamic>>;
-                                              _showCommentMenu(context, scaffoldMessengerKey, commentDoc);
-                                            } catch (e) {
-                                              ScaffoldMessenger.of(context).showSnackBar(
-                                                SnackBar(content: Text('Error loading comment: ${e.toString()}')),
-                                              );
-                                            }
-                                          },
-                                        ),
-                                      ],
+                                    subtitle: Padding(
+                                      padding: const EdgeInsets.only(top: 8.0),
+                                      child: Text(
+                                        'Posted by: $fullName\n${DateFormat('yyyy-MM-dd HH:mm').format(timestamp)}',
+                                        style: TextStyle(color: Colors.grey[600]),
+                                      ),
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
+                                IconButton(
+                                  icon: ScaleTransition(
+                                    scale: _scaleAnimation,
+                                    child: const Icon(Icons.reply, color: Colors.tealAccent),
+                                  ),
+                                  onPressed: () {
+                                    _animateReplyButton();
+                                    _focusNode.requestFocus();
+                                    _replyToMessage(context, '$fname $lname', comment['content'], comment['userId'], commentId);
+                                  },
+                                ),
+                                IconButton(
+                                  icon: Icon(Icons.more_vert, color: Colors.grey[600]),
+                                  onPressed: () {
+                                    _showCommentMenu(context, scaffoldMessengerKey, _cachedComments[index]);
+                                  },
+                                ),
+                              ],
                             ),
-                            // Divider between comments
-                            if (index < comments.length - 1)
-                              Divider(
-                                height: 1,
-                                thickness: 1,
-                                color: Colors.grey[300],
-                                indent: 16,
-                                endIndent: 16,
-                              ),
                           ],
-                        );
-                      },
-                    );
-                  },
+                        ),
+                      ),
+                    ),
+                    if (index < _cachedComments.length - 1)
+                      Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Colors.grey[300],
+                        indent: 16,
+                        endIndent: 16,
+                      ),
+                  ],
                 );
               },
             ),
@@ -1922,75 +2066,19 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                         border: InputBorder.none,
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         suffixIcon: Container(
-                          width: 36,
-                          height: 36,
-                          margin: const EdgeInsets.all(8), // Add some margin around the circle
-                          decoration: BoxDecoration(
-                            color: Colors.tealAccent, // teal background color
-                            shape: BoxShape.circle, // Make it circular
-                          ),
-                          child: IconButton(
-                            icon: const Icon(Icons.send, color: Colors.white), // White icon for contrast
-                            onPressed: () async {
-                              if (commentController.text.trim().isNotEmpty) {
-                                if (currentUserId == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("User not logged in")),
-                                  );
-                                  return;
-                                }
+                            width: 36,
+                            height: 36,
+                            margin: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.tealAccent,
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.send, color: Colors.white),
+                              onPressed: () async {
+                                final message = commentController.text.trim();
+                                if (message.isEmpty) return;
 
-                                final canPost = await WordFilterService().canSendMessage(
-                                    commentController.text.trim(),
-                                    context
-                                );
-                                if (!canPost) return;
-
-                                DocumentSnapshot userSnapshot = await FirebaseFirestore.instance
-                                    .collection('Users')
-                                    .doc(currentUserId)
-                                    .get();
-                                if (!userSnapshot.exists) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("User data not found")),
-                                  );
-                                  return;
-                                }
-
-                                final userData = userSnapshot.data() as Map<String, dynamic>;
-                                final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
-                                final userRegion = userData['Region'] ?? 'Unknown Region';
-
-                                // Prepare the comment data
-                                Map<String, dynamic> commentData = {
-                                  'content': commentController.text,
-                                  'userId': currentUserId,
-                                  'username': fullName,
-                                  'timestamp': FieldValue.serverTimestamp(),
-                                };
-
-                                // Add reply details if replying to a comment
-                                if (_replyingToUserId != null) {
-                                  commentData['repliedTo'] = _replyingToUserId;
-                                  commentData['repliedContent'] = _repliedContent;
-                                  commentData['repliedToCommentId'] = _replyingToCommentId;
-                                }
-
-                                // Add the comment to Firestore
-                                await FirebaseFirestore.instance
-                                    .collection('ForumPosts')
-                                    .doc(widget.postId)
-                                    .collection('comments')
-                                    .add(commentData);
-
-                                // Process the message for health insights (for both regular comments and replies)
-                                await _processMessageForHealthInsights(
-                                  commentController.text, // Process the reply content
-                                  currentUserId,
-                                  userRegion,
-                                );
-
-                                // Clear the comment controller and reply state
                                 commentController.clear();
                                 setState(() {
                                   _replyingToUserId = null;
@@ -1998,9 +2086,50 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                                   _replyingToCommentId = null;
                                   _replyingToUserName = null;
                                 });
-                              }
-                            },
-                          ),
+
+                                try {
+                                  if (currentUserId == null) throw Exception("User not logged in");
+
+                                  final canPost = await WordFilterService().canSendMessage(message, context);
+                                  if (!canPost) return;
+
+                                  final userSnapshot = await FirebaseFirestore.instance
+                                      .collection('Users')
+                                      .doc(currentUserId)
+                                      .get();
+
+                                  if (!userSnapshot.exists) throw Exception("User data not found");
+
+                                  final userData = userSnapshot.data()!;
+                                  final fullName = "${userData['Fname'] ?? 'Unknown'} ${userData['Lname'] ?? ''}".trim();
+                                  final userRegion = userData['Region'] ?? 'Unknown Region';
+
+                                  final commentData = {
+                                    'content': message,
+                                    'userId': currentUserId,
+                                    'username': fullName,
+                                    'timestamp': FieldValue.serverTimestamp(),
+                                    if (_replyingToUserId != null) 'repliedTo': _replyingToUserId,
+                                    if (_repliedContent != null) 'repliedContent': _repliedContent,
+                                    if (_replyingToCommentId != null) 'repliedToCommentId': _replyingToCommentId,
+                                  };
+
+                                  await FirebaseFirestore.instance
+                                      .collection('ForumPosts')
+                                      .doc(widget.postId)
+                                      .collection('comments')
+                                      .add(commentData);
+
+                                  unawaited(_processMessageForHealthInsights(message, currentUserId, userRegion));
+
+                                } catch (e) {
+                                  commentController.text = message;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Error: ${e.toString()}')),
+                                  );
+                                }
+                              },
+                            )
                         ),
                       ),
                       maxLines: null,
@@ -2016,36 +2145,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
     );
   }
 
-// Add this helper method to fetch all user data at once
-  Future<void> _fetchUserData(Set<String> userIds, Map<String, Map<String, dynamic>> cache) async {
-    List<Future> futures = [];
-
-    for (String userId in userIds) {
-      if (!cache.containsKey(userId)) {
-        futures.add(
-            FirebaseFirestore.instance.collection('Users').doc(userId).get().then((snapshot) {
-              if (snapshot.exists) {
-                cache[userId] = snapshot.data() as Map<String, dynamic>;
-              } else {
-                cache[userId] = {'Fname': 'Unknown', 'Lname': 'User'};
-              }
-            }).catchError((error) {
-              cache[userId] = {'Fname': 'Unknown', 'Lname': 'User'};
-            })
-        );
-      }
-    }
-
-    if (futures.isNotEmpty) {
-      await Future.wait(futures);
-    }
-  }
-
-// Add this helper method for the reply widget
-  Widget _buildReplyWidget(String repliedTo, String repliedContent, Map<String, Map<String, dynamic>> userDataCache, String repliedToCommentId, List<QueryDocumentSnapshot> comments) {
-    final repliedUserData = userDataCache[repliedTo];
-    final repliedFname = repliedUserData?['Fname'] ?? 'Unknown';
-    final repliedLname = repliedUserData?['Lname'] ?? 'User';
+  Widget _buildReplyWidget(String repliedTo, String repliedContent, String repliedToCommentId) {
+    final repliedUserData = _userDataCache[repliedTo] ?? {};
+    final repliedFname = repliedUserData['Fname'] ?? 'Unknown';
+    final repliedLname = repliedUserData['Lname'] ?? 'User';
     final repliedToName = '$repliedFname $repliedLname';
 
     return Container(
@@ -2058,7 +2161,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       child: InkWell(
         onTap: () {
           if (repliedToCommentId.isNotEmpty) {
-            _scrollToMessage(repliedToCommentId, comments);
+            _scrollToMessage(repliedToCommentId);
           }
         },
         child: Text(
@@ -2072,21 +2175,19 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
     );
   }
 
-  // Scroll to the message when user clicks on the user ID
-  void _scrollToMessage(String commentId, List<QueryDocumentSnapshot> comments) {
-    final index = _getCommentIndexById(commentId, comments);
+  void _scrollToMessage(String commentId) {
+    final index = _cachedComments.indexWhere((comment) => comment.id == commentId);
     if (index != -1) {
       _scrollController.animateTo(
-        index * 100.0, // Adjust based on your item height
+        index * 100.0,
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
     }
   }
 
-  int _getCommentIndexById(String commentId, List<QueryDocumentSnapshot> comments) {
-    // Find the index of the comment by ID (this will be used to scroll to that specific comment)
-    return comments.indexWhere((comment) => comment.id == commentId);
+  String _truncateText(String text, int maxLength) {
+    return text.length > maxLength ? '${text.substring(0, maxLength)}...' : text;
   }
 
   void _showCommentMenu(
@@ -2096,8 +2197,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       ) {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     final commentUserId = comment['userId'];
-
-    // Only show delete option if current user is the comment owner
     final canDelete = currentUserId == commentUserId;
 
     showModalBottomSheet(
@@ -2105,7 +2204,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       builder: (context) {
         return Wrap(
           children: [
-            if (canDelete) // Only show delete option if user owns the comment
+            if (canDelete)
               ListTile(
                 leading: const Icon(Icons.delete),
                 title: const Text('Delete Comment'),
@@ -2158,11 +2257,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
               title: const Text('Translate Comment'),
               onTap: () {
                 Navigator.pop(context);
-                _showCommentTranslationLanguageSelector(
-                  context,
-                  scaffoldMessengerKey,
-                  comment,
-                );
+                _showCommentTranslationLanguageSelector(context, scaffoldMessengerKey, comment);
               },
             ),
             ListTile(
@@ -2203,7 +2298,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
     }
 
     final reportController = TextEditingController();
-    String selectedReason = 'Inappropriate content'; // Default reason
+    String selectedReason = 'Inappropriate content';
 
     showDialog(
       context: context,
@@ -2252,7 +2347,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                     onChanged: (value) {
                       if (value != null) {
                         selectedReason = value;
-                        // Force rebuild
                         (context as Element).markNeedsBuild();
                       }
                     },
@@ -2329,7 +2423,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
     required String reason,
   }) async {
     try {
-      // Show loading indicator
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -2347,28 +2440,23 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
         'status': 'pending',
       };
 
-      // Add to reports collection
       await FirebaseFirestore.instance.collection('reportedComments').add(reportData);
 
-      // Also add to user's report history
       await FirebaseFirestore.instance
           .collection('Users')
           .doc(reporterId)
           .collection('reportsMade')
           .add(reportData);
 
-      // Add to reported user's record
       await FirebaseFirestore.instance
           .collection('Users')
           .doc(commentUserId)
           .collection('reportsReceived')
           .add(reportData);
 
-      // Close loading indicator and dialog
-      Navigator.pop(context); // Loading indicator
-      Navigator.pop(context); // Report dialog
+      Navigator.pop(context);
+      Navigator.pop(context);
 
-      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Report submitted successfully! Our team will review it.'),
@@ -2381,7 +2469,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
         ),
       );
     } catch (e) {
-      Navigator.pop(context); // Close loading indicator if open
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Failed to submit report: ${e.toString()}'),
@@ -2401,11 +2489,10 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       GlobalKey<ScaffoldMessengerState> scaffoldMessengerKey,
       QueryDocumentSnapshot<Map<String, dynamic>> comment,
       ) {
-    final postId = comment.reference.parent.parent?.id; // Get the postId from the comment's parent
-    final commentId = comment.id; // Get the commentId
+    final postId = comment.reference.parent.parent?.id;
+    final commentId = comment.id;
 
     if (postId == null) {
-      // Handle the case where postId is null
       scaffoldMessengerKey.currentState?.showSnackBar(
         const SnackBar(content: Text('Error: Post not found.')),
       );
@@ -2432,9 +2519,9 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                   onTap: () {
                     Navigator.pop(context);
                     _translateCommentAndShowResult(
-                      postId, // Pass the postId (non-nullable)
-                      commentId, // Pass the commentId
-                      entry.key, // Pass the languageCode
+                      postId,
+                      commentId,
+                      entry.key,
                     );
                   },
                 );
@@ -2453,7 +2540,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       ) async {
     final FirebaseFirestore firestore = FirebaseFirestore.instance;
     try {
-      // Fetch the comment document from the sub-collection
       final commentDoc = await firestore
           .collection('ForumPosts')
           .doc(postId)
@@ -2463,17 +2549,13 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
 
       if (commentDoc.exists) {
         final commentContent = commentDoc['content'];
-        print('Translating comment: "$commentContent" to "$languageCode"');
         final translatedText = await TranslationService.translateText(
           text: commentContent,
           targetLanguage: languageCode,
         );
-        print('Translation Success: $translatedText');
 
-        // Declare the controller as a late variable
         late final ScaffoldFeatureController<SnackBar, SnackBarClosedReason> controller;
 
-        // Create the SnackBar content
         final snackBar = SnackBar(
           backgroundColor: Colors.teal[800],
           content: Column(
@@ -2489,7 +2571,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                 children: [
                   TextButton(
                     onPressed: () {
-                      controller.close(); // Dismiss the SnackBar
+                      controller.close();
                     },
                     child: const Text(
                       'Okay',
@@ -2503,7 +2585,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text('Translation copied!')),
                       );
-                      controller.close(); // Dismiss the SnackBar
+                      controller.close();
                     },
                     child: const Text(
                       'Copy',
@@ -2514,10 +2596,9 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
               ),
             ],
           ),
-          duration: const Duration(days: 365), // Keep the SnackBar open indefinitely
+          duration: const Duration(days: 365),
         );
 
-        // Assign the controller after showing the SnackBar
         controller = ScaffoldMessenger.of(context).showSnackBar(snackBar);
       } else {
         throw Exception('Comment not found');
@@ -2532,7 +2613,6 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
 
   Future<void> _processMessageForHealthInsights(String messageText,
       String userId, String userRegion) async {
-    // Define health categories and keywords
     final Map<String, List<String>> healthCategories = {
       'symptoms': [
         'fever', 'pain', 'cough', 'fatigue', 'headache', 'nausea',
@@ -2597,10 +2677,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       ],
     };
 
-    // Convert message text to lowercase for case-insensitive matching
     String lowerCaseMessage = messageText.toLowerCase();
-
-    // Identify matched categories and keywords
     Map<String, Map<String, int>> matchedCategories = {};
     healthCategories.forEach((category, keywords) {
       for (String keyword in keywords) {
@@ -2612,15 +2689,11 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
       }
     });
 
-    // Get reference to the HealthInsights collection
-    final healthInsightsCollection = FirebaseFirestore.instance.collection(
-        'HealthInsights');
+    final healthInsightsCollection = FirebaseFirestore.instance.collection('HealthInsights');
 
-    // Update or create documents for each matched category and keyword
     for (String category in matchedCategories.keys) {
       for (String keyword in matchedCategories[category]!.keys) {
         try {
-          // Query for existing document with matching category, messageType, region, and keyword
           final querySnapshot = await healthInsightsCollection
               .where('category', isEqualTo: category)
               .where('messageType', isEqualTo: 'forum')
@@ -2629,15 +2702,12 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
               .get();
 
           if (querySnapshot.docs.isNotEmpty) {
-            // Document exists, update the count
             final docId = querySnapshot.docs.first.id;
             await healthInsightsCollection.doc(docId).update({
-              'count': FieldValue.increment(
-                  matchedCategories[category]![keyword]!),
+              'count': FieldValue.increment(matchedCategories[category]![keyword]!),
               'lastUpdated': FieldValue.serverTimestamp(),
             });
           } else {
-            // Document doesn't exist, create new one
             await healthInsightsCollection.add({
               'category': category,
               'keyword': keyword,
@@ -2649,8 +2719,7 @@ class _PostDetailsPageState extends State<PostDetailsPage> with SingleTickerProv
             });
           }
         } catch (e) {
-          print(
-              'Error processing health insights for category $category and keyword $keyword: $e');
+          print('Error processing health insights for category $category and keyword $keyword: $e');
         }
       }
     }
@@ -2767,7 +2836,27 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     });
 
     _checkBlockStatus();
+    _markMessagesAsRead();
   }
+
+  /*Future<void> _markMessagesAsRead() async {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+    if (currentUserId == null) return;
+
+    final messagesSnapshot = await _firestore
+        .collection('ChatMessages')
+        .doc(widget.chatId)
+        .collection('messages')
+        .where('to_uid', isEqualTo: currentUserId)
+        .where('read', isEqualTo: false)
+        .get();
+
+    final batch = _firestore.batch();
+    for (var doc in messagesSnapshot.docs) {
+      batch.update(doc.reference, {'read': true});
+    }
+    await batch.commit();
+  }*/
 
   Future<void> _checkBlockStatus() async {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
@@ -2781,15 +2870,19 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
           .doc(widget.toUid)
           .get();
 
-      setState(() {
-        _isUserBlocked = blockDoc.exists;
-        _isCheckingBlockStatus = false;
-      });
+      if (mounted) {  // Check if widget is still mounted before calling setState
+        setState(() {
+          _isUserBlocked = blockDoc.exists;
+          _isCheckingBlockStatus = false;
+        });
+      }
     } catch (e) {
       print('Error checking block status: $e');
-      setState(() {
-        _isCheckingBlockStatus = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isCheckingBlockStatus = false;
+        });
+      }
     }
   }
 
@@ -2803,7 +2896,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
       if (userDoc.exists) {
         final userData = userDoc.data() as Map<String, dynamic>?;
         setState(() {
-          _cachedUserPic = userData?['User Pic'];
+          _cachedUserPic = userData?['User Pic'] ?? '';
           _cachedIsOnline = userData?['Status'] ?? false;
           _isLoadingUserData = false;
         });
@@ -3236,94 +3329,125 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
   }
 
   Future<void> _stopRecordingAndUpload() async {
-    if (_recorder.isRecording) {
-      _recordingTimer?.cancel();
-      await _recorder.stopRecorder();
+    if (!_recorder.isRecording) return;
 
-      setState(() {
-        _isRecording = false;
+    _recordingTimer?.cancel();
+    await _recorder.stopRecorder();
+
+    setState(() {
+      _isRecording = false;
+    });
+
+    // Store the final duration before resetting
+    final audioDuration = _recordingDuration;
+    setState(() {
+      _recordingDuration = Duration.zero;
+    });
+
+    if (_audioPath == null) {
+      print('Error: Audio path is null');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Audio recording failed')),
+      );
+      return;
+    }
+
+    final file = File(_audioPath!);
+
+    // Verify file exists and has content
+    if (!await file.exists()) {
+      print('Error: Audio file does not exist');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Audio file not found')),
+      );
+      return;
+    }
+
+    final fileSize = await file.length();
+    if (fileSize == 0) {
+      print('Error: Audio file is empty');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Audio recording is empty')),
+      );
+      return;
+    }
+
+    final fileName = 'audio_${const Uuid().v4()}.aac';
+    final storagePath = 'chat_audio/$fileName'; // Simplified path
+
+    try {
+      // Use default Firebase Storage instance
+      final storageRef = FirebaseStorage.instance.ref().child(storagePath);
+
+      // Show uploading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sending your voice message'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      // Upload the file
+      final uploadTask = storageRef.putFile(
+        file,
+        SettableMetadata(contentType: 'audio/aac'),
+      );
+
+      // Show progress
+      uploadTask.snapshotEvents.listen((taskSnapshot) {
+        final progress = taskSnapshot.bytesTransferred / taskSnapshot.totalBytes;
+        print('Upload progress: ${(progress * 100).toStringAsFixed(1)}%');
       });
 
-      // Store the final duration before resetting
-      final audioDuration = _recordingDuration;
-      setState(() {
-        _recordingDuration = Duration.zero;
+      // Wait for upload to complete
+      final taskSnapshot = await uploadTask;
+      final fileUrl = await taskSnapshot.ref.getDownloadURL();
+
+      // Add the audio message to Firestore with duration
+      await _firestore
+          .collection('ChatMessages')
+          .doc(widget.chatId)
+          .collection('messages')
+          .add({
+        'from_uid': widget.fromUid,
+        'to_uid': widget.toUid,
+        'timestamp': FieldValue.serverTimestamp(),
+        'type': 'audio',
+        'file_url': fileUrl,
+        'audio_duration': audioDuration.inSeconds,
+        'status': 'sent',
       });
 
-      if (_audioPath != null) {
-        final file = File(_audioPath!);
+      // Update the last message in the chat thread
+      await _firestore.collection('ChatMessages').doc(widget.chatId).update({
+        'last_msg': '🎤 Voice Message (${_formatDuration(audioDuration)})',
+        'last_time': FieldValue.serverTimestamp(),
+      });
 
-        if (!await file.exists() || await file.length() == 0) {
-          print('Error: Audio file is empty or missing');
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Audio file not found')),
-          );
-          return;
-        }
+      // Clear and delete local file
+      setState(() {
+        _audioPath = null;
+      });
+      await file.delete();
 
-        final fileName = 'audio_${const Uuid().v4()}.aac';
-        final storagePath = 'chat_files/audio/$fileName';
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Voice message sent!')),
+      );
+    } catch (e) {
+      print('Error uploading audio: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send voice message: ${e.toString()}')),
+      );
 
-        try {
-          final storageRef = FirebaseStorage.instanceFor(
-            bucket: 'nhap-6191e.appspot.com',
-          ).ref().child(storagePath);
-
-          final uploadTask = storageRef.putFile(
-            file,
-            SettableMetadata(contentType: 'audio/aac'),
-          );
-
-          await uploadTask;
-          final fileUrl = await storageRef.getDownloadURL();
-
-          // Add the audio message to Firestore with duration
-          await _firestore
-              .collection('ChatMessages')
-              .doc(widget.chatId)
-              .collection('messages')
-              .add({
-            'from_uid': widget.fromUid,
-            'to_uid': widget.toUid,
-            'timestamp': FieldValue.serverTimestamp(),
-            'type': 'audio',
-            'file_url': fileUrl,
-            'audio_duration': audioDuration.inSeconds, // Store duration in seconds
-            'status': 'sent',
-          });
-
-          // Update the last message in the chat thread
-          await _firestore.collection('ChatMessages')
-              .doc(widget.chatId)
-              .update({
-            'last_msg': '🎤 Voice Message (${_formatDuration(audioDuration)})',
-            'last_time': FieldValue.serverTimestamp(),
-          });
-
-          // Clear and delete local file
-          setState(() {
-            _audioPath = null;
-          });
-          await file.delete();
-
-          ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Voice recording sent!'),
-              )
-          );
-        } catch (e) {
-          print('Error uploading audio: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to upload audio: ${e.toString()}')),
-          );
-        }
+      // Clean up the file if upload fails
+      if (await file.exists()) {
+        await file.delete();
       }
     }
   }
 
-  void _sendMessage() async {
-    if (_messageController.text
-        .trim()
-        .isEmpty) return;
+  Future<void> _sendMessage() async {
+    if (_messageController.text.trim().isEmpty) return;
 
     if (_isUserBlocked) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3343,40 +3467,144 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
 
     String messageText = _messageController.text.trim();
 
-    final canSend = await WordFilterService().canSendMessage(messageText, context);
-    if (!canSend) return;
-
-    final message = {
-      'content': messageText,
-      'from_uid': widget.fromUid,
-      'to_uid': widget.toUid,
-      'timestamp': FieldValue.serverTimestamp(),
-      'type': 'text',
-      'status': 'sent',
-      'read': false,
-    };
-
-    // Store message in Firestore
-    await _firestore
-        .collection('ChatMessages')
-        .doc(widget.chatId)
-        .collection('messages')
-        .add(message);
-
-    // Update last message details
-    await _firestore.collection('ChatMessages').doc(widget.chatId).update({
-      'last_msg': messageText,
-      'last_time': FieldValue.serverTimestamp(),
-    });
-
-    // Clear the message input
+    // Clear the message input immediately
     _messageController.clear();
 
-    // Process the message for health insights
-    await _processMessageForHealthInsights(messageText, widget.fromUid);
-
-    // Scroll to bottom after sending
+    // Scroll to bottom immediately
     _scrollToBottom();
+
+    final canSend = await WordFilterService().canSendMessage(messageText, context);
+    if (!canSend) {
+      // If message is blocked, restore the text so user can edit it
+      _messageController.text = messageText;
+      return;
+    }
+
+    // Store the message in Firestore
+    try {
+      final message = {
+        'content': messageText,
+        'from_uid': widget.fromUid,
+        'to_uid': widget.toUid,
+        'timestamp': FieldValue.serverTimestamp(),
+        'type': 'text',
+        'status': 'sent',
+        'read': false,
+      };
+
+      // Store message in Firestore
+      await _firestore
+          .collection('ChatMessages')
+          .doc(widget.chatId)
+          .collection('messages')
+          .add(message);
+
+      // Update last message details
+      await _firestore.collection('ChatMessages').doc(widget.chatId).update({
+        'last_msg': messageText,
+        'last_time': FieldValue.serverTimestamp(),
+      });
+
+      // Send push notification to the recipient (don't await this)
+      _sendMessageNotification(widget.toUid, messageText).catchError((e) {
+        print('Error sending notification: $e');
+      });
+
+      // Process the message for health insights (don't await this)
+      _processMessageForHealthInsights(messageText, widget.fromUid).catchError((e) {
+        print('Error processing health insights: $e');
+      });
+
+    } catch (e) {
+      print('Error sending message: $e');
+      // If there was an error, restore the message so user can try again
+      _messageController.text = messageText;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to send message: ${e.toString()}')),
+      );
+    }
+  }
+
+  Future<void> _sendMessageNotification(String toUid, String messageContent) async {
+    try {
+      // Get current user's name for the notification
+      final currentUserDoc = await _firestore.collection('Users').doc(widget.fromUid).get();
+      final senderName = currentUserDoc['Fname'] ?? 'Someone';
+
+      // Get recipient's FCM token
+      final recipientDoc = await _firestore.collection('Users').doc(toUid).get();
+      final fcmToken = recipientDoc['fcmToken'];
+
+      if (fcmToken == null || fcmToken.isEmpty) return;
+
+      // Send FCM notification to the recipient
+      await _sendFCMNotification(
+        fcmToken,
+        'New Message from $senderName',
+        messageContent.length > 30
+            ? '${messageContent.substring(0, 30)}...'
+            : messageContent,
+        {
+          'type': 'new_message',
+          'chatId': widget.chatId,
+          'fromUid': widget.fromUid,
+          'toUid': toUid,
+        },
+      );
+
+      // Also add a local notification for the recipient (if app is in background)
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'chat_channel',
+        'Chat Notifications',
+        importance: Importance.max,
+        priority: Priority.high,
+      );
+      const NotificationDetails notificationDetails = NotificationDetails(android: androidDetails);
+
+      await FlutterLocalNotificationsPlugin().show(
+        0, // Notification ID
+        'New Message from $senderName',
+        messageContent.length > 30
+            ? '${messageContent.substring(0, 30)}...'
+            : messageContent,
+        notificationDetails,
+        payload: jsonEncode({
+          'type': 'new_message',
+          'chatId': widget.chatId,
+          'fromUid': widget.fromUid,
+          'toUid': toUid,
+        }),
+      );
+    } catch (e) {
+      print('Error sending message notification: $e');
+    }
+  }
+
+  Future<void> _sendFCMNotification(String fcmToken, String title, String body, Map<String, dynamic> data) async {
+    try {
+      final serverKey = dotenv.env['FCM_SERVER_KEY'] ?? ''; // Add your FCM server key to .env
+      final response = await http.post(
+        Uri.parse('https://fcm.googleapis.com/fcm/send'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'key=$serverKey',
+        },
+        body: jsonEncode({
+          'to': fcmToken,
+          'notification': {
+            'title': title,
+            'body': body,
+          },
+          'data': data,
+        }),
+      );
+
+      if (response.statusCode != 200) {
+        print('FCM notification failed: ${response.body}');
+      }
+    } catch (e) {
+      print('Error sending FCM notification: $e');
+    }
   }
 
   Future<bool> _checkIfBlockedByOtherUser() async {
@@ -3678,6 +3906,7 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
     }
   }
 
+
   Future<void> _toggleBlockUser(bool block) async {
     final currentUserId = FirebaseAuth.instance.currentUser?.uid;
     if (currentUserId == null) return;
@@ -3699,19 +3928,25 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
         await blockRef.delete();
       }
 
-      setState(() {
-        _isUserBlocked = block;
-      });
+      if (mounted) {
+        setState(() {
+          _isUserBlocked = block;
+        });
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            block
-                ? '${widget.toName} has been blocked'
-                : '${widget.toName} has been unblocked',
+        // Show a more prominent notification
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              block
+                  ? '${widget.toName} has been blocked'
+                  : '${widget.toName} has been unblocked',
+              style: TextStyle(color: Colors.white),
+            ),
+            backgroundColor: block ? Colors.red : Colors.green,
+            duration: const Duration(seconds: 2),
           ),
-        ),
-      );
+        );
+      }
     } catch (e) {
       print('Error toggling block status: $e');
       ScaffoldMessenger.of(context).showSnackBar(
@@ -3758,11 +3993,11 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
           children: [
             CircleAvatar(
               radius: 20,
-              backgroundImage: _cachedUserPic != null
+              backgroundImage: _cachedUserPic != null && _cachedUserPic!.isNotEmpty
                   ? NetworkImage(_cachedUserPic!)
                   : null,
-              child: _cachedUserPic == null
-                  ? const Icon(Icons.person, size: 24)
+              child: _cachedUserPic == null || _cachedUserPic!.isEmpty
+                  ? Text(widget.toName.isNotEmpty ? widget.toName[0] : '?')
                   : null,
             ),
             const SizedBox(width: 8),
@@ -3771,31 +4006,28 @@ class _ChatThreadDetailsPageState extends State<ChatThreadDetailsPage> {
               children: [
                 Text(
                   widget.toName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
+                    color: _isUserBlocked ? Colors.red : Colors.white, // Add this line
                   ),
                 ),
-                /*Text(
-                      _cachedIsOnline == true ? "Active now" : "Offline",
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Colors.black,
-                      ),
-                    ),*/
               ],
             ),
           ],
         ),
-        backgroundColor: Colors.teal,
+        backgroundColor: _isUserBlocked ? Colors.grey[800] : Colors.teal, // Change background color when blocked
         actions: [
           IconButton(
-            icon: const Icon(Icons.block, color: Colors.white),
+            icon: Icon(
+              Icons.block,
+              color: _isUserBlocked ? Colors.red : Colors.white,
+            ),
             onPressed: () => _showBlockUserDialog(),
           ),
           IconButton(
             icon: const Icon(Icons.video_call, color: Colors.white),
-            onPressed: _onVideoCallPressed,
+            onPressed: _isUserBlocked ? null : _onVideoCallPressed, // Disable video call button when blocked
           ),
         ],
       ),
