@@ -387,11 +387,25 @@ class _CustomTransitionScreenState extends State<CustomTransitionScreen>
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
 
-    _controller.forward().then((_) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LocationPermissionScreen()),
-      );
+    _controller.forward().then((_) async {
+      // Check if the location permission screen has been shown
+      final prefs = await SharedPreferences.getInstance();
+      bool hasShownLocationPermission =
+          prefs.getBool('hasShownLocationPermission') ?? false;
+
+      if (hasShownLocationPermission) {
+        // If already shown, navigate to HomePage
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) =>  HomePage()),
+        );
+      } else {
+        // If not shown, navigate to LocationPermissionScreen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const LocationPermissionScreen()),
+        );
+      }
     });
   }
 
@@ -426,6 +440,11 @@ class _CustomTransitionScreenState extends State<CustomTransitionScreen>
 class LocationPermissionScreen extends StatelessWidget {
   const LocationPermissionScreen({super.key});
 
+  Future<void> _setPermissionShownFlag() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('hasShownLocationPermission', true);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -456,6 +475,7 @@ class LocationPermissionScreen extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () async {
                     await _requestLocationPermission();
+                    await _setPermissionShownFlag(); // Set flag after permission request
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(builder: (context) =>  HomePage()),
@@ -465,7 +485,8 @@ class LocationPermissionScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
+                    await _setPermissionShownFlag(); // Set flag when skipping
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(builder: (context) =>  HomePage()),

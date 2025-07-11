@@ -14,6 +14,10 @@
     <string>Allow location access to provide location-based features.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow microphone access to record audio.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app allows you to select photos for uploading to your profile or sharing content.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>This app uses speech recognition to transcribe voice input for hands-free operation or note-taking.</string>
     <key>UIBackgroundModes</key>
     <array>
         <string>remote-notification</string>

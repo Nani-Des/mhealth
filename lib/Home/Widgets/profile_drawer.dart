@@ -119,7 +119,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       return;
     }
 
-    // Check if user is a doctor
     bool isDoctor = false;
     try {
       final DocumentSnapshot userDoc = await FirebaseFirestore.instance
@@ -131,11 +130,10 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       print('Error checking user role: $e');
     }
 
-    // Require re-authentication for doctors
     if (isDoctor && await _requiresRecentLogin(currentUser)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Doctors must log out and log in again to deleted their account'),
+          content: Text('Doctors must log out and log in again to delete their account'),
         ),
       );
       return;
@@ -166,17 +164,14 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
     }
 
     try {
-      // Update Firestore
       await FirebaseFirestore.instance.collection('Users').doc(currentUser.uid).update({
         'Status': false,
         'Email': null,
       });
 
-      // Sign out from Google and Firebase
       await GoogleSignIn().signOut();
       await FirebaseAuth.instance.signOut();
 
-      // Attempt to delete Firebase Authentication account
       try {
         await currentUser.delete();
       } on FirebaseAuthException catch (e) {
@@ -388,126 +383,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            child: _isEditing
-                                ? Card(
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              child: Padding(
-                                padding: const EdgeInsets.all(10),
-                                child: Column(
-                                  children: [
-                                    TextFormField(
-                                      controller: _firstNameController,
-                                      decoration: InputDecoration(
-                                        labelText: 'First Name',
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                    ),
-                                     SizedBox(height: 12),
-                                    TextFormField(
-                                      controller: _lastNameController,
-                                      decoration: InputDecoration(
-                                        labelText: 'Last Name',
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    TextFormField(
-                                      controller: _regionController,
-                                      decoration: InputDecoration(
-                                        labelText: 'Region',
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    TextFormField(
-                                      controller: _mobileController,
-                                      decoration: InputDecoration(
-                                        labelText: 'Mobile Number',
-                                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                      ),
-                                      keyboardType: TextInputType.phone,
-                                    ),
-                                    
-                                    const SizedBox(height: 50),
-                                  ],
-                                ),
-                              ),
-                            )
-                                : Column(
-                              children: [
-                                Text(
-                                  '$firstName $lastName',
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.teal,
-                                  ),
-                                ),
-
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      email ?? 'No email',
-                                      style: TextStyle(fontSize: 8, color: Colors.grey[700]),
-                                    ),
-                                    Text(
-                                      '  ||  ',
-                                      style: TextStyle(fontSize: 8, color: Colors.grey[600]),
-                                    ),
-                                    Text(
-                                      region ?? 'No region',
-                                      style: TextStyle(fontSize: 8, color: Colors.grey[700]),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-
-                          if (!_isEditing)
-                            SingleChildScrollView(
-                              scrollDirection: Axis.horizontal,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  _buildInfoBox(
-                                    icon: Icons.message_outlined,
-                                    label: 'Bookings',
-                                    value: mobileNumber,
-                                    onTap: () {
-                                      final User? currentUser = FirebaseAuth.instance.currentUser;
-                                      if (currentUser != null) {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (context) => BookingPage(currentUserId: currentUser.uid),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                  ),
-                                  const SizedBox(width: 20),
-                                  _buildInfoBox(
-                                    icon: Icons.person_add,
-                                    label: 'Refer a Patient',
-                                    value: region,
-                                    onTap: () => _checkAndNavigate(context, isReferralForm: true),
-                                  ),
-                                  const SizedBox(width: 20),
-                                  _buildInfoBox(
-                                    icon: Icons.description,
-                                    label: 'Referrals',
-                                    value: region,
-                                    onTap: () => _checkAndNavigate(context, isReferralForm: false),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          const SizedBox(height: 10),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
@@ -563,6 +438,139 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
                               ),
                             ],
                           ),
+                          const SizedBox(height: 12),
+                          AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 300),
+                            child: _isEditing
+                                ? SizedBox(
+                              height: MediaQuery.of(context).size.height * 0.5, // Constrain height
+                              child: SingleChildScrollView(
+                                child: Card(
+                                  elevation: 2,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(10),
+                                    child: Column(
+                                      children: [
+                                        TextFormField(
+                                          controller: _firstNameController,
+                                          decoration: InputDecoration(
+                                            labelText: 'First Name',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        TextFormField(
+                                          controller: _lastNameController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Last Name',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        TextFormField(
+                                          controller: _regionController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Region',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        TextFormField(
+                                          controller: _mobileController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Mobile Number',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                          keyboardType: TextInputType.phone,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        TextFormField(
+                                          controller: _emailController,
+                                          decoration: InputDecoration(
+                                            labelText: 'Email',
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                          keyboardType: TextInputType.emailAddress,
+                                        ),
+                                        const SizedBox(height: 12),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                                : Column(
+                              children: [
+                                Text(
+                                  '$firstName $lastName',
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.teal,
+                                  ),
+                                ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      email ?? 'No email',
+                                      style: TextStyle(fontSize: 8, color: Colors.grey[700]),
+                                    ),
+                                    Text(
+                                      '  ||  ',
+                                      style: TextStyle(fontSize: 8, color: Colors.grey[600]),
+                                    ),
+                                    Text(
+                                      region ?? 'No region',
+                                      style: TextStyle(fontSize: 8, color: Colors.grey[700]),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!_isEditing)
+                            SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  _buildInfoBox(
+                                    icon: Icons.message_outlined,
+                                    label: 'Bookings',
+                                    value: mobileNumber,
+                                    onTap: () {
+                                      final User? currentUser = FirebaseAuth.instance.currentUser;
+                                      if (currentUser != null) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => BookingPage(currentUserId: currentUser.uid),
+                                          ),
+                                        );
+                                      }
+                                    },
+                                  ),
+                                  const SizedBox(width: 20),
+                                  _buildInfoBox(
+                                    icon: Icons.person_add,
+                                    label: 'Refer a Patient',
+                                    value: region,
+                                    onTap: () => _checkAndNavigate(context, isReferralForm: true),
+                                  ),
+                                  const SizedBox(width: 20),
+                                  _buildInfoBox(
+                                    icon: Icons.description,
+                                    label: 'Referrals',
+                                    value: region,
+                                    onTap: () => _checkAndNavigate(context, isReferralForm: false),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const SizedBox(height: 10),
+
                           const SizedBox(height: 20),
                         ],
                       );
@@ -588,7 +596,6 @@ class _ProfileDrawerState extends State<ProfileDrawer> {
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: 100,
-        // height: 100,
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: Colors.grey[100],
