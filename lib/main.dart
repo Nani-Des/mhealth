@@ -3,11 +3,10 @@ import 'dart:ui';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hive/hive.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
 import 'Appointments/referral_form.dart';
@@ -20,12 +19,16 @@ import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'booking_page.dart';
+import 'booking_details.dart';
 import 'firebase_options.dart';
 import 'Services/config_service.dart';
 
 // Debug flags
 const bool debugDisableFirebase = false; // Set to true to bypass Firebase
 const bool debugDisableServices = true; // Disable CallService/WordFilterService
+
+// Global navigator key for notification navigation
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 // Background message handler
 @pragma('vm:entry-point')
@@ -36,41 +39,16 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
       await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
       print('Background: Firebase initialized in handler');
     }
-    final notification = message.notification;
     final data = message.data;
-
-    if (notification != null || data.isNotEmpty) {
-      final localNotificationsPlugin = FlutterLocalNotificationsPlugin();
-      const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const initSettings = InitializationSettings(android: androidSettings);
-      await localNotificationsPlugin.initialize(initSettings);
-
-      const androidDetails = AndroidNotificationDetails(
-        'booking_channel',
-        'Booking Notifications',
-        importance: Importance.high,
-        priority: Priority.high,
-      );
-      const notificationDetails = NotificationDetails(android: androidDetails);
-
-      await localNotificationsPlugin.show(
-        notification?.hashCode ?? data.hashCode,
-        notification?.title ?? data['title'] ?? 'Booking Update',
-        notification?.body ?? data['body'] ?? 'You have a new booking notification.',
-        notificationDetails,
-        payload: jsonEncode(data),
-      );
-      print('Background: Displayed notification');
-
+    if (data.isNotEmpty) {
       final prefs = await SharedPreferences.getInstance();
       List<String> notifications = prefs.getStringList('pending_notifications') ?? [];
       notifications.add(jsonEncode({
         'messageId': message.messageId,
-        'data': message.data,
-        'title': notification?.title,
-        'body': notification?.body,
+        'data': data,
       }));
       await prefs.setStringList('pending_notifications', notifications);
+      print('Background: Stored notification in SharedPreferences');
     }
   } catch (e) {
     print('Background: Error processing message: $e');
@@ -104,27 +82,99 @@ void main() async {
     print('Main: Firebase initialization disabled for debugging');
   }
 
-  // Defer all initialization
-  WidgetsBinding.instance.addPostFrameCallback((_) async {
-    print('Main: Starting post-frame initialization');
+  // Initialize Hive
+  try {
+    await Hive.initFlutter();
+    await Hive.openBox('translations');
+    print('Main: Hive initialized');
+  } catch (e) {
+    print('Main: Hive initialization failed: $e');
+  }
 
-    // Initialize Hive
+  // Initialize ConfigService and fetch API key
+  String? googleMapsApiKey;
+  if (!debugDisableFirebase) {
     try {
-      await Hive.initFlutter();
-      await Hive.openBox('translations');
-      print('Main: Hive initialized');
+      await ConfigService().init();
+      googleMapsApiKey = ConfigService().googleMapsApiKey;
+      if (googleMapsApiKey.isEmpty) {
+        print('Main: google_api_key not found in Firebase Remote Config');
+      } else {
+        print('Main: Google Maps API key fetched: $googleMapsApiKey');
+      }
     } catch (e) {
-      print('Main: Hive initialization failed: $e');
+      print('Main: ConfigService initialization failed: $e');
     }
+  }
 
-    // Initialize ConfigService
-    if (!debugDisableFirebase) {
-      try {
-        await ConfigService().init();
-      } catch (e) {
-        print('Main: ConfigService initialization failed: $e');
+  // Send API key to iOS
+  if (googleMapsApiKey != null && googleMapsApiKey.isNotEmpty) {
+    const platform = MethodChannel('com.mhealth.nhap/maps');
+    try {
+      await platform.invokeMethod('setGoogleMapsApiKey', {'apiKey': googleMapsApiKey});
+      print('Main: Sent Google Maps API key to iOS');
+    } catch (e) {
+      print('Main: Error sending API key to iOS: $e');
+    }
+  } else {
+    print('Main: Skipping API key send due to empty or null key');
+  }
+
+  // Set up notification method channel
+  const notificationChannel = MethodChannel('com.mhealth.nhap/notifications');
+  notificationChannel.setMethodCallHandler((call) async {
+    print('Main: Received method call: ${call.method}');
+    if (call.method == 'updateFcmToken') {
+      final token = call.arguments as String?;
+      if (token != null) {
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId != null && !debugDisableFirebase) {
+          try {
+            await FirebaseFirestore.instance
+                .collection('Users')
+                .doc(userId)
+                .set({'fcmToken': token}, SetOptions(merge: true));
+            print('Main: Stored FCM token from AppDelegate for user $userId: $token');
+          } catch (e) {
+            print('Main: Error storing FCM token: $e');
+          }
+        }
+      }
+    } else if (call.method == 'handleNotification') {
+      final data = call.arguments as Map<dynamic, dynamic>?;
+      if (data != null) {
+        print('Main: Handling notification tap: $data');
+        final userId = FirebaseAuth.instance.currentUser?.uid;
+        if (userId != null &&
+            (data['type'] == 'new_booking' ||
+                data['type'] == 'booking_accepted' ||
+                data['type'] == 'booking_cancelled' ||
+                data['type'] == 'reminder')) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            navigatorKey.currentState?.push(MaterialPageRoute(
+              builder: (context) => BookingPage(currentUserId: userId),
+            ));
+            if (data['bookingDate'] != null && data['userId'] != null && data['doctorId'] != null) {
+              navigatorKey.currentState?.push(MaterialPageRoute(
+                builder: (context) => BookingDetailsPage(
+                  userId: data['userId'],
+                  doctorId: data['doctorId'],
+                  bookingDate: Timestamp.fromMillisecondsSinceEpoch(
+                    int.parse(data['bookingDate']) * 1000,
+                  ),
+                  currentUserId: userId,
+                ),
+              ));
+            }
+          });
+        }
       }
     }
+  });
+
+  // Defer all other initialization
+  WidgetsBinding.instance.addPostFrameCallback((_) async {
+    print('Main: Starting post-frame initialization');
 
     // Apply Firestore settings
     if (!debugDisableFirebase) {
@@ -152,32 +202,6 @@ void main() async {
         );
         print('Main: FCM permissions requested');
 
-        // Initialize local notifications
-        final localNotificationsPlugin = FlutterLocalNotificationsPlugin();
-        const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-        const initSettings = InitializationSettings(android: androidSettings);
-        await localNotificationsPlugin.initialize(
-          initSettings,
-          onDidReceiveNotificationResponse: (response) async {
-            if (response.payload != null) {
-              final data = Map<String, dynamic>.from(jsonDecode(response.payload!));
-              final userId = FirebaseAuth.instance.currentUser?.uid;
-              if (userId != null &&
-                  (data['type'] == 'new_booking' ||
-                      data['type'] == 'status_update' ||
-                      data['type'] == 'reminder' ||
-                      data['type'] == 'appointment_reminder' ||
-                      data['type'] == 'booking_accepted')) {
-                Navigator.of(navigatorKey.currentContext!).push(
-                  MaterialPageRoute(
-                      builder: (context) => BookingPage(currentUserId: userId)),
-                );
-              }
-            }
-          },
-        );
-        print('Main: Local notifications initialized');
-
         // Retry FCM token retrieval
         String? token;
         for (int i = 0; i < 3; i++) {
@@ -204,15 +228,27 @@ void main() async {
         RemoteMessage? initialMessage = await messaging.getInitialMessage();
         if (initialMessage != null && userId != null) {
           if (initialMessage.data['type'] == 'new_booking' ||
-              initialMessage.data['type'] == 'status_update' ||
-              initialMessage.data['type'] == 'reminder' ||
-              initialMessage.data['type'] == 'appointment_reminder' ||
-              initialMessage.data['type'] == 'booking_accepted') {
+              initialMessage.data['type'] == 'booking_accepted' ||
+              initialMessage.data['type'] == 'booking_cancelled' ||
+              initialMessage.data['type'] == 'reminder') {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              Navigator.of(navigatorKey.currentContext!).push(
-                MaterialPageRoute(
-                    builder: (context) => BookingPage(currentUserId: userId)),
-              );
+              navigatorKey.currentState?.push(MaterialPageRoute(
+                builder: (context) => BookingPage(currentUserId: userId),
+              ));
+              if (initialMessage.data['bookingDate'] != null &&
+                  initialMessage.data['userId'] != null &&
+                  initialMessage.data['doctorId'] != null) {
+                navigatorKey.currentState?.push(MaterialPageRoute(
+                  builder: (context) => BookingDetailsPage(
+                    userId: initialMessage.data['userId'],
+                    doctorId: initialMessage.data['doctorId'],
+                    bookingDate: Timestamp.fromMillisecondsSinceEpoch(
+                      int.parse(initialMessage.data['bookingDate']) * 1000,
+                    ),
+                    currentUserId: userId,
+                  ),
+                ));
+              }
             });
             print('Main: Handled initial FCM message');
           }
@@ -223,37 +259,29 @@ void main() async {
           final userId = FirebaseAuth.instance.currentUser?.uid;
           if (userId != null &&
               (message.data['type'] == 'new_booking' ||
-                  message.data['type'] == 'status_update' ||
-                  message.data['type'] == 'reminder' ||
-                  message.data['type'] == 'appointment_reminder' ||
-                  message.data['type'] == 'booking_accepted')) {
-            Navigator.of(navigatorKey.currentContext!).push(
-              MaterialPageRoute(
-                  builder: (context) => BookingPage(currentUserId: userId)),
-            );
+                  message.data['type'] == 'booking_accepted' ||
+                  message.data['type'] == 'booking_cancelled' ||
+                  message.data['type'] == 'reminder')) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              navigatorKey.currentState?.push(MaterialPageRoute(
+                builder: (context) => BookingPage(currentUserId: userId),
+              ));
+              if (message.data['bookingDate'] != null &&
+                  message.data['userId'] != null &&
+                  message.data['doctorId'] != null) {
+                navigatorKey.currentState?.push(MaterialPageRoute(
+                  builder: (context) => BookingDetailsPage(
+                    userId: message.data['userId'],
+                    doctorId: message.data['doctorId'],
+                    bookingDate: Timestamp.fromMillisecondsSinceEpoch(
+                      int.parse(message.data['bookingDate']) * 1000,
+                    ),
+                    currentUserId: userId,
+                  ),
+                ));
+              }
+            });
             print('Main: Handled FCM message opened from background');
-          }
-        });
-
-        // Handle foreground messages
-        FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-          print('Main: Foreground message received: ${message.messageId}');
-          if (message.notification != null) {
-            localNotificationsPlugin.show(
-              message.hashCode,
-              message.notification!.title,
-              message.notification!.body,
-              const NotificationDetails(
-                android: AndroidNotificationDetails(
-                  'booking_channel',
-                  'Booking Notifications',
-                  importance: Importance.high,
-                  priority: Priority.high,
-                ),
-              ),
-              payload: jsonEncode(message.data),
-            );
-            print('Main: Displayed foreground notification');
           }
         });
 
@@ -273,9 +301,8 @@ void main() async {
       }
     }
 
-    // Initialize cached_network_image
+    // Initialize image cache
     try {
-      CachedNetworkImage.logLevel = CacheManagerLogLevel.debug;
       imageCache.maximumSizeBytes = 100 * 1024 * 1024; // 100 MB
       PaintingBinding.instance.imageCache.maximumSizeBytes = 100 * 1024 * 1024;
       print('Main: Image cache initialized');
@@ -300,9 +327,6 @@ void main() async {
 
   runApp(const MyApp());
 }
-
-// Global navigator key for notification navigation
-final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 Future<void> _requestLocationPermission() async {
   LocationPermission permission = await Geolocator.checkPermission();
@@ -397,7 +421,7 @@ class _CustomTransitionScreenState extends State<CustomTransitionScreen>
         // If already shown, navigate to HomePage
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) =>  HomePage()),
+          MaterialPageRoute(builder: (context) => HomePage()),
         );
       } else {
         // If not shown, navigate to LocationPermissionScreen
@@ -475,10 +499,10 @@ class LocationPermissionScreen extends StatelessWidget {
                 ElevatedButton(
                   onPressed: () async {
                     await _requestLocationPermission();
-                    await _setPermissionShownFlag(); // Set flag after permission request
+                    await _setPermissionShownFlag();
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) =>  HomePage()),
+                      MaterialPageRoute(builder: (context) => HomePage()),
                     );
                   },
                   child: const Text('Allow Location Access'),
@@ -486,10 +510,10 @@ class LocationPermissionScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 TextButton(
                   onPressed: () async {
-                    await _setPermissionShownFlag(); // Set flag when skipping
+                    await _setPermissionShownFlag();
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) =>  HomePage()),
+                      MaterialPageRoute(builder: (context) => HomePage()),
                     );
                   },
                   child: const Text('Skip for Now'),

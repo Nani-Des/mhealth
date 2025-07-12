@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:connectivity_plus/connectivity_plus.dart'; // Added for connectivity check
 import '../Services/config_service.dart';
 import 'directions_model.dart';
 import 'directions_repository.dart';
@@ -34,6 +35,10 @@ class _MapScreen1State extends State<MapScreen1> {
   final TextEditingController _searchController = TextEditingController();
   String? _selectedPlaceName;
   Polyline? _routePolyline;
+  bool _isMapReady = false; // Flag for API key availability
+  bool _isControllerReady = false; // Flag for GoogleMapController initialization
+  bool _isLocationInitialized = false; // Flag for location initialization
+  bool _hasInternet = true; // Flag for internet connectivity
 
   final PlaceSearchService _placeSearchService = PlaceSearchService();
   Position? _currentPosition;
@@ -47,13 +52,25 @@ class _MapScreen1State extends State<MapScreen1> {
     if (widget.initialPlace != null) {
       print('Initial Place: ${widget.initialPlace}');
     }
-    // Initialize ConfigService
+    // Check connectivity
+    _checkConnectivity();
+    // Initialize ConfigService and check API key
     ConfigService().init().then((_) {
-      if (mounted && ConfigService().googleApiKey.isEmpty) {
-        print('Error: google_api_key not found in Firebase Remote Config');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Configuration error: Missing Google API key')),
-        );
+      if (mounted) {
+        if (ConfigService().googleApiKey.isEmpty) {
+          print('Error: google_api_key not found in Firebase Remote Config');
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Configuration error: Missing Google API key')),
+          );
+          setState(() {
+            _isMapReady = false;
+          });
+        } else {
+          print('MapScreen1: Google API key loaded successfully');
+          setState(() {
+            _isMapReady = true;
+          });
+        }
       }
     }).catchError((e) {
       if (mounted) {
@@ -61,27 +78,57 @@ class _MapScreen1State extends State<MapScreen1> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to load configuration: $e')),
         );
+        setState(() {
+          _isMapReady = false;
+        });
       }
     });
-    _initializeMap();
+  }
+
+  Future<void> _checkConnectivity() async {
+    try {
+      var connectivityResult = await Connectivity().checkConnectivity();
+      setState(() {
+        _hasInternet = connectivityResult != ConnectivityResult.none;
+      });
+      if (!_hasInternet) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No internet connection. Map tiles may not load.')),
+        );
+      }
+    } catch (e) {
+      print('Error checking connectivity: $e');
+    }
   }
 
   Future<void> _initializeMap() async {
-    await _getCurrentLocation();
-    if (widget.initialPlace != null && widget.initialPlace!.isNotEmpty) {
-      await _searchAndShowRoute(widget.initialPlace!);
-    } else if (_currentPosition != null) {
+    if (!_isMapReady || !_isControllerReady) {
+      print('MapScreen1: Waiting for map and controller to be ready');
+      return;
+    }
+    if (!_isLocationInitialized) {
+      await _getCurrentLocation();
+    }
+    if (_currentPosition != null) {
       setState(() {
         _initialCameraPosition = CameraPosition(
           target: LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
           zoom: 14.0,
         );
       });
+      _googleMapController.animateCamera(
+        CameraUpdate.newLatLngZoom(
+          LatLng(_currentPosition!.latitude, _currentPosition!.longitude),
+          14.0,
+        ),
+      );
+    }
+    if (widget.initialPlace != null && widget.initialPlace!.isNotEmpty) {
+      await _searchAndShowRoute(widget.initialPlace!);
     }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
-      // await prefs.remove('hasSeenEmergencyWalkthrough'); // Uncomment for testing
       final bool hasSeenWalkthrough = prefs.getBool('hasSeenEmergencyWalkthrough') ?? false;
       if (!hasSeenWalkthrough && mounted) {
         ShowCaseWidget.of(context)?.startShowCase([_chipKey, _hospitalKey]);
@@ -123,16 +170,21 @@ class _MapScreen1State extends State<MapScreen1> {
         infoWindow: const InfoWindow(title: 'You are here'),
         icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
       );
+      _isLocationInitialized = true;
     });
-
-    if (widget.initialPlace == null || widget.initialPlace!.isEmpty) {
-      _googleMapController.animateCamera(
-        CameraUpdate.newLatLngZoom(LatLng(position.latitude, position.longitude), 14.0),
-      );
-    }
   }
 
   Future<void> _searchAndShowRoute(String query) async {
+    if (!_isMapReady || !_isControllerReady || !_hasInternet) {
+      setState(() {
+        _selectedPlaceName = 'Error: Map not fully loaded or no internet.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, map is loading or check internet connection.')),
+      );
+      return;
+    }
+
     if (_currentPosition == null) {
       setState(() {
         _selectedPlaceName = 'Unable to get current location';
@@ -162,10 +214,6 @@ class _MapScreen1State extends State<MapScreen1> {
           infoWindow: InfoWindow(title: result['name']),
           position: destinationLatLng,
           icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueBlue),
-        );
-        _initialCameraPosition = CameraPosition(
-          target: destinationLatLng,
-          zoom: 14.0,
         );
       });
 
@@ -198,6 +246,16 @@ class _MapScreen1State extends State<MapScreen1> {
   }
 
   Future<void> _findHealthCenter() async {
+    if (!_isMapReady || !_isControllerReady || !_hasInternet) {
+      setState(() {
+        _selectedPlaceName = 'Error: Map not fully loaded or no internet.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, map is loading or check internet connection.')),
+      );
+      return;
+    }
+
     if (_currentPosition == null) {
       setState(() {
         _selectedPlaceName = 'Unable to get current location';
@@ -277,6 +335,16 @@ class _MapScreen1State extends State<MapScreen1> {
   }
 
   Future<void> _findNearestHospital() async {
+    if (!_isMapReady || !_isControllerReady || !_hasInternet) {
+      setState(() {
+        _selectedPlaceName = 'Error: Map not fully loaded or no internet.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, map is loading or check internet connection.')),
+      );
+      return;
+    }
+
     if (_currentPosition == null) {
       setState(() {
         _selectedPlaceName = 'Unable to get current location';
@@ -368,18 +436,33 @@ class _MapScreen1State extends State<MapScreen1> {
       child: Scaffold(
         body: Stack(
           children: [
-            GoogleMap(
-              myLocationButtonEnabled: false,
-              zoomControlsEnabled: false,
-              initialCameraPosition: _initialCameraPosition,
-              onMapCreated: (controller) => _googleMapController = controller,
-              markers: {
-                if (_origin != null) _origin!,
-                if (_destination != null) _destination!,
-              },
-              polylines: _routePolyline != null ? {_routePolyline!} : {},
-              onLongPress: _addMarker,
-            ),
+            if (_isMapReady && _hasInternet)
+              GoogleMap(
+                myLocationButtonEnabled: true, // Enabled to help diagnose map issues
+                zoomControlsEnabled: true, // Enabled for user control
+                initialCameraPosition: _initialCameraPosition,
+                mapType: MapType.normal, // Explicitly set to ensure tiles load
+                onMapCreated: (controller) {
+                  _googleMapController = controller;
+                  setState(() {
+                    _isControllerReady = true;
+                  });
+                  print('MapScreen1: GoogleMap created');
+                  _initializeMap();
+                },
+                markers: {
+                  if (_origin != null) _origin!,
+                  if (_destination != null) _destination!,
+                },
+                polylines: _routePolyline != null ? {_routePolyline!} : {},
+                onLongPress: _addMarker,
+              )
+            else
+              Center(
+                child: _isMapReady
+                    ? const Text('No internet connection. Please connect to load map.')
+                    : const CircularProgressIndicator(),
+              ),
             Positioned(
               top: 10.0,
               left: 10.0,
@@ -464,6 +547,16 @@ class _MapScreen1State extends State<MapScreen1> {
   }
 
   void _addMarker(LatLng pos) async {
+    if (!_isMapReady || !_isControllerReady || !_hasInternet) {
+      setState(() {
+        _selectedPlaceName = 'Error: Map not fully loaded or no internet.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, map is loading or check internet connection.')),
+      );
+      return;
+    }
+
     if (_origin == null || (_origin != null && _destination != null)) {
       setState(() {
         _origin = Marker(
@@ -503,6 +596,16 @@ class _MapScreen1State extends State<MapScreen1> {
   }
 
   Future<void> _searchPlace(String query) async {
+    if (!_isMapReady || !_isControllerReady || !_hasInternet) {
+      setState(() {
+        _selectedPlaceName = 'Error: Map not fully loaded or no internet.';
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait, map is loading or check internet connection.')),
+      );
+      return;
+    }
+
     String apiKey = ConfigService().googleApiKey;
     if (apiKey.isEmpty) {
       setState(() {

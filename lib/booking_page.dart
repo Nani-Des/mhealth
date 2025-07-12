@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -45,6 +46,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
 
     Future.microtask(() async {
       await _checkUserRole();
+      await _updateFcmToken();
       await _checkConnectivity();
       await _loadCachedData();
       await _checkPendingNotifications();
@@ -53,11 +55,37 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     });
   }
 
+  Future<void> _updateFcmToken() async {
+    try {
+      String? token = await _messaging.getToken();
+      if (token != null) {
+        await FirebaseFirestore.instance
+            .collection('Users')
+            .doc(widget.currentUserId)
+            .set({'fcmToken': token}, SetOptions(merge: true));
+        if (kDebugMode) {
+          print('FCM token updated for user ${widget.currentUserId}: $token');
+        }
+      } else {
+        if (kDebugMode) {
+          print('Failed to retrieve FCM token');
+        }
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('Error updating FCM token: $e');
+      }
+    }
+  }
+
   Future<void> _checkUpcomingAppointments() async {
     if (_isOffline) return;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('sent_reminders_${widget.currentUserId}'); // Clear outdated reminders
+      await prefs.remove('sent_reminders_${widget.currentUserId}');
+      if (kDebugMode) {
+        print('Cleared outdated reminders for user ${widget.currentUserId}');
+      }
     } catch (e) {
       if (kDebugMode) {
         print('Error clearing reminders: $e');
@@ -69,6 +97,9 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     final prefs = await SharedPreferences.getInstance();
     final notifications = prefs.getStringList('pending_notifications') ?? [];
     if (notifications.isNotEmpty) {
+      if (kDebugMode) {
+        print('Processing ${notifications.length} pending notifications');
+      }
       for (var notification in notifications) {
         final data = jsonDecode(notification) as Map<String, dynamic>;
         _handleNotificationTap(data['data'] ?? {});
@@ -134,6 +165,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       });
       if (!_isOffline) {
         _showModernSnackBar(context, 'Back online, syncing data...');
+        await _updateFcmToken();
         await _checkPendingNotifications();
         await _loadCachedData();
         await _checkNewAppointmentsOnLogin();
@@ -706,13 +738,14 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       DocumentReference docRef = FirebaseFirestore.instance.collection('Bookings').doc(widget.currentUserId);
       DocumentSnapshot doc = await docRef.get();
       List<dynamic> bookings = doc.exists ? List.from(doc['Bookings'] ?? []) : [];
-      bookings.add({
+      final newBooking = {
         'doctorId': doctorId,
         'hospitalId': hospitalId,
         'date': Timestamp.fromDate(date),
         'status': 'Pending',
         'reason': reason,
-      });
+      };
+      bookings.add(newBooking);
       await docRef.set({'Bookings': bookings});
       _showModernSnackBar(context, 'Booking created successfully');
     } catch (e) {
@@ -905,35 +938,75 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
 
   void _confirmDelete(String userId, Timestamp date) {
     if (_isOffline) {
-      _showModernSnackBar(context, 'Cannot delete booking offline', isError: true);
+      _showModernSnackBar(context, 'Cannot cancel booking offline', isError: true);
       return;
     }
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        title: const Row(
-          children: [
-            Icon(Icons.warning, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Confirm Delete'),
-          ],
-        ),
-        content: const Text('Are you sure you want to delete this booking?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.teal)),
+      barrierDismissible: false,
+      builder: (context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.red[600], size: 24),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Confirm Cancellation',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.teal[800],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Are you sure you want to cancel this appointment?',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: Colors.grey[700],
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'No',
+                        style: TextStyle(color: Colors.grey[600]),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton(
+                      onPressed: () {
+                        _deleteBooking(userId, date);
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal[600],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      ),
+                      child: Text(
+                        'Yes, Cancel',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-          TextButton(
-            onPressed: () {
-              _deleteBooking(userId, date);
-              Navigator.pop(context);
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -946,17 +1019,35 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         return;
       }
 
-      List<dynamic> bookings = List.from(doc['Bookings']);
-      bookings.removeWhere((booking) =>
-      booking['date'] is Timestamp &&
-          booking['date'].toDate().millisecondsSinceEpoch == date.toDate().millisecondsSinceEpoch);
+      List<dynamic> bookings = List.from(doc['Bookings'] ?? []);
+      int index = bookings.indexWhere((b) =>
+      b['date'] is Timestamp &&
+          b['date'].toDate().millisecondsSinceEpoch == date.toDate().millisecondsSinceEpoch);
+      if (index == -1) {
+        _showModernSnackBar(context, 'Booking not found', isError: true);
+        return;
+      }
+
+      // Ensure the booking is a Map<String, dynamic> before updating
+      if (bookings[index] is! Map<String, dynamic>) {
+        _showModernSnackBar(context, 'Invalid booking data format', isError: true);
+        return;
+      }
+
+      bookings[index]['status'] = 'Cancelled';
+
       await docRef.update({'Bookings': bookings});
-      _showModernSnackBar(context, 'Booking deleted successfully');
+      _showModernSnackBar(context, 'Appointment cancelled successfully');
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('processed_appointments_${widget.currentUserId}');
+      // Cast bookings to List<Map<String, dynamic>> for _cacheData
+      await _cacheData(
+        'cached_appointments_${widget.currentUserId}',
+        bookings.cast<Map<String, dynamic>>(),
+      );
     } catch (e) {
-      _showModernSnackBar(context, 'Failed to delete booking: $e', isError: true);
+      _showModernSnackBar(context, 'Failed to cancel appointment: $e', isError: true);
     }
   }
 
@@ -1006,6 +1097,10 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     final userId = data['userId'];
     final doctorId = data['doctorId'];
 
+    if (kDebugMode) {
+      print('Handling notification tap: type=$type, userId=$userId, doctorId=$doctorId, bookingDate=$bookingDateSeconds');
+    }
+
     setState(() {
       _selectedTabIndex = _isDoctor ? 0 : 1;
     });
@@ -1022,6 +1117,10 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           ),
         ),
       );
+    } else {
+      if (kDebugMode) {
+        print('Invalid notification data: $data');
+      }
     }
   }
 }
