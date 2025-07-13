@@ -3,12 +3,19 @@ const admin = require("firebase-admin");
 admin.initializeApp();
 
 exports.onBookingCreated = functions.firestore
-  .document("Bookings/{userId}/UserBookings/{bookingId}")
+  .document("Bookings/{userId}")
   .onCreate(async (snap, context) => {
-    console.log("onBookingCreated: Started execution for bookingId: ", context.params.bookingId);
-    const booking = snap.data();
+    console.log("onBookingCreated: Started execution for userId: ", context.params.userId);
+    const data = snap.data();
     const userId = context.params.userId;
-    const doctorId = booking.doctorId;
+    const bookings = data.Bookings || [];
+    if (bookings.length === 0) {
+      console.log("onBookingCreated: No bookings found in document");
+      return null;
+    }
+
+    const newBooking = bookings[bookings.length - 1]; // Assume last booking is the new one
+    const doctorId = newBooking.doctorId;
 
     // Fetch user and doctor data
     let userDoc, doctorDoc;
@@ -29,7 +36,7 @@ exports.onBookingCreated = functions.firestore
       return null;
     }
 
-    const userName = userDoc.data().name || "User";
+    const userName = `${userDoc.data().Fname || "User"} ${userDoc.data().Lname || ""}`.trim();
     const doctorFcmToken = doctorDoc.data().fcmToken;
 
     if (!doctorFcmToken) {
@@ -37,17 +44,17 @@ exports.onBookingCreated = functions.firestore
       return null;
     }
 
-    const message = {
+    const doctorMessage = {
       token: doctorFcmToken,
       notification: {
         title: "New Booking Request",
-        body: `You have a new booking request from ${userName} for ${new Date(booking.bookingDate.seconds * 1000).toLocaleString()}.`,
+        body: `You have a new booking request from ${userName} for ${new Date(newBooking.date.seconds * 1000).toLocaleString()}.`,
       },
       data: {
         type: "new_booking",
         userId: userId,
         doctorId: doctorId,
-        bookingDate: booking.bookingDate.seconds.toString(),
+        bookingDate: newBooking.date.seconds.toString(),
       },
       apns: {
         payload: {
@@ -60,69 +67,26 @@ exports.onBookingCreated = functions.firestore
     };
 
     try {
-      const response = await admin.messaging().send(message);
+      const response = await admin.messaging().send(doctorMessage);
       console.log(`onBookingCreated: Sent new_booking notification to doctor ${doctorId}:`, response);
-      return null;
     } catch (error) {
       console.error(`onBookingCreated: Error sending notification to doctor ${doctorId}:`, error);
-      return null;
     }
-  });
 
-exports.onBookingStatusUpdated = functions.firestore
-  .document("Bookings/{userId}/UserBookings/{bookingId}")
-  .onUpdate(async (change, context) => {
-    const newData = change.after.data();
-    const oldData = change.before.data();
-    const userId = context.params.userId;
-    const doctorId = newData.doctorId;
-
-    if (newData.status !== oldData.status) {
-      console.log(`onBookingStatusUpdated: Status changed for bookingId: ${context.params.bookingId}, new status: ${newData.status}`);
-      let userDoc;
-      try {
-        userDoc = await admin.firestore().collection("Users").doc(userId).get();
-      } catch (error) {
-        console.error(`onBookingStatusUpdated: Error fetching user ${userId}:`, error);
-        return null;
-      }
-
-      if (!userDoc.exists) {
-        console.error(`onBookingStatusUpdated: User not found: ${userId}`);
-        return null;
-      }
-
-      const userFcmToken = userDoc.data().fcmToken;
-      if (!userFcmToken) {
-        console.error(`onBookingStatusUpdated: No FCM token for user ${userId}`);
-        return null;
-      }
-
-      let title, body, type;
-      if (newData.status === "Active") {
-        title = "Booking Accepted";
-        body = `Your booking with doctor for ${new Date(newData.bookingDate.seconds * 1000).toLocaleString()} has been accepted.`;
-        type = "booking_accepted";
-      } else if (newData.status === "Cancelled") {
-        title = "Booking Cancelled";
-        body = `Your booking with doctor for ${newData.bookingDate.seconds * 1000).toLocaleString()} has been cancelled.`;
-        type = "booking_cancelled";
-      } else {
-        console.log(`onBookingStatusUpdated: No notification needed for status: ${newData.status}`);
-        return null;
-      }
-
-      const message = {
+    // Optional: Notify patient (if required)
+    const userFcmToken = userDoc.data().fcmToken;
+    if (userFcmToken) {
+      const userMessage = {
         token: userFcmToken,
         notification: {
-          title: title,
-          body: body,
+          title: "Booking Created",
+          body: `Your booking with doctor for ${new Date(newBooking.date.seconds * 1000).toLocaleString()} has been created.`,
         },
         data: {
-          type: type,
+          type: "new_booking",
           userId: userId,
           doctorId: doctorId,
-          bookingDate: newData.bookingDate.seconds.toString(),
+          bookingDate: newBooking.date.seconds.toString(),
         },
         apns: {
           payload: {
@@ -135,12 +99,99 @@ exports.onBookingStatusUpdated = functions.firestore
       };
 
       try {
-        const response = await admin.messaging().send(message);
-        console.log(`onBookingStatusUpdated: Sent ${type} notification to user ${userId}:`, response);
-        return null;
+        const response = await admin.messaging().send(userMessage);
+        console.log(`onBookingCreated: Sent new_booking notification to user ${userId}:`, response);
       } catch (error) {
-        console.error(`onBookingStatusUpdated: Error sending ${type} notification to user ${userId}:`, error);
-        return null;
+        console.error(`onBookingCreated: Error sending notification to user ${userId}:`, error);
+      }
+    }
+
+    return null;
+  });
+
+exports.onBookingStatusUpdated = functions.firestore
+  .document("Bookings/{userId}")
+  .onUpdate(async (change, context) => {
+    console.log("onBookingStatusUpdated: Started execution for userId: ", context.params.userId);
+    const newData = change.after.data();
+    const previousData = change.before.data();
+    const userId = context.params.userId;
+
+    const newBookings = newData.Bookings || [];
+    const previousBookings = previousData.Bookings || [];
+
+    for (let i = 0; i < newBookings.length; i++) {
+      const newBooking = newBookings[i];
+      const previousBooking = previousBookings[i] || {};
+
+      if (newBooking.status !== previousBooking.status) {
+        console.log(`onBookingStatusUpdated: Status changed for booking index ${i}, new status: ${newBooking.status}`);
+        let userDoc, doctorDoc;
+        try {
+          userDoc = await admin.firestore().collection("Users").doc(userId).get();
+          doctorDoc = await admin.firestore().collection("Users").doc(newBooking.doctorId).get();
+        } catch (error) {
+          console.error(`onBookingStatusUpdated: Error fetching user/doctor docs - userId: ${userId}, doctorId: ${newBooking.doctorId}, error:`, error);
+          return null;
+        }
+
+        if (!userDoc.exists) {
+          console.error(`onBookingStatusUpdated: User not found: ${userId}`);
+          return null;
+        }
+        if (!doctorDoc.exists) {
+          console.error(`onBookingStatusUpdated: Doctor not found: ${newBooking.doctorId}`);
+          return null;
+        }
+
+        const userFcmToken = userDoc.data().fcmToken;
+        if (!userFcmToken) {
+          console.error(`onBookingStatusUpdated: No FCM token for user ${userId}`);
+          return null;
+        }
+
+        let title, body, type;
+        if (newBooking.status === "Active" && previousBooking.status === "Pending") {
+          title = "Booking Accepted";
+          body = `Your booking with doctor for ${new Date(newBooking.date.seconds * 1000).toLocaleString()} has been accepted.`;
+          type = "booking_accepted";
+        } else if (newBooking.status === "Cancelled") {
+          title = "Booking Terminated";
+          body = `Your booking with doctor for ${new Date(newBooking.date.seconds * 1000).toLocaleString()} was terminated.`;
+          type = "booking_cancelled";
+        } else {
+          console.log(`onBookingStatusUpdated: No notification needed for status: ${newBooking.status}`);
+          continue;
+        }
+
+        const message = {
+          token: userFcmToken,
+          notification: {
+            title: title,
+            body: body,
+          },
+          data: {
+            type: type,
+            userId: userId,
+            doctorId: newBooking.doctorId,
+            bookingDate: newBooking.date.seconds.toString(),
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: "default",
+                contentAvailable: true,
+              },
+            },
+          },
+        };
+
+        try {
+          const response = await admin.messaging().send(message);
+          console.log(`onBookingStatusUpdated: Sent ${type} notification to user ${userId}:`, response);
+        } catch (error) {
+          console.error(`onBookingStatusUpdated: Error sending ${type} notification to user ${userId}:`, error);
+        }
       }
     }
     return null;
@@ -156,26 +207,15 @@ exports.sendBookingReminders = functions.pubsub.schedule("every 24 hours").onRun
 
   let bookingsSnapshot;
   try {
-    bookingsSnapshot = await admin.firestore()
-      .collectionGroup("UserBookings")
-      .where("status", "==", "Active")
-      .where("bookingDate", ">=", tomorrow)
-      .where("bookingDate", "<=", tomorrowEnd)
-      .get();
+    bookingsSnapshot = await admin.firestore().collection("Bookings").get();
   } catch (error) {
     console.error("sendBookingReminders: Error fetching bookings:", error);
     return null;
   }
 
-  if (bookingsSnapshot.empty) {
-    console.log("sendBookingReminders: No bookings found for tomorrow");
-    return null;
-  }
-
   for (const doc of bookingsSnapshot.docs) {
-    const booking = doc.data();
-    const userId = doc.ref.parent.parent.id;
-
+    const userId = doc.id;
+    const bookings = doc.data().Bookings || [];
     let userDoc;
     try {
       userDoc = await admin.firestore().collection("Users").doc(userId).get();
@@ -195,33 +235,38 @@ exports.sendBookingReminders = functions.pubsub.schedule("every 24 hours").onRun
       continue;
     }
 
-    const message = {
-      token: userFcmToken,
-      notification: {
-        title: "Appointment Reminder",
-        body: `You have an appointment tomorrow at ${new Date(booking.bookingDate.seconds * 1000).toLocaleString()}.`,
-      },
-      data: {
-        type: "reminder",
-        userId: userId,
-        doctorId: booking.doctorId,
-        bookingDate: booking.bookingDate.seconds.toString(),
-      },
-      apns: {
-        payload: {
-          aps: {
-            sound: "default",
-            contentAvailable: true,
+    for (const booking of bookings) {
+      const bookingDate = new Date(booking.date.seconds * 1000);
+      if (booking.status === "Active" && bookingDate >= tomorrow && bookingDate <= tomorrowEnd) {
+        const message = {
+          token: userFcmToken,
+          notification: {
+            title: "Appointment Reminder",
+            body: `You have an appointment tomorrow at ${bookingDate.toLocaleString()} with your doctor.`,
           },
-        },
-      },
-    };
+          data: {
+            type: "reminder",
+            userId: userId,
+            doctorId: booking.doctorId,
+            bookingDate: booking.date.seconds.toString(),
+          },
+          apns: {
+            payload: {
+              aps: {
+                sound: "default",
+                contentAvailable: true,
+              },
+            },
+          },
+        };
 
-    try {
-      const response = await admin.messaging().send(message);
-      console.log(`sendBookingReminders: Sent reminder to user ${userId}:`, response);
-    } catch (error) {
-      console.error(`sendBookingReminders: Error sending reminder to user ${userId}:`, error);
+        try {
+          const response = await admin.messaging().send(message);
+          console.log(`sendBookingReminders: Sent reminder to user ${userId}:`, response);
+        } catch (error) {
+          console.error(`sendBookingReminders: Error sending reminder to user ${userId}:`, error);
+        }
+      }
     }
   }
   return null;

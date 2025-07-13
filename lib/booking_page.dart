@@ -29,9 +29,20 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
   bool _isOffline = false;
   List<Map<String, dynamic>> _cachedRequests = [];
   List<Map<String, dynamic>> _cachedAppointments = [];
+  List<Map<String, dynamic>> _filteredRequests = [];
+  List<Map<String, dynamic>> _filteredAppointments = [];
   int _selectedTabIndex = 0;
 
+  // Enhanced filter state
+  Set<String> _statusFilter = {'Pending', 'Active', 'Cancelled'};
+  DateTime? _startDateFilter;
+  DateTime? _endDateFilter;
+  String _sortBy = 'date'; // 'date', 'status', 'reason'
+  bool _sortAscending = true;
+  String _searchQuery = '';
+
   final FirebaseMessaging _messaging = FirebaseMessaging.instance;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -43,6 +54,13 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       duration: const Duration(seconds: 2),
     )..repeat();
     _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_animationController);
+
+    _searchController.addListener(() {
+      setState(() {
+        _searchQuery = _searchController.text;
+        _updateFilteredData();
+      });
+    });
 
     Future.microtask(() async {
       await _checkUserRole();
@@ -200,7 +218,25 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           };
         }).toList();
       }
+      _updateFilteredData();
     });
+
+    if (kDebugMode) {
+      print('Loaded cached requests: ${_cachedRequests.length}');
+      print('Loaded cached appointments: ${_cachedAppointments.length}');
+      print('Filtered requests: ${_filteredRequests.length}');
+      print('Filtered appointments: ${_filteredAppointments.length}');
+    }
+  }
+
+  void _updateFilteredData() {
+    _filteredRequests = _applyFilters(_cachedRequests, true);
+    _filteredRequests.sort(_sortBookings);
+    _filteredAppointments = _applyFilters(_cachedAppointments, false);
+    _filteredAppointments.sort(_sortBookings);
+    if (kDebugMode) {
+      print('Updated filtered data: requests=${_filteredRequests.length}, appointments=${_filteredAppointments.length}');
+    }
   }
 
   Future<void> _cacheData(String key, List<Map<String, dynamic>> data) async {
@@ -238,6 +274,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
   @override
   void dispose() {
     _animationController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -316,6 +353,12 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
               );
             },
           ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.filter_list, color: Colors.white),
+              onPressed: _showFilterDialog,
+            ),
+          ],
           bottom: TabBar(
             onTap: (index) => setState(() => _selectedTabIndex = index),
             indicatorColor: Colors.white,
@@ -327,22 +370,507 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
             ],
           ),
         ),
-        body: Container(
-          color: Colors.grey[100],
-          child: TabBarView(
-            children: [
-              if (_isDoctor) _buildRequests(),
-              _buildAppointments(),
-            ],
-          ),
+        body: Column(
+          children: [
+            // Search Bar
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search bookings...',
+                  prefixIcon: const Icon(Icons.search, color: Colors.teal),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                    icon: const Icon(Icons.clear, color: Colors.grey),
+                    onPressed: () {
+                      _searchController.clear();
+                    },
+                  )
+                      : null,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.teal),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.teal, width: 2),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            // Active Filters Indicator
+            if (_statusFilter.length < 3 || _startDateFilter != null || _endDateFilter != null || _sortBy != 'date')
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                color: Colors.teal.withOpacity(0.1),
+                child: Row(
+                  children: [
+                    const Icon(Icons.filter_alt, size: 16, color: Colors.teal),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [
+                            if (_statusFilter.length < 3)
+                              _buildFilterChip(
+                                'Status: ${_statusFilter.join(', ')}',
+                                onClear: () {
+                                  setState(() {
+                                    _statusFilter = {'Pending', 'Active', 'Cancelled'};
+                                  });
+                                  _updateFilteredData();
+                                },
+                              ),
+                            if (_startDateFilter != null)
+                              _buildFilterChip(
+                                'From: ${DateFormat('MMM d').format(_startDateFilter!)}',
+                                onClear: () {
+                                  setState(() {
+                                    _startDateFilter = null;
+                                  });
+                                  _updateFilteredData();
+                                },
+                              ),
+                            if (_endDateFilter != null)
+                              _buildFilterChip(
+                                'To: ${DateFormat('MMM d').format(_endDateFilter!)}',
+                                onClear: () {
+                                  setState(() {
+                                    _endDateFilter = null;
+                                  });
+                                  _updateFilteredData();
+                                },
+                              ),
+                            _buildFilterChip(
+                              'Sort: ${_sortBy.capitalize()} ${_sortAscending ? '↑' : '↓'}',
+                              onClear: () {
+                                setState(() {
+                                  _sortBy = 'date';
+                                  _sortAscending = true;
+                                });
+                                _updateFilteredData();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Expanded(
+              child: Container(
+                color: Colors.grey[100],
+                child: TabBarView(
+                  children: [
+                    if (_isDoctor) _buildRequests(),
+                    _buildAppointments(),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
+  Widget _buildFilterChip(String label, {required VoidCallback onClear}) {
+    return Container(
+      margin: const EdgeInsets.only(right: 8),
+      child: Chip(
+        label: Text(label, style: const TextStyle(fontSize: 12)),
+        backgroundColor: Colors.teal.withOpacity(0.2),
+        deleteIcon: const Icon(Icons.close, size: 14),
+        onDeleted: onClear,
+      ),
+    );
+  }
+
+  void _showFilterDialog() {
+    final tempStatusFilter = _statusFilter.toSet();
+    DateTime? tempStartDate = _startDateFilter;
+    DateTime? tempEndDate = _endDateFilter;
+    String tempSortBy = _sortBy;
+    bool tempSortAscending = _sortAscending;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Filter & Sort Bookings',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        color: Colors.teal[800],
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Status Filter Section
+                    Text(
+                      'Filter by Status',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey[700]),
+                    ),
+                    Wrap(
+                      spacing: 8,
+                      children: ['Pending', 'Active', 'Cancelled'].map((status) {
+                        return FilterChip(
+                          label: Text(status),
+                          selected: tempStatusFilter.contains(status),
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                tempStatusFilter.add(status);
+                              } else {
+                                tempStatusFilter.remove(status);
+                              }
+                            });
+                          },
+                          selectedColor: Colors.teal.withOpacity(0.2),
+                          checkmarkColor: Colors.teal,
+                          labelStyle: TextStyle(
+                            color: tempStatusFilter.contains(status) ? Colors.teal : Colors.grey[700],
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Date Range Filter Section
+                    Text(
+                      'Filter by Date Range',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey[700]),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: tempStartDate ?? DateTime.now(),
+                                firstDate: DateTime(2020),
+                                lastDate: DateTime(2101),
+                                builder: (context, child) => Theme(
+                                  data: ThemeData.light().copyWith(
+                                    colorScheme: const ColorScheme.light(primary: Colors.teal),
+                                  ),
+                                  child: child!,
+                                ),
+                              );
+                              if (picked != null) {
+                                setState(() => tempStartDate = picked);
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.teal),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              tempStartDate != null
+                                  ? DateFormat('MMM d, yyyy').format(tempStartDate!)
+                                  : 'Start Date',
+                              style: TextStyle(color: Colors.teal),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () async {
+                              final picked = await showDatePicker(
+                                context: context,
+                                initialDate: tempEndDate ?? DateTime.now(),
+                                firstDate: tempStartDate ?? DateTime(2020),
+                                lastDate: DateTime(2101),
+                                builder: (context, child) => Theme(
+                                  data: ThemeData.light().copyWith(
+                                    colorScheme: const ColorScheme.light(primary: Colors.teal),
+                                  ),
+                                  child: child!,
+                                ),
+                              );
+                              if (picked != null) {
+                                setState(() => tempEndDate = picked);
+                              }
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: Colors.teal),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            child: Text(
+                              tempEndDate != null
+                                  ? DateFormat('MMM d, yyyy').format(tempEndDate!)
+                                  : 'End Date',
+                              style: TextStyle(color: Colors.teal),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (tempStartDate != null || tempEndDate != null)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            tempStartDate = null;
+                            tempEndDate = null;
+                          });
+                        },
+                        child: const Text('Clear date range', style: TextStyle(color: Colors.red)),
+                      ),
+                    const SizedBox(height: 16),
+
+                    // Sort Section
+                    Text(
+                      'Sort By',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey[700]),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        ChoiceChip(
+                          label: const Text('Date'),
+                          selected: tempSortBy == 'date',
+                          onSelected: (selected) {
+                            setState(() {
+                              tempSortBy = 'date';
+                            });
+                          },
+                          selectedColor: Colors.teal,
+                          labelStyle: TextStyle(
+                            color: tempSortBy == 'date' ? Colors.white : Colors.grey[700],
+                          ),
+                        ),
+                        ChoiceChip(
+                          label: const Text('Status'),
+                          selected: tempSortBy == 'status',
+                          onSelected: (selected) {
+                            setState(() {
+                              tempSortBy = 'status';
+                            });
+                          },
+                          selectedColor: Colors.teal,
+                          labelStyle: TextStyle(
+                            color: tempSortBy == 'status' ? Colors.white : Colors.grey[700],
+                          ),
+                        ),
+                        ChoiceChip(
+                          label: const Text('Reason'),
+                          selected: tempSortBy == 'reason',
+                          onSelected: (selected) {
+                            setState(() {
+                              tempSortBy = 'reason';
+                            });
+                          },
+                          selectedColor: Colors.teal,
+                          labelStyle: TextStyle(
+                            color: tempSortBy == 'reason' ? Colors.white : Colors.grey[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Radio<bool>(
+                          value: true,
+                          groupValue: tempSortAscending,
+                          onChanged: (value) {
+                            setState(() {
+                              tempSortAscending = value ?? true;
+                            });
+                          },
+                          activeColor: Colors.teal,
+                        ),
+                        const Text('Ascending'),
+                        const SizedBox(width: 16),
+                        Radio<bool>(
+                          value: false,
+                          groupValue: tempSortAscending,
+                          onChanged: (value) {
+                            setState(() {
+                              tempSortAscending = value ?? false;
+                            });
+                          },
+                          activeColor: Colors.teal,
+                        ),
+                        const Text('Descending'),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Action Buttons
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () {
+                            setState(() {
+                              _statusFilter = {'Pending', 'Active', 'Cancelled'};
+                              _startDateFilter = null;
+                              _endDateFilter = null;
+                              _sortBy = 'date';
+                              _sortAscending = true;
+                              _searchQuery = '';
+                              _searchController.clear();
+                            });
+                            _updateFilteredData();
+                            Navigator.pop(context);
+                            _showModernSnackBar(context, 'Filters reset');
+                          },
+                          child: const Text('Reset All', style: TextStyle(color: Colors.red)),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              _statusFilter = tempStatusFilter;
+                              _startDateFilter = tempStartDate;
+                              _endDateFilter = tempEndDate;
+                              _sortBy = tempSortBy;
+                              _sortAscending = tempSortAscending;
+                            });
+                            _updateFilteredData();
+                            Navigator.pop(context);
+                            _showModernSnackBar(context, 'Filters applied');
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Apply', style: TextStyle(color: Colors.white)),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  List<Map<String, dynamic>> _applyFilters(List<Map<String, dynamic>> bookings, bool isRequests) {
+    return bookings.where((booking) {
+      // Status filter
+      if (!_statusFilter.contains(booking['status'])) {
+        return false;
+      }
+
+      // Date range filter
+      if (_startDateFilter != null || _endDateFilter != null) {
+        final bookingDate = booking['date'] is Timestamp
+            ? booking['date'].toDate()
+            : DateTime.parse(booking['date']);
+
+        if (_startDateFilter != null && bookingDate.isBefore(_startDateFilter!)) {
+          return false;
+        }
+        if (_endDateFilter != null && bookingDate.isAfter(_endDateFilter!.add(const Duration(days: 1)))) {
+          return false;
+        }
+      }
+
+      // Search query filter
+      if (_searchQuery.isNotEmpty) {
+        final reason = (booking['reason'] ?? '').toString().toLowerCase();
+        final status = (booking['status'] ?? '').toString().toLowerCase();
+        final date = booking['date'] is Timestamp
+            ? DateFormat('MMM dd, yyyy HH:mm').format(booking['date'].toDate()).toLowerCase()
+            : DateFormat('MMM dd, yyyy HH:mm').format(DateTime.parse(booking['date'])).toLowerCase();
+
+        if (!reason.contains(_searchQuery.toLowerCase()) &&
+            !status.contains(_searchQuery.toLowerCase()) &&
+            !date.contains(_searchQuery.toLowerCase())) {
+          return false;
+        }
+      }
+
+      return true;
+    }).toList();
+  }
+
+  int _sortBookings(Map<String, dynamic> a, Map<String, dynamic> b) {
+    // First sort by status priority if that's the selected sort
+    if (_sortBy == 'status') {
+      const statusPriority = {'Pending': 1, 'Active': 2, 'Cancelled': 3};
+      int statusA = statusPriority[a['status']] ?? 4;
+      int statusB = statusPriority[b['status']] ?? 4;
+
+      if (statusA != statusB) {
+        return _sortAscending ? statusA.compareTo(statusB) : statusB.compareTo(statusA);
+      }
+    }
+
+    // Then sort by the selected field
+    dynamic valueA, valueB;
+    switch (_sortBy) {
+      case 'date':
+        valueA = a['date'] is Timestamp ? a['date'].toDate() : DateTime.parse(a['date']);
+        valueB = b['date'] is Timestamp ? b['date'].toDate() : DateTime.parse(b['date']);
+        break;
+      case 'reason':
+        valueA = (a['reason'] ?? '').toString().toLowerCase();
+        valueB = (b['reason'] ?? '').toString().toLowerCase();
+        break;
+      case 'status':
+        valueA = (a['status'] ?? '').toString().toLowerCase();
+        valueB = (b['status'] ?? '').toString().toLowerCase();
+        break;
+      default:
+        valueA = a['date'] is Timestamp ? a['date'].toDate() : DateTime.parse(a['date']);
+        valueB = b['date'] is Timestamp ? b['date'].toDate() : DateTime.parse(b['date']);
+    }
+
+    // Handle date-specific sorting (future dates first)
+    if (_sortBy == 'date') {
+      bool isFutureA = valueA.isAfter(DateTime.now());
+      bool isFutureB = valueB.isAfter(DateTime.now());
+
+      if (isFutureA != isFutureB) {
+        return isFutureA ? -1 : 1;
+      }
+    }
+
+    // Default comparison
+    int comparison;
+    if (valueA is DateTime && valueB is DateTime) {
+      comparison = valueA.compareTo(valueB);
+    } else {
+      comparison = valueA.toString().compareTo(valueB.toString());
+    }
+
+    return _sortAscending ? comparison : -comparison;
+  }
+
   Widget _buildRequests() {
-    if (_isOffline && _cachedRequests.isNotEmpty) {
-      return _buildBookingList(_cachedRequests, true);
+    if (_isOffline) {
+      if (kDebugMode) {
+        print('Offline: Using filtered requests: ${_filteredRequests.length}');
+      }
+      return _buildBookingList(_filteredRequests, true);
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -370,7 +898,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           for (var booking in bookings) {
             if (booking['doctorId'] == widget.currentUserId) {
               if (_isDateInPast(booking['date'])) {
-                booking['status'] = 'Terminated';
+                booking['status'] = 'Cancelled';
               }
               requests.add({...booking, 'userId': doc.id});
             }
@@ -386,17 +914,26 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           return _buildEmptyState('No booking requests found');
         }
 
+        _cachedRequests = requests;
         _cacheData('cached_requests_${widget.currentUserId}', requests);
-        requests.sort(_sortBookings);
+        _filteredRequests = _applyFilters(requests, true);
+        _filteredRequests.sort(_sortBookings);
 
-        return _buildBookingList(requests, true);
+        if (kDebugMode) {
+          print('Filtered and sorted requests: ${_filteredRequests.length}');
+        }
+
+        return _buildBookingList(_filteredRequests, true);
       },
     );
   }
 
   Widget _buildAppointments() {
-    if (_isOffline && _cachedAppointments.isNotEmpty) {
-      return _buildAppointmentTabs(_cachedAppointments);
+    if (_isOffline) {
+      if (kDebugMode) {
+        print('Offline: Using filtered appointments: ${_filteredAppointments.length}');
+      }
+      return _buildAppointmentTabs(_filteredAppointments);
     }
 
     return StreamBuilder<DocumentSnapshot>(
@@ -421,7 +958,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         var bookings = List<Map<String, dynamic>>.from(snapshot.data!['Bookings'] ?? []);
         for (var booking in bookings) {
           if (_isDateInPast(booking['date'])) {
-            booking['status'] = 'Terminated';
+            booking['status'] = 'Cancelled';
           }
           booking['userId'] = widget.currentUserId;
         }
@@ -435,9 +972,17 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
           return _buildEmptyState('No appointments found');
         }
 
+        _cachedAppointments = bookings;
         _cacheData('cached_appointments_${widget.currentUserId}', bookings);
+        _filteredAppointments = _applyFilters(bookings, false);
+        _filteredAppointments.sort(_sortBookings);
+
+        if (kDebugMode) {
+          print('Filtered and sorted appointments: ${_filteredAppointments.length}');
+        }
+
         _updateBookingStatusInDB(bookings);
-        return _buildAppointmentTabs(bookings);
+        return _buildAppointmentTabs(_filteredAppointments);
       },
     );
   }
@@ -445,7 +990,11 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
   Widget _buildAppointmentTabs(List<Map<String, dynamic>> bookings) {
     final pending = bookings.where((b) => b['status'] == 'Pending').toList();
     final active = bookings.where((b) => b['status'] == 'Active').toList();
-    final terminated = bookings.where((b) => b['status'] == 'Terminated').toList();
+    final terminated = bookings.where((b) => b['status'] == 'Cancelled').toList();
+
+    if (kDebugMode) {
+      print('Appointment tabs: Pending=${pending.length}, Active=${active.length}, Cancelled=${terminated.length}');
+    }
 
     return DefaultTabController(
       length: 3,
@@ -461,7 +1010,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
               tabs: [
                 Tab(text: 'Pending (${pending.length})'),
                 Tab(text: 'Active (${active.length})'),
-                Tab(text: 'Terminated (${terminated.length})'),
+                Tab(text: 'Cancelled (${terminated.length})'),
               ],
             ),
           ),
@@ -481,7 +1030,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
 
   Widget _buildBookingList(List<Map<String, dynamic>> bookings, bool isRequest) {
     if (bookings.isEmpty) {
-      return _buildEmptyState(isRequest ? 'No requests' : 'No appointments');
+      return _buildEmptyState(isRequest ? 'No requests match your filters' : 'No appointments match your filters');
     }
 
     return ListView.builder(
@@ -654,7 +1203,7 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     Color color = switch (status) {
       'Active' => Colors.teal,
       'Pending' => Colors.orange,
-      'Terminated' => Colors.red,
+      'Cancelled' => Colors.red,
       _ => Colors.grey,
     };
     return Chip(
@@ -712,14 +1261,6 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
     );
   }
 
-  int _sortBookings(Map<String, dynamic> a, Map<String, dynamic> b) {
-    if (a['status'] == 'Active' && b['status'] != 'Active') return -1;
-    if (a['status'] != 'Active' && b['status'] == 'Active') return 1;
-    if (a['status'] == 'Terminated' && b['status'] != 'Terminated') return 1;
-    if (a['status'] != 'Terminated' && b['status'] == 'Terminated') return -1;
-    return 0;
-  }
-
   bool _isDateInPast(Timestamp timestamp) {
     return timestamp.toDate().isBefore(DateTime.now());
   }
@@ -748,6 +1289,10 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       bookings.add(newBooking);
       await docRef.set({'Bookings': bookings});
       _showModernSnackBar(context, 'Booking created successfully');
+      setState(() {
+        _cachedAppointments = bookings.cast<Map<String, dynamic>>();
+        _updateFilteredData();
+      });
     } catch (e) {
       _showModernSnackBar(context, 'Failed to create booking: $e', isError: true);
     }
@@ -787,6 +1332,27 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('processed_appointments_${widget.currentUserId}');
       await prefs.remove('sent_accepted_notifications_${widget.currentUserId}');
+      setState(() {
+        if (userId == widget.currentUserId) {
+          _cachedAppointments = bookings.cast<Map<String, dynamic>>();
+        } else {
+          _cachedRequests = _cachedRequests.map((req) {
+            if (req['userId'] == userId &&
+                req['date'] is Timestamp &&
+                req['date'].toDate().millisecondsSinceEpoch == date.toDate().millisecondsSinceEpoch) {
+              return updatedBooking;
+            }
+            return req;
+          }).toList();
+        }
+        _updateFilteredData();
+      });
+      await _cacheData(
+        userId == widget.currentUserId
+            ? 'cached_appointments_${widget.currentUserId}'
+            : 'cached_requests_${widget.currentUserId}',
+        userId == widget.currentUserId ? _cachedAppointments : _cachedRequests,
+      );
     } catch (e) {
       _showModernSnackBar(context, 'Failed to update status: $e', isError: true);
     }
@@ -1028,7 +1594,6 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         return;
       }
 
-      // Ensure the booking is a Map<String, dynamic> before updating
       if (bookings[index] is! Map<String, dynamic>) {
         _showModernSnackBar(context, 'Invalid booking data format', isError: true);
         return;
@@ -1041,11 +1606,27 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('processed_appointments_${widget.currentUserId}');
-      // Cast bookings to List<Map<String, dynamic>> for _cacheData
-      await _cacheData(
-        'cached_appointments_${widget.currentUserId}',
-        bookings.cast<Map<String, dynamic>>(),
-      );
+      setState(() {
+        if (userId == widget.currentUserId) {
+          _cachedAppointments = bookings.cast<Map<String, dynamic>>();
+        } else {
+          _cachedRequests = _cachedRequests.map((req) {
+            if (req['userId'] == userId &&
+                req['date'] is Timestamp &&
+                req['date'].toDate().millisecondsSinceEpoch == date.toDate().millisecondsSinceEpoch) {
+              return {...req, 'status': 'Cancelled'};
+            }
+            return req;
+          }).toList();
+        }
+        _updateFilteredData();
+        _cacheData(
+          userId == widget.currentUserId
+              ? 'cached_appointments_${widget.currentUserId}'
+              : 'cached_requests_${widget.currentUserId}',
+          userId == widget.currentUserId ? _cachedAppointments : _cachedRequests,
+        );
+      });
     } catch (e) {
       _showModernSnackBar(context, 'Failed to cancel appointment: $e', isError: true);
     }
@@ -1122,5 +1703,11 @@ class _BookingPageState extends State<BookingPage> with SingleTickerProviderStat
         print('Invalid notification data: $data');
       }
     }
+  }
+}
+
+extension StringExtension on String {
+  String capitalize() {
+    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
   }
 }
