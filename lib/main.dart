@@ -328,17 +328,43 @@ void main() async {
   runApp(const MyApp());
 }
 
-Future<void> _requestLocationPermission() async {
+Future<void> _requestLocationPermission(BuildContext context) async {
   LocationPermission permission = await Geolocator.checkPermission();
   if (permission == LocationPermission.denied) {
     permission = await Geolocator.requestPermission();
     if (permission == LocationPermission.denied) {
       print('Location permissions denied');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'Location access is required to find nearby healthcare providers. Please enable it in Settings.',
+          ),
+          action: SnackBarAction(
+            label: 'Settings',
+            onPressed: () {
+              Geolocator.openAppSettings();
+            },
+          ),
+        ),
+      );
       return;
     }
   }
   if (permission == LocationPermission.deniedForever) {
     print('Location permissions permanently denied');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Location access is permanently denied. Please enable it in Settings to use location-based features.',
+        ),
+        action: SnackBarAction(
+          label: 'Settings',
+          onPressed: () {
+            Geolocator.openAppSettings();
+          },
+        ),
+      ),
+    );
     return;
   }
   print('Location permissions granted');
@@ -412,24 +438,21 @@ class _CustomTransitionScreenState extends State<CustomTransitionScreen>
     );
 
     _controller.forward().then((_) async {
-      // Check if the location permission screen has been shown
+      // Check if the location permission has been requested
       final prefs = await SharedPreferences.getInstance();
-      bool hasShownLocationPermission =
-          prefs.getBool('hasShownLocationPermission') ?? false;
+      bool hasRequestedLocationPermission =
+          prefs.getBool('hasRequestedLocationPermission') ?? false;
 
-      if (hasShownLocationPermission) {
-        // If already shown, navigate to HomePage
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => HomePage()),
-        );
-      } else {
-        // If not shown, navigate to LocationPermissionScreen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LocationPermissionScreen()),
-        );
+      if (!hasRequestedLocationPermission) {
+        await _requestLocationPermission(context);
+        await prefs.setBool('hasRequestedLocationPermission', true);
       }
+
+      // Navigate to HomePage
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => HomePage()),
+      );
     });
   }
 
@@ -455,72 +478,6 @@ class _CustomTransitionScreenState extends State<CustomTransitionScreen>
               ),
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class LocationPermissionScreen extends StatelessWidget {
-  const LocationPermissionScreen({super.key});
-
-  Future<void> _setPermissionShownFlag() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('hasShownLocationPermission', true);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset('assets/Icons/Icon.png', width: 100, height: 100),
-                const SizedBox(height: 20),
-                const Text(
-                  'We Need Your Location',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'To provide you with the best experience, we need your location to find healthcare providers, professionals, and hospitals near you.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 30),
-                ElevatedButton(
-                  onPressed: () async {
-                    await _requestLocationPermission();
-                    await _setPermissionShownFlag();
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => HomePage()),
-                    );
-                  },
-                  child: const Text('Allow Location Access'),
-                ),
-                const SizedBox(height: 10),
-                TextButton(
-                  onPressed: () async {
-                    await _setPermissionShownFlag();
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => HomePage()),
-                    );
-                  },
-                  child: const Text('Skip for Now'),
-                ),
-              ],
-            ),
-          ),
         ),
       ),
     );

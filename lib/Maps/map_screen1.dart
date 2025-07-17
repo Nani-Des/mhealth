@@ -151,7 +151,7 @@ class _MapScreen1State extends State<MapScreen1> {
       permission = await Geolocator.requestPermission();
       if (permission == LocationPermission.deniedForever) {
         setState(() {
-          _selectedPlaceName = 'Location permission denied. Please allow location access in settings.';
+          _selectedPlaceName = 'Location access is disabled. Please enable it in Settings to find nearby health workers.';
         });
         return;
       }

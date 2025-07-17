@@ -9,9 +9,9 @@
     <key>NSCameraUsageDescription</key>
     <string>Allow camera access to take photos or videos.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Allow location access to provide location-based features.</string>
+    <string>NHAP uses your location to connect you with nearby health workers.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow location access to provide location-based features.</string>
+    <string>NHAP uses your location to connect you with nearby health workers.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow microphone access to record audio.</string>
     <key>NSPhotoLibraryUsageDescription</key>
