@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class ArticleDetailPage extends StatelessWidget {
   final String title;
   final String content;
+  final List<String> citations;
 
-  const ArticleDetailPage({required this.title, required this.content});
+  const ArticleDetailPage({
+    Key? key,
+    required this.title,
+    required this.content,
+    this.citations = const [],
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -102,15 +109,60 @@ class ArticleDetailPage extends StatelessWidget {
           ),
         ],
       ),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(
-            fontSize: 13,
-            height: 1.6,
-            color: Colors.black87,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: TextSpan(
+              style: const TextStyle(
+                fontSize: 13,
+                height: 1.6,
+                color: Colors.black87,
+              ),
+              children: _formatContent(content),
+            ),
           ),
-          children: _formatContent(content),
-        ),
+          if (citations.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              "Sources:",
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+                color: Colors.teal,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...citations.map((citation) {
+              final parts = citation.split(': ');
+              final title = parts[0];
+              final url = parts.length > 1 ? parts[1] : '';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: InkWell(
+                  onTap: () async {
+                    final uri = Uri.parse(url);
+                    if (await canLaunchUrl(uri)) {
+                      await launchUrl(uri, mode: LaunchMode.externalApplication);
+                    } else {
+                      ScaffoldMessenger.of(content as BuildContext).showSnackBar(
+                        SnackBar(content: Text("Could not open $url")),
+                      );
+                    }
+                  },
+                  child: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.blue,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              );
+            }).toList(),
+          ],
+        ],
       ),
     );
   }
@@ -153,41 +205,31 @@ class ArticleDetailPage extends StatelessWidget {
       return TextSpan(children: children..add(const TextSpan(text: "\n")));
     }
 
-    if (lines.length == 1) {
-      String content = lines[0];
-      List<String> sentences = content.split('.').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    for (String line in lines) {
+      if (line.trim().isEmpty) continue;
 
-      for (String sentence in sentences) {
-        spans.add(formatLine(sentence));
+      TextSpan formatted = formatLine(line);
+
+      if (line.startsWith("- ") || line.startsWith("• ")) {
+        formatted = TextSpan(
+          children: [
+            TextSpan(
+              text: "• ",
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            ...formatted.children ?? [formatted]
+          ],
+        );
+      } else if (line.startsWith("#")) {
+        formatted = TextSpan(
+          text: "${line.replaceAll("#", "")}\n",
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        );
       }
-    } else {
-      for (String line in lines) {
-        if (line.trim().isEmpty) continue;
 
-        TextSpan formatted = formatLine(line);
-
-        if (line.startsWith("- ") || line.startsWith("• ")) {
-          formatted = TextSpan(
-            children: [
-              TextSpan(
-                text: "• ",
-                style: const TextStyle(fontWeight: FontWeight.bold),
-              ),
-              ...formatted.children ?? [formatted]
-            ],
-          );
-        } else if (line.startsWith("#")) {
-          formatted = TextSpan(
-            text: "${line.replaceAll("#", "")}\n",
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          );
-        }
-
-        spans.add(formatted);
-      }
+      spans.add(formatted);
     }
 
     return spans;
   }
-
 }
