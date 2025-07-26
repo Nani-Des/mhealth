@@ -236,7 +236,7 @@ class _ReferralSummaryScreenState extends State<ReferralSummaryScreen> {
             ),
             pw.Divider(),
             pw.SizedBox(height: 10),
-            _buildPdfRow("Uploaded Medical Records", widget.uploadedFileName ?? "No file uploaded"),
+            _buildPdfRow("Uploaded Attachments", widget.uploadedFileName ?? "No file uploaded"),
             _buildPdfRow("Selected Health Facility", widget.selectedHospitalName ?? "Not selected"),
             pw.SizedBox(height: 20),
 
@@ -456,7 +456,7 @@ class _ReferralSummaryScreenState extends State<ReferralSummaryScreen> {
                     context,
                     "Additional Information",
                     [
-                      _buildInfoRow("Uploaded Medical Records", widget.uploadedFileName ?? "No file uploaded"),
+                      _buildInfoRow("Uploaded Attachments", widget.uploadedFileName ?? "No file uploaded"),
                       _buildInfoRow("Selected Health Facility", widget.selectedHospitalName ?? "Not selected"),
                     ],
                   ),

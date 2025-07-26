@@ -470,7 +470,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
                       return _doctorDetailCard(
                         doctor['userId'],
                         doctor['name'],
-                        doctor['experience'],
+                        doctor['designation'],
                         doctor['userPic'],
                       );
                     },
@@ -545,7 +545,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
     );
   }
 
-  Widget _doctorDetailCard(String userId, String name, String experience, String userPic) {
+  Widget _doctorDetailCard(String userId, String name, String designation, String userPic) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -587,7 +587,7 @@ class _SpecialtyDetailsState extends State<SpecialtyDetails> with TickerProvider
             ),
           ),
           subtitle: Text(
-            experience,
+            designation,
             style: TextStyle(fontSize: 10),
           ),
         ),
