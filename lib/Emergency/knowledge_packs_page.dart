@@ -399,6 +399,7 @@ class _KnowledgePacksPageState extends State<KnowledgePacksPage> with SingleTick
             builder: (context) => ArticleDetailPage(
               title: article['title'],
               content: offlineContent ?? article['content'],
+              citations: List<String>.from(article['citations'] ?? []),
             ),
           ),
         );

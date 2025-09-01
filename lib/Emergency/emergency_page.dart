@@ -48,7 +48,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     _loadEmergencyData();
     _checkConnectivity();
 
-    // Initialize ConfigService
     ConfigService().init().catchError((e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Failed to initialize configuration: $e')),
@@ -139,22 +138,31 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     });
 
     String response;
+    List<String> citations = [];
     if (_isOffline) {
-      response = _findClosestMatch(query);
+      var result = _findClosestMatch(query);
+      response = result['content'];
+      citations = result['citations'] ?? [];
     } else {
       String? cachedResponse = _translationBox.get(query);
       if (cachedResponse != null) {
         response = cachedResponse;
+        citations = _translationBox.get('${query}_citations') ?? [];
       } else {
-        response = await _fetchFirstAidResponse(query);
+        var result = await _fetchFirstAidResponse(query);
+        response = result['content'];
+        citations = result['citations'] ?? [];
         if (!response.startsWith("Sorry,")) {
           await _translationBox.put(query, response);
+          await _translationBox.put('${query}_citations', citations);
         }
       }
     }
 
     if (response.startsWith("Sorry,")) {
-      response = _findClosestMatch(query);
+      var result = _findClosestMatch(query);
+      response = result['content'];
+      citations = result['citations'] ?? [];
     }
 
     setState(() {
@@ -162,11 +170,11 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       _isLoading = false;
     });
 
-    _showResponseBottomSheet();
+    _showResponseBottomSheet(citations);
     await _flutterTts.speak(response);
   }
 
-  Future<String> _fetchFirstAidResponse(String query) async {
+  Future<Map<String, dynamic>> _fetchFirstAidResponse(String query) async {
     try {
       final configService = ConfigService();
       if (!configService.isInitialized) {
@@ -179,7 +187,6 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       }
 
       final String apiKey = configService.openAiApiKey;
-      print('Fetching response with API Key: $apiKey');
       if (apiKey.isEmpty) {
         print('Error: openai_api_key is empty, falling back to offline mode');
         ScaffoldMessenger.of(context).showSnackBar(
@@ -190,7 +197,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       }
 
       const String prefix =
-          "Provide clear, step-by-step first-aid instructions for the following situation in a gradual and simple manner. Use easy-to-understand language, avoid complex medical jargon: ";
+          "Provide clear, step-by-step first-aid instructions for the following situation in a gradual and simple manner. Use easy-to-understand language, avoid complex medical jargon. Include citations from credible medical sources (e.g., Red Cross, CDC, WHO) with URLs: ";
       final String modifiedQuery = prefix + query;
 
       final response = await Dio().post(
@@ -201,7 +208,12 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
           'messages': [{'role': 'user', 'content': modifiedQuery}],
         },
       );
-      return response.data['choices'][0]['message']['content'];
+
+      String content = response.data['choices'][0]['message']['content'];
+      List<String> citations = _extractCitations(content);
+      content = _removeCitationsFromContent(content);
+
+      return {'content': content, 'citations': citations};
     } catch (e) {
       print('Error fetching response: $e');
       if (e is DioError) {
@@ -220,20 +232,37 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
     }
   }
 
-  String _findClosestMatch(String query) {
+  List<String> _extractCitations(String content) {
+    List<String> citations = [];
+    RegExp citationRegex = RegExp(r'\[(.*?)\]\((https?://[^\s)]+)\)');
+    content.split('\n').forEach((line) {
+      var matches = citationRegex.allMatches(line);
+      for (var match in matches) {
+        citations.add('${match.group(1)}: ${match.group(2)}');
+      }
+    });
+    return citations;
+  }
+
+  String _removeCitationsFromContent(String content) {
+    return content.replaceAll(RegExp(r'\[(.*?)\]\((https?://[^\s)]+)\)'), '').trim();
+  }
+
+  Map<String, dynamic> _findClosestMatch(String query) {
     if (_emergencyData == null || _emergencyData!['articles'] == null) {
       print("Debug: No emergency data or articles found.");
-      return "No emergency procedures available offline.";
+      return {'content': "No emergency procedures available offline.", 'citations': []};
     }
 
     final articles = _emergencyData!['articles'] as List<dynamic>;
     if (articles.isEmpty) {
       print("Debug: Articles list is empty.");
-      return "No emergency procedures available offline.";
+      return {'content': "No emergency procedures available offline.", 'citations': []};
     }
 
     String bestMatchTitle = "";
     String bestMatchContent = "";
+    List<String> bestMatchCitations = [];
     double highestScore = 0.0;
 
     final cleanQuery = query.toLowerCase().trim();
@@ -271,6 +300,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         highestScore = combinedScore;
         bestMatchTitle = article['title'];
         bestMatchContent = article['content'];
+        bestMatchCitations = List<String>.from(article['citations'] ?? []);
       }
     }
 
@@ -280,18 +310,27 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
       print("Debug: Score $highestScore below threshold $threshold");
       if (keywords.any((word) => ["pain", "hurt", "ache", "tight"].contains(word))) {
         bestMatchTitle = "Chest Pain";
-        bestMatchContent = articles.firstWhere((a) => a['title'] == "Chest Pain")['content'];
+        var article = articles.firstWhere((a) => a['title'] == "Chest Pain");
+        bestMatchContent = article['content'];
+        bestMatchCitations = List<String>.from(article['citations'] ?? []);
         print("Debug: Fallback to 'Chest Pain' for pain-related keywords");
       } else if (keywords.any((word) => ["bleed", "bleeding", "blood", "cut"].contains(word))) {
         bestMatchTitle = "Severe Bleeding";
-        bestMatchContent = articles.firstWhere((a) => a['title'] == "Severe Bleeding")['content'];
+        var article = articles.firstWhere((a) => a['title'] == "Severe Bleeding");
+        bestMatchContent = article['content'];
+        bestMatchCitations = List<String>.from(article['citations'] ?? []);
         print("Debug: Fallback to 'Severe Bleeding' for bleeding-related keywords");
       } else if (keywords.any((word) => ["breathe", "breathing", "air"].contains(word))) {
         bestMatchTitle = "Choking";
-        bestMatchContent = articles.firstWhere((a) => a['title'] == "Choking")['content'];
+        var article = articles.firstWhere((a) => a['title'] == "Choking");
+        bestMatchContent = article['content'];
+        bestMatchCitations = List<String>.from(article['citations'] ?? []);
         print("Debug: Fallback to 'Choking' for breathing-related keywords");
       } else {
-        return "I couldn't find a specific match for '$query'. Please try describing the emergency into words";
+        return {
+          'content': "I couldn't find a specific match for '$query'. Please try describing the emergency into words",
+          'citations': []
+        };
       }
     }
 
@@ -302,14 +341,18 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         builder: (context) => ArticleDetailPage(
           title: bestMatchTitle,
           content: bestMatchContent,
+          citations: bestMatchCitations,
         ),
       ),
     );
 
-    return bestMatchContent;
+    return {
+      'content': bestMatchContent,
+      'citations': bestMatchCitations
+    };
   }
 
-  void _showResponseBottomSheet() {
+  void _showResponseBottomSheet(List<String> citations) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -326,6 +369,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
               padding: const EdgeInsets.all(16.0),
               child: FirstAidResponseWidget(
                 responseText: _responseText,
+                citations: citations,
                 onClose: () => Navigator.pop(context),
               ),
             ),
@@ -365,7 +409,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
                     Text(
                       "Emergency Services",
                       style: TextStyle(
-                        fontSize: 8,
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                         color: Colors.redAccent,
                         letterSpacing: 0.5,
@@ -418,7 +462,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
         Navigator.pop(context);
       },
       child: Container(
-        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 12),
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(12),
@@ -438,7 +482,7 @@ class _EmergencyPageState extends State<EmergencyPage> with SingleTickerProvider
               label,
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 14,
+                fontSize: 16,
                 fontWeight: FontWeight.w600,
               ),
             ),

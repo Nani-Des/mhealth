@@ -177,7 +177,7 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
               ),
               child: Column(
                 children: [
-                  _buildAIDetectionButton(),
+                  // _buildAIDetectionButton(),
                   Expanded(child: HomePageContent()),
                 ],
               ),
@@ -246,80 +246,80 @@ class _HomePageState extends State<HomePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildAIDetectionButton() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Base glow (static)
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.teal.withOpacity(0.2),
-                  blurRadius: 8,
-                  spreadRadius: 2,
-                ),
-              ],
-            ),
-          ),
-          // Animated glow
-          AnimatedBuilder(
-            animation: _animationController,
-            builder: (context, child) {
-              return Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.teal.withOpacity(0.4 * _animationController.value),
-                      blurRadius: 15 * _animationController.value,
-                      spreadRadius: 5 * _animationController.value,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-          // The actual button
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => DiseasePredictionScreen()),
-              );
-            },
-            icon: Icon(Icons.psychology_alt, color: Colors.white, size: 22),
-            label: Text(
-              'AI Disease Detection',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                letterSpacing: 0.5,
-                shadows: [
-                  Shadow(
-                    color: Colors.white.withOpacity(0.3),
-                    blurRadius: 2,
-                    offset: Offset(0, 1),
-                  ),
-                ],
-              ),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal[700],
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(vertical: 10, horizontal: 24),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 8,
-              shadowColor: Colors.teal.withOpacity(0.3),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildAIDetectionButton() {
+  //   return Padding(
+  //     padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10.0),
+  //     child: Stack(
+  //       alignment: Alignment.center,
+  //       children: [
+  //         // Base glow (static)
+  //         Container(
+  //           decoration: BoxDecoration(
+  //             borderRadius: BorderRadius.circular(16),
+  //             boxShadow: [
+  //               BoxShadow(
+  //                 color: Colors.teal.withOpacity(0.2),
+  //                 blurRadius: 8,
+  //                 spreadRadius: 2,
+  //               ),
+  //             ],
+  //           ),
+  //         ),
+  //         // Animated glow
+  //         AnimatedBuilder(
+  //           animation: _animationController,
+  //           builder: (context, child) {
+  //             return Container(
+  //               decoration: BoxDecoration(
+  //                 borderRadius: BorderRadius.circular(16),
+  //                 boxShadow: [
+  //                   BoxShadow(
+  //                     color: Colors.teal.withOpacity(0.4 * _animationController.value),
+  //                     blurRadius: 15 * _animationController.value,
+  //                     spreadRadius: 5 * _animationController.value,
+  //                   ),
+  //                 ],
+  //               ),
+  //             );
+  //           },
+  //         ),
+  //         // The actual button
+  //         ElevatedButton.icon(
+  //           onPressed: () {
+  //             Navigator.push(
+  //               context,
+  //               MaterialPageRoute(builder: (context) => DiseasePredictionScreen()),
+  //             );
+  //           },
+  //           icon: Icon(Icons.psychology_alt, color: Colors.white, size: 22),
+  //           label: Text(
+  //             'AI Disease Detection',
+  //             style: TextStyle(
+  //               fontWeight: FontWeight.bold,
+  //               fontSize: 16,
+  //               letterSpacing: 0.5,
+  //               shadows: [
+  //                 Shadow(
+  //                   color: Colors.white.withOpacity(0.3),
+  //                   blurRadius: 2,
+  //                   offset: Offset(0, 1),
+  //                 ),
+  //               ],
+  //             ),
+  //           ),
+  //           style: ElevatedButton.styleFrom(
+  //             backgroundColor: Colors.teal[700],
+  //             foregroundColor: Colors.white,
+  //             padding: EdgeInsets.symmetric(vertical: 10, horizontal: 24),
+  //             shape: RoundedRectangleBorder(
+  //               borderRadius: BorderRadius.circular(16),
+  //             ),
+  //             elevation: 8,
+  //             shadowColor: Colors.teal.withOpacity(0.3),
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 }

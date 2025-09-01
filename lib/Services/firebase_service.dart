@@ -182,11 +182,13 @@ class FirebaseService {
         var lname = doc.get('Lname');
         var experience = doc.get('Experience');
         var userPic = doc.get('User Pic');
+        var designation = doc.get('Designation');
         doctors.add({
           'userId': userId,
           'name': lname is String ? 'Dr. $lname' : 'Dr. Unknown',
           'experience': experience != null ? '$experience Yrs' : '0 Yrs',
           'userPic': userPic is String ? userPic : '',
+          'designation': designation is String ? designation : 'N/A',
         });
       }
 
@@ -238,6 +240,7 @@ class FirebaseService {
           'departmentId': _safeString(data['Department ID'], ''),
           'hospitalId': _safeString(data['Hospital ID'], ''),
           'Status': _safeString(data['Status'], 'false'),
+          'Designation': _safeString(data['Designation'], 'N/A'),
         };
 
         // Cache the result

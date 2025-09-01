@@ -112,6 +112,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> with Tick
           fetchedTimetable.putIfAbsent(day, () => []).add({
             "service": data['Service Name'],
             "time": data['Time'],
+            "description": data['Description'] ?? 'No description available',
             "icon": _getServiceIcon(data['Service Name']),
             "page": _getServicePage(data['Service Name']),
           });
@@ -229,12 +230,33 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> with Tick
     Navigator.push(context, MaterialPageRoute(builder: (context) => serviceData['page']()));
   }
 
-  void _showServiceTime(String service, String time) {
+  void _showServiceTime(String service, String time, String description) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: Text(service, style: TextStyle(fontStyle: FontStyle.italic, color: Colors.teal)),
-        content: Text("Available Time: $time"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Available Time / Quantity: $time",
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              "$description",
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: Colors.grey[700],
+              ),
+            ),
+          ],
+        ),
         actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text("OK"))],
       ),
     );
@@ -417,6 +439,7 @@ class _HospitalServiceScreenState extends State<HospitalServiceScreen> with Tick
                                             onPressed: () => _showServiceTime(
                                               serviceData['service'],
                                               serviceData['time'],
+                                              serviceData['description'],
                                             ),
                                           ),
                                         ],

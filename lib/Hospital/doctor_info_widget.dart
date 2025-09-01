@@ -157,9 +157,9 @@ class DoctorInfoWidget extends StatelessWidget {
         ),
         _buildInfoBox(
           Icons.work,
-          'Experience',
-          "${doctorDetails['experience']} years",
-          onTap: () => _showInfoDialog(context, 'Experience', "${doctorDetails['experience']} years"),
+          'Designation',
+          doctorDetails['Designation'] ?? 'N/A',
+          onTap: () => _showInfoDialog(context, 'Designation', doctorDetails['Designation'] ?? 'N/A'),
         ),
       ],
     );

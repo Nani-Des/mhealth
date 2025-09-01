@@ -9,15 +9,24 @@
     <key>NSCameraUsageDescription</key>
     <string>Allow camera access to take photos or videos.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>Allow location access to provide location-based features.</string>
+    <string>NHAP uses your location to connect you with nearby health workers.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-    <string>Allow location access to provide location-based features.</string>
+    <string>NHAP uses your location to connect you with nearby health workers.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow microphone access to record audio.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>This app allows you to select photos for uploading to your profile or sharing content.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>This app uses speech recognition to transcribe voice input for hands-free operation or note-taking.</string>
     <key>UIBackgroundModes</key>
     <array>
         <string>remote-notification</string>
     </array>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsArbitraryLoads</key>
+        <true/>
+    </dict>
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>

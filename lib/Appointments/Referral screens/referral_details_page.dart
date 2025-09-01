@@ -4,6 +4,7 @@ import '../../Hospital/doctor_profile.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 
 class ReferralDetailsPage extends StatefulWidget {
   final String? hospitalId;
@@ -21,13 +22,16 @@ class ReferralDetailsPage extends StatefulWidget {
   _ReferralDetailsPageState createState() => _ReferralDetailsPageState();
 }
 
-class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTickerProviderStateMixin {
+class _ReferralDetailsPageState extends State<ReferralDetailsPage>
+    with SingleTickerProviderStateMixin {
   final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _referralKeyController = TextEditingController();
   String _searchQuery = '';
   List<Map<String, dynamic>> _allReferrals = [];
   List<Map<String, dynamic>> _filteredReferrals = [];
   late AnimationController _animationController;
   late Animation<double> _progressAnimation;
+  final Map<String, bool> _hasValidReferralKey = {};
 
   @override
   void initState() {
@@ -37,14 +41,17 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
       vsync: this,
       duration: Duration(seconds: 2),
     )..repeat();
-    _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_animationController);
-    print('ReferralDetailsPage initialized with: hospitalId=${widget.hospitalId}, userId=${widget.userId}');
+    _progressAnimation =
+        Tween<double>(begin: 0, end: 1).animate(_animationController);
+    print(
+        'ReferralDetailsPage initialized with: hospitalId=${widget.hospitalId}, userId=${widget.userId}');
   }
 
   @override
   void dispose() {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _referralKeyController.dispose();
     _animationController.dispose();
     super.dispose();
   }
@@ -84,17 +91,22 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
   }
 
   Future<Map<String, dynamic>> _fetchReferrerDetails(String userId) async {
-    DocumentSnapshot userDoc = await FirebaseFirestore.instance.collection('Users').doc(userId).get();
+    DocumentSnapshot userDoc = await FirebaseFirestore.instance
+        .collection('Users')
+        .doc(userId)
+        .get();
     if (userDoc.exists) {
       var data = userDoc.data() as Map<String, dynamic>;
-      Map<String, dynamic> hospitalData = await _fetchHospitalDetails(data['Hospital ID']);
+      Map<String, dynamic> hospitalData =
+      await _fetchHospitalDetails(data['Hospital ID']);
       String departmentName = await _fetchDepartmentName(data['Department ID']);
       return {
         'UserId': userId,
         'Title': data['Title'] ?? 'N/A',
         'Fname': data['Fname'] ?? '',
         'Lname': data['Lname'] ?? '',
-        'ReferrerName': '${data['Title'] ?? ''} ${data['Fname'] ?? ''} ${data['Lname'] ?? ''}',
+        'ReferrerName':
+        '${data['Title'] ?? ''} ${data['Fname'] ?? ''} ${data['Lname'] ?? ''}',
         'Email': data['Email'] ?? 'N/A',
         'Mobile Number': data['Mobile Number'] ?? 'N/A',
         'User Pic': data['User Pic'] ?? '',
@@ -107,7 +119,10 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
   }
 
   Future<Map<String, dynamic>> _fetchHospitalDetails(String hospitalId) async {
-    DocumentSnapshot hospitalDoc = await FirebaseFirestore.instance.collection('Hospital').doc(hospitalId).get();
+    DocumentSnapshot hospitalDoc = await FirebaseFirestore.instance
+        .collection('Hospital')
+        .doc(hospitalId)
+        .get();
     if (hospitalDoc.exists) {
       var data = hospitalDoc.data() as Map<String, dynamic>;
       return {
@@ -119,11 +134,213 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
   }
 
   Future<String> _fetchDepartmentName(String departmentId) async {
-    DocumentSnapshot departmentDoc = await FirebaseFirestore.instance.collection('Department').doc(departmentId).get();
+    DocumentSnapshot departmentDoc = await FirebaseFirestore.instance
+        .collection('Department')
+        .doc(departmentId)
+        .get();
     return departmentDoc.exists ? departmentDoc['Department Name'] : 'N/A';
   }
 
-  Future<pw.Document> _generateReferralPdf(Map<String, dynamic> data, Map<String, dynamic> refData) async {
+  Future<bool> _validateReferralKey(
+      String hospitalId, String referralKey, String referralId) async {
+    DocumentSnapshot adminDoc = await FirebaseFirestore.instance
+        .collection('admins')
+        .doc(hospitalId)
+        .get();
+    if (adminDoc.exists) {
+      var data = adminDoc.data() as Map<String, dynamic>;
+      bool isValid = data['Referral Key'] == referralKey;
+      if (isValid) {
+        _hasValidReferralKey[referralId] = true;
+      }
+      return isValid;
+    }
+    return false;
+  }
+
+  Future<void> _acceptReferral(String referralId, String? attachmentUrl) async {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Enter Referral Key'),
+          content: TextField(
+            controller: _referralKeyController,
+            decoration: InputDecoration(
+              hintText: 'Referral Key',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                bool isValidKey = await _validateReferralKey(
+                    widget.hospitalId!, _referralKeyController.text, referralId);
+                if (!isValidKey) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Invalid Referral Key')),
+                  );
+                  return;
+                }
+
+                try {
+                  await FirebaseFirestore.instance
+                      .collection('Hospital')
+                      .doc(widget.hospitalId)
+                      .collection('Referrals')
+                      .doc(referralId)
+                      .update({
+                    'Status': 'Accepted',
+                    'AcceptedAt': FieldValue.serverTimestamp(),
+                  });
+
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Referral accepted successfully.'),
+                    ),
+                  );
+                  _referralKeyController.clear();
+                  setState(() {});
+                } catch (e) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error accepting referral: $e')),
+                  );
+                }
+              },
+              child: Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<bool> _promptForReferralKey(String hospitalId, String referralId) async {
+    bool? result = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Enter Referral Key'),
+          content: TextField(
+            controller: _referralKeyController,
+            decoration: InputDecoration(
+              hintText: 'Referral Key',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                bool isValidKey = await _validateReferralKey(
+                    hospitalId, _referralKeyController.text, referralId);
+                Navigator.pop(context, isValidKey);
+              },
+              child: Text('Submit'),
+            ),
+          ],
+        );
+      },
+    );
+    _referralKeyController.clear();
+    return result ?? false;
+  }
+
+  void _viewAttachments(String? url, String referralId) {
+    if (url == null ||
+        url.isEmpty ||
+        url.trim() == 'No file Uploaded' ||
+        !Uri.tryParse(url)!.hasScheme) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No attachments available')),
+      );
+      return;
+    }
+    _promptForReferralKey(widget.hospitalId!, referralId).then((isValid) {
+      if (isValid) {
+        final fileExtension = url.split('.').last.toLowerCase();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AttachmentsViewer(
+              url: url,
+              isImage: ['jpg', 'jpeg', 'png', 'gif'].contains(fileExtension),
+              referralId: referralId,
+              onExit: () {
+                setState(() {
+                  _hasValidReferralKey[referralId] = false;
+                });
+              },
+            ),
+          ),
+        ).then((_) {
+          setState(() {
+            _hasValidReferralKey[referralId] = false;
+          });
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invalid Referral Key')),
+        );
+      }
+    });
+  }
+
+  Future<void> _downloadAttachments(String? url, String referralId) async {
+    if (url == null ||
+        url.isEmpty ||
+        url.trim() == 'No file Uploaded' ||
+        !Uri.tryParse(url)!.hasScheme) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('No attachments available')),
+      );
+      return;
+    }
+    try {
+      bool isValid = await _promptForReferralKey(widget.hospitalId!, referralId);
+      if (isValid) {
+        final fileExtension = url.split('.').last.toLowerCase();
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => AttachmentsViewer(
+              url: url,
+              isImage: ['jpg', 'jpeg', 'png', 'gif'].contains(fileExtension),
+              referralId: referralId,
+              onExit: () {
+                setState(() {
+                  _hasValidReferralKey[referralId] = false;
+                });
+              },
+            ),
+          ),
+        ).then((_) {
+          setState(() {
+            _hasValidReferralKey[referralId] = false;
+          });
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Invalid Referral Key')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error viewing attachments: $e')),
+      );
+    }
+  }
+
+  Future<pw.Document> _generateReferralPdf(
+      Map<String, dynamic> data, Map<String, dynamic> refData) async {
     final pdf = pw.Document();
     pdf.addPage(
       pw.Page(
@@ -147,7 +364,8 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
               ),
             ),
             pw.SizedBox(height: 20),
-            pw.Text("Patient Information", style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Patient Information",
+                style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
             pw.SizedBox(height: 10),
             _buildPdfRow("Patient Name", data['Name'] ?? 'N/A'),
@@ -156,7 +374,8 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
             _buildPdfRow("Date of Birth", data['DateOfBirth'] ?? 'N/A'),
             _buildPdfRow("Age", data['Age'] ?? 'N/A'),
             pw.SizedBox(height: 20),
-            pw.Text("Clinical Information", style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Clinical Information",
+                style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
             pw.SizedBox(height: 10),
             _buildPdfRow("Diagnosis", data['Diagnosis'] ?? 'N/A'),
@@ -164,19 +383,26 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
             _buildPdfRow("Examination Findings", data['ExaminationFindings'] ?? 'N/A'),
             _buildPdfRow("Treatment Administered", data['TreatmentAdministered'] ?? 'N/A'),
             pw.SizedBox(height: 20),
-            pw.Text("Referral Details", style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
+            pw.Text("Referral Details",
+                style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold)),
             pw.Divider(),
             pw.SizedBox(height: 10),
-            _buildPdfRow("Selected Health Facility", data['SelectedHealthFacility'] ?? 'N/A'),
-            _buildPdfRow("Referred By", '${refData['Title'] ?? ''} ${refData['Fname'] ?? ''} ${refData['Lname'] ?? ''}'),
+            _buildPdfRow("Selected Health Facility",
+                data['SelectedHealthFacility'] ?? 'N/A'),
+            _buildPdfRow("Referred By",
+                '${refData['Title'] ?? ''} ${refData['Fname'] ?? ''} ${refData['Lname'] ?? ''}'),
             _buildPdfRow("Hospital", refData['HospitalName'] ?? 'N/A'),
             _buildPdfRow("Department", refData['DepartmentName'] ?? 'N/A'),
+            _buildPdfRow("Status", data['Status'] ?? 'Pending'),
+            _buildPdfRow("Attachments",
+                data['UploadedAttachments']?.isNotEmpty ?? false ? 'Available' : 'None'),
             pw.SizedBox(height: 20),
             pw.Spacer(),
             pw.Divider(),
             pw.Text(
               "Generated on: ${DateTime.now().toString().split('.')[0]}",
-              style: pw.TextStyle(fontSize: 12, fontStyle: pw.FontStyle.italic, color: PdfColors.grey),
+              style: pw.TextStyle(
+                  fontSize: 12, fontStyle: pw.FontStyle.italic, color: PdfColors.grey),
             ),
           ],
         ),
@@ -350,7 +576,8 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
                   }
 
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    print('No referrals found for ${widget.hospitalId != null ? 'hospitalId: ${widget.hospitalId}' : 'userId: ${widget.userId}'}');
+                    print(
+                        'No referrals found for ${widget.hospitalId != null ? 'hospitalId: ${widget.hospitalId}' : 'userId: ${widget.userId}'}');
                     return Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -383,6 +610,10 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
                       'ExaminationFindings': data['Examination Findings'] ?? '',
                       'TreatmentAdministered': data['Treatment Administered'] ?? '',
                       'ReferredBy': data['Referred By'] ?? '',
+                      'Status': data['Status'] ?? 'Pending',
+                      'ReferralId': doc.id,
+                      'UploadedAttachments': data['Uploaded Medical Records'] ?? '',
+                      'ReferralKey': data['Referral Key'] ?? '',
                     });
                   }
                   _filterReferrals();
@@ -407,7 +638,8 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
                           if (refSnapshot.connectionState == ConnectionState.waiting) {
                             return Card(
                               elevation: 2,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
                               child: Padding(
                                 padding: EdgeInsets.all(16),
                                 child: Center(child: _buildSophisticatedProgressIndicator()),
@@ -432,7 +664,12 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
     );
   }
 
-  Widget _buildReferralCard(BuildContext context, Map<String, dynamic> data, Map<String, dynamic> refData) {
+  Widget _buildReferralCard(
+      BuildContext context, Map<String, dynamic> data, Map<String, dynamic> refData) {
+    final bool hasValidAttachment = data['UploadedAttachments']?.isNotEmpty ?? false &&
+        data['UploadedAttachments'] != 'No file Uploaded' &&
+        Uri.tryParse(data['UploadedAttachments'])?.hasScheme == true;
+
     return Card(
       elevation: 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -453,12 +690,24 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
                     children: [
                       Text(
                         "Patient: ${data['Name']}",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal),
+                        style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.teal),
                       ),
                       SizedBox(height: 4),
                       Text(
                         "Referral: ${data['SerialNumber']}",
                         style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        "Status: ${data['Status']}",
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: data['Status'] == 'Accepted'
+                                ? Colors.green
+                                : Colors.orange),
                       ),
                     ],
                   ),
@@ -490,6 +739,38 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
                         );
                       },
                     ),
+                    if (hasValidAttachment)
+                      ElevatedButton.icon(
+                        icon: Icon(Icons.attach_file, color: Colors.white),
+                        label: Text('Attachment', style: TextStyle(color: Colors.white)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        onPressed: () async {
+                          await _downloadAttachments(
+                              data['UploadedAttachments'], data['ReferralId']);
+                        },
+                      ),
+                    if (widget.hospitalId != null && data['Status'] != 'Accepted')
+                      ElevatedButton(
+                        onPressed: () async {
+                          await _acceptReferral(
+                              data['ReferralId'], data['UploadedAttachments']);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Text(
+                          'Accept',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ),
                   ],
                 ),
               ],
@@ -503,16 +784,20 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
             SizedBox(height: 16),
             _buildExpansionTile("Diagnosis", data['Diagnosis'] ?? 'N/A'),
             _buildExpansionTile("Reason for Referral", data['ReasonForReferral'] ?? 'N/A'),
-            _buildExpansionTile("Examination Findings", data['ExaminationFindings'] ?? 'N/A'),
-            _buildExpansionTile("Treatment Administered", data['TreatmentAdministered'] ?? 'N/A'),
+            _buildExpansionTile(
+                "Examination Findings", data['ExaminationFindings'] ?? 'N/A'),
+            _buildExpansionTile(
+                "Treatment Administered", data['TreatmentAdministered'] ?? 'N/A'),
             SizedBox(height: 16),
             _buildSectionTitle("Selected Facility"),
-            Text(data['SelectedHealthFacility'] ?? 'N/A', style: TextStyle(color: Colors.grey[700], fontSize: 16)),
+            Text(data['SelectedHealthFacility'] ?? 'N/A',
+                style: TextStyle(color: Colors.grey[700], fontSize: 16)),
             SizedBox(height: 16),
             _buildSectionTitle("Referred By"),
             Text(
               "${refData['Title']} ${refData['Fname']} ${refData['Lname']}",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[800]),
             ),
             SizedBox(height: 4),
             Text(
@@ -543,7 +828,8 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
         child: Image.network(
           logoUrl,
           fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => Icon(Icons.local_hospital, size: 30, color: Colors.teal),
+          errorBuilder: (context, error, stackTrace) =>
+              Icon(Icons.local_hospital, size: 30, color: Colors.teal),
         ),
       )
           : Icon(Icons.local_hospital, size: 30, color: Colors.teal),
@@ -561,7 +847,8 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
           fit: BoxFit.cover,
           width: 50,
           height: 50,
-          errorBuilder: (context, error, stackTrace) => Icon(Icons.person, size: 30, color: Colors.teal),
+          errorBuilder: (context, error, stackTrace) =>
+              Icon(Icons.person, size: 30, color: Colors.teal),
         ),
       )
           : Icon(Icons.person, size: 30, color: Colors.teal),
@@ -586,7 +873,8 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
         children: [
           Text(
             "$label: ",
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+            style: TextStyle(
+                fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[800]),
           ),
           Expanded(
             child: Text(
@@ -603,7 +891,8 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
     return ExpansionTile(
       title: Text(
         title,
-        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+        style: TextStyle(
+            fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[800]),
       ),
       collapsedBackgroundColor: Colors.grey[50],
       backgroundColor: Colors.white,
@@ -615,6 +904,80 @@ class _ReferralDetailsPageState extends State<ReferralDetailsPage> with SingleTi
           style: TextStyle(fontSize: 14, color: Colors.grey[700]),
         ),
       ],
+    );
+  }
+}
+
+class AttachmentsViewer extends StatefulWidget {
+  final String url;
+  final bool isImage;
+  final String? referralId;
+  final VoidCallback onExit;
+
+  const AttachmentsViewer({
+    Key? key,
+    required this.url,
+    required this.isImage,
+    this.referralId,
+    required this.onExit,
+  }) : super(key: key);
+
+  @override
+  _AttachmentsViewerState createState() => _AttachmentsViewerState();
+}
+
+class _AttachmentsViewerState extends State<AttachmentsViewer> {
+  late WebViewController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    if (!widget.isImage) {
+      _controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setBackgroundColor(const Color(0x00000000))
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onWebResourceError: (error) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error loading attachment: ${error.description}')),
+              );
+            },
+          ),
+        )
+        ..loadRequest(Uri.parse(widget.url));
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.onExit();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Attachments'),
+        backgroundColor: Colors.teal,
+      ),
+      body: widget.isImage
+          ? Center(
+        child: Image.network(
+          widget.url,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) => Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error, color: Colors.red, size: 48),
+              SizedBox(height: 16),
+              Text('Error loading image'),
+            ],
+          ),
+        ),
+      )
+          : WebViewWidget(controller: _controller),
     );
   }
 }

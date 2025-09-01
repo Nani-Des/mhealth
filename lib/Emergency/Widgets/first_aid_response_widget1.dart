@@ -5,16 +5,18 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:dio/dio.dart';
-
+import 'package:url_launcher/url_launcher.dart';
 import '../../Services/config_service.dart';
 
 class FirstAidResponseWidget extends StatefulWidget {
   final String responseText;
+  final List<String> citations;
   final VoidCallback onClose;
 
   const FirstAidResponseWidget({
     Key? key,
     required this.responseText,
+    required this.citations,
     required this.onClose,
   }) : super(key: key);
 
@@ -24,7 +26,7 @@ class FirstAidResponseWidget extends StatefulWidget {
 
 class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with SingleTickerProviderStateMixin {
   String displayText = "";
-  String selectedLanguage = "en"; // Default to English
+  String selectedLanguage = "en";
   bool isLoading = false;
   bool isSpeaking = false;
   bool isInitializing = true;
@@ -43,8 +45,8 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
     "English": "en"
   };
 
-  static const int maxTtsChars = 590; // Reduced to avoid tensor errors
-  static const int maxRetries = 2; // Retry attempts for TTS API
+  static const int maxTtsChars = 590;
+  static const int maxRetries = 2;
 
   @override
   void initState() {
@@ -54,19 +56,17 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
     _cancelToken = CancelToken();
     displayText = widget.responseText;
 
-    // Initialize ConfigService
     ConfigService().init().then((_) {
       print("ConfigService initialized in FirstAidResponseWidget");
     }).catchError((e) {
       print("ConfigService initialization failed: $e");
     });
 
-    // Initialize TTS with strict cleanup
     _initializeTts();
     audioPlayer.stop();
     audioPlayer.pause();
 
-    print("initState: TTS stopped, isSpeaking = $isSpeaking, isInitializing = $isInitializing"); // Debug log
+    print("initState: TTS stopped, isSpeaking = $isSpeaking, isInitializing = $isInitializing");
 
     _progressAnimationController = AnimationController(
       vsync: this,
@@ -74,41 +74,39 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
     )..repeat();
     _progressAnimation = Tween<double>(begin: 0, end: 1).animate(_progressAnimationController);
 
-    // Mark initialization complete after delay
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await Future.delayed(Duration(milliseconds: 500));
       if (mounted) {
         setState(() => isInitializing = false);
-        print("initState: Initialization complete, isInitializing = $isInitializing"); // Debug log
+        print("initState: Initialization complete, isInitializing = $isInitializing");
       }
     });
   }
 
   Future<void> _initializeTts() async {
     await flutterTts.stop();
-    await flutterTts.setQueueMode(0); // Clear queued speech
-    await flutterTts.setSilence(1); // Force silence
+    await flutterTts.setQueueMode(0);
+    await flutterTts.setSilence(1);
     await flutterTts.setLanguage("en-US");
     await flutterTts.setSpeechRate(0.5);
     await flutterTts.setPitch(1.0);
     flutterTts.setCompletionHandler(() {
       if (isSpeaking && mounted) {
         setState(() => isSpeaking = false);
-        print("FlutterTts completed, isSpeaking = $isSpeaking"); // Debug log
+        print("FlutterTts completed, isSpeaking = $isSpeaking");
       }
     });
     flutterTts.setErrorHandler((msg) {
       if (mounted) {
         setState(() => isSpeaking = false);
-        print("FlutterTts error: $msg"); // Debug log
+        print("FlutterTts error: $msg");
       }
     });
   }
 
   String _sanitizeTextForTranslation(String text) {
-    // Preserve markdown-like structures
     return text
-        .replaceAll("\n", "\n") // Keep newlines intact
+        .replaceAll("\n", "\n")
         .replaceAllMapped(RegExp(r'^(#{1,3})\s*(.*)', multiLine: true), (match) => '${match.group(1)} ${match.group(2)}')
         .replaceAllMapped(RegExp(r'^\d+\.\s*(.*)', multiLine: true), (match) => '${match.group(0)}')
         .replaceAllMapped(RegExp(r'^- (.*)', multiLine: true), (match) => '- ${match.group(1)}')
@@ -117,7 +115,6 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
   }
 
   String _sanitizeTextForSpeech(String text) {
-    // Allow all Unicode letters and spaces for Twi, Ewe, Ga
     return text
         .replaceAll(RegExp(r'[^\p{L}\s]', unicode: true), '')
         .replaceAll(RegExp(r'\s+'), ' ')
@@ -140,7 +137,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
       return;
     }
 
-    String? apiKey = ConfigService().googleTranslateApiKey; // Updated to use ConfigService
+    String? apiKey = ConfigService().googleTranslateApiKey;
     if (apiKey == null || apiKey.isEmpty) {
       if (mounted) {
         setState(() {
@@ -155,7 +152,6 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
       setState(() => isLoading = true);
     }
 
-    // Stop any ongoing speech before translation
     if (isSpeaking) {
       if (selectedLanguage == "en") {
         await flutterTts.stop();
@@ -164,7 +160,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
       }
       if (mounted) {
         setState(() => isSpeaking = false);
-        print("translateText: Stopped ongoing speech"); // Debug log
+        print("translateText: Stopped ongoing speech");
       }
     }
 
@@ -216,40 +212,35 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
 
   Future<void> _toggleSpeech() async {
     if (isInitializing) {
-      print("toggleSpeech: Blocked during initialization"); // Debug log
+      print("toggleSpeech: Blocked during initialization");
       return;
     }
 
-    // Log stack trace to trace caller
-    print("toggleSpeech called, isSpeaking = $isSpeaking, language = $selectedLanguage"); // Debug log
-    print("Stack trace: ${StackTrace.current}"); // Debug log
+    print("toggleSpeech called, isSpeaking = $isSpeaking, language = $selectedLanguage");
+    print("Stack trace: ${StackTrace.current}");
 
-    // Update isSpeaking immediately on tap
     if (mounted) {
       setState(() => isSpeaking = !isSpeaking);
-      print("toggleSpeech: Toggled isSpeaking to $isSpeaking"); // Debug log
+      print("toggleSpeech: Toggled isSpeaking to $isSpeaking");
     }
 
     if (!isSpeaking) {
-      // Stop speech
       if (selectedLanguage == "en") {
         await flutterTts.stop();
       } else {
         await audioPlayer.stop();
       }
-      print("toggleSpeech: Stopped speech"); // Debug log
+      print("toggleSpeech: Stopped speech");
     } else {
-      // Start speech
       String textToSpeak = selectedLanguage == "en" ? widget.responseText : displayText;
       textToSpeak = _sanitizeTextForSpeech(textToSpeak);
-      // Truncate for Ghana NLP TTS
       textToSpeak = _truncateText(textToSpeak, maxTtsChars);
-      print("Sanitized text for speech: $textToSpeak"); // Log sanitized text
-      print("Text length: ${textToSpeak.length} characters"); // Log character count
+      print("Sanitized text for speech: $textToSpeak");
+      print("Text length: ${textToSpeak.length} characters");
       if (textToSpeak.isEmpty) {
-        print("toggleSpeech: Empty text to speak"); // Debug log
+        print("toggleSpeech: Empty text to speak");
         if (mounted) {
-          setState(() => isSpeaking = false); // Revert icon
+          setState(() => isSpeaking = false);
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text("No text to speak")),
           );
@@ -257,14 +248,12 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
         return;
       }
 
-      // Reset TTS state
       if (selectedLanguage == "en") {
         await flutterTts.stop();
       } else {
         await audioPlayer.stop();
       }
 
-      // Show loading indicator for TTS
       if (mounted) {
         setState(() => isLoading = true);
       }
@@ -277,20 +266,20 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
         try {
           int result = await flutterTts.speak(textToSpeak);
           if (result != 1) {
-            print("toggleSpeech: Failed to start English TTS"); // Debug log
+            print("toggleSpeech: Failed to start English TTS");
             if (mounted) {
-              setState(() => isSpeaking = false); // Revert icon
+              setState(() => isSpeaking = false);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text("Failed to start English speech")),
               );
             }
           } else {
-            print("toggleSpeech: Started English TTS"); // Debug log
+            print("toggleSpeech: Started English TTS");
           }
         } catch (e) {
-          print("toggleSpeech: English TTS error - $e"); // Debug log
+          print("toggleSpeech: English TTS error - $e");
           if (mounted) {
-            setState(() => isSpeaking = false); // Revert icon
+            setState(() => isSpeaking = false);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text("English speech error: $e")),
             );
@@ -301,11 +290,11 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
           }
         }
       } else {
-        String? ghanaNlpApiKey = ConfigService().ghanaNlpApiKey; // Updated to use ConfigService
+        String? ghanaNlpApiKey = ConfigService().ghanaNlpApiKey;
         if (ghanaNlpApiKey == null || ghanaNlpApiKey.isEmpty) {
-          print("toggleSpeech: Missing Ghana NLP API key"); // Debug log
+          print("toggleSpeech: Missing Ghana NLP API key");
           if (mounted) {
-            setState(() => isSpeaking = false); // Revert icon
+            setState(() => isSpeaking = false);
             setState(() => isLoading = false);
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text("Missing Ghana NLP API key")),
@@ -333,7 +322,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
 
         while (attempt < maxRetries && !success && !_cancelToken!.isCancelled) {
           attempt++;
-          print("toggleSpeech: Attempt $attempt of $maxRetries for Ghana NLP TTS"); // Debug log
+          print("toggleSpeech: Attempt $attempt of $maxRetries for Ghana NLP TTS");
           try {
             final response = await http.post(
               url,
@@ -349,17 +338,17 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
               }),
             );
 
-            print("Ghana NLP TTS response headers: ${response.headers}"); // Log headers
-            print("Ghana NLP TTS response body: ${response.body}"); // Log body
+            print("Ghana NLP TTS response headers: ${response.headers}");
+            print("Ghana NLP TTS response body: ${response.body}");
 
             if (response.statusCode == 200) {
               final contentType = response.headers['content-type'] ?? '';
               if (contentType.contains('application/json')) {
                 final jsonResponse = jsonDecode(response.body);
-                print("Ghana NLP TTS JSON response: $jsonResponse"); // Debug log
+                print("Ghana NLP TTS JSON response: $jsonResponse");
                 error = jsonResponse['message'] ?? 'Unknown error';
                 if (attempt == maxRetries && mounted) {
-                  setState(() => isSpeaking = false); // Revert icon
+                  setState(() => isSpeaking = false);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text("TTS error: $error")),
                   );
@@ -373,43 +362,43 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
                     ),
                   );
                   await audioPlayer.play();
-                  print("toggleSpeech: Started Ghana NLP TTS"); // Debug log
+                  print("toggleSpeech: Started Ghana NLP TTS");
                   success = true;
                 } catch (e) {
-                  print("toggleSpeech: Audio playback error - $e"); // Debug log
+                  print("toggleSpeech: Audio playback error - $e");
                   error = e;
                   if (attempt == maxRetries && mounted) {
-                    setState(() => isSpeaking = false); // Revert icon
+                    setState(() => isSpeaking = false);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(content: Text("Audio playback error: $e")),
                     );
                   }
                 }
               } else {
-                print("toggleSpeech: Unexpected content-type: $contentType"); // Debug log
+                print("toggleSpeech: Unexpected content-type: $contentType");
                 error = 'Unexpected response format';
                 if (attempt == maxRetries && mounted) {
-                  setState(() => isSpeaking = false); // Revert icon
+                  setState(() => isSpeaking = false);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text("Unexpected response format")),
                   );
                 }
               }
             } else {
-              print("toggleSpeech: Ghana NLP TTS failed - ${response.statusCode}, ${response.body}"); // Debug log
+              print("toggleSpeech: Ghana NLP TTS failed - ${response.statusCode}, ${response.body}");
               error = 'TTS failed: ${response.statusCode}';
               if (attempt == maxRetries && mounted) {
-                setState(() => isSpeaking = false); // Revert icon
+                setState(() => isSpeaking = false);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text("TTS failed: ${response.statusCode}")),
                 );
               }
             }
           } catch (e) {
-            print("toggleSpeech: Ghana NLP TTS error - $e"); // Debug log
+            print("toggleSpeech: Ghana NLP TTS error - $e");
             error = e;
             if (attempt == maxRetries && mounted) {
-              setState(() => isSpeaking = false); // Revert icon
+              setState(() => isSpeaking = false);
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text("TTS error: $e")),
               );
@@ -432,7 +421,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
     audioPlayer.dispose();
     _cancelToken?.cancel();
     super.dispose();
-    print("dispose: TTS stopped, audioPlayer disposed, HTTP requests cancelled"); // Debug log
+    print("dispose: TTS stopped, audioPlayer disposed, HTTP requests cancelled");
   }
 
   Widget _buildSophisticatedProgressIndicator() {
@@ -538,9 +527,9 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
           Row(
             children: [
               _buildLanguageDropdown(),
-              const SizedBox(width: 2),
+              const SizedBox(width: 8),
               _buildActionButton(isSpeaking ? Icons.record_voice_over : Icons.volume_off, _toggleSpeech),
-              const SizedBox(width: 2),
+              const SizedBox(width: 8),
               _buildActionButton(Icons.close, widget.onClose),
             ],
           ),
@@ -565,7 +554,7 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
         items: languageMap.entries.map((entry) {
           return DropdownMenuItem<String>(
             value: entry.value,
-            child: Text(entry.key, style: TextStyle(fontSize: 10)),
+            child: Text(entry.key, style: TextStyle(fontSize: 12)),
           );
         }).toList(),
         onChanged: (value) async {
@@ -573,14 +562,12 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
             if (mounted) {
               setState(() {
                 selectedLanguage = value;
-                // Reset displayText to English if switching to en
                 if (value == "en") {
                   displayText = widget.responseText;
                   isTranslated = false;
                 }
               });
-              print("Language changed to: $selectedLanguage"); // Debug log
-              // Stop any ongoing speech on language change
+              print("Language changed to: $selectedLanguage");
               if (isSpeaking) {
                 if (selectedLanguage == "en") {
                   await flutterTts.stop();
@@ -588,9 +575,8 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
                   await audioPlayer.stop();
                 }
                 setState(() => isSpeaking = false);
-                print("Language change: Stopped ongoing speech"); // Debug log
+                print("Language change: Stopped ongoing speech");
               }
-              // Trigger translation for non-English languages
               if (value != "en") {
                 await translateText();
               }
@@ -623,15 +609,60 @@ class _FirstAidResponseWidget1State extends State<FirstAidResponseWidget> with S
         borderRadius: BorderRadius.circular(12),
       ),
       child: SingleChildScrollView(
-        child: RichText(
-          text: TextSpan(
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black87,
-              height: 1.5,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RichText(
+              text: TextSpan(
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.black87,
+                  height: 1.5,
+                ),
+                children: _formatText(displayText),
+              ),
             ),
-            children: _formatText(displayText),
-          ),
+            if (widget.citations.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                "Sources:",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.redAccent,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...widget.citations.map((citation) {
+                final parts = citation.split(': ');
+                final title = parts[0];
+                final url = parts.length > 1 ? parts[1] : '';
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: InkWell(
+                    onTap: () async {
+                      final uri = Uri.parse(url);
+                      if (await canLaunchUrl(uri)) {
+                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text("Could not open $url")),
+                        );
+                      }
+                    },
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.blue,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ],
+          ],
         ),
       ),
     );
