@@ -43,7 +43,6 @@ class TranslationService {
     'gur': 'Gurune',
     'luo': 'Luo',
     'mer': 'Kimeru',
-    'kus': 'Kusaal',
   };
 
   static Future<String> translateText({

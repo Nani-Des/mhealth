@@ -225,6 +225,15 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
       _replyingToCommentId = commentId;
       _replyingToUserName = shortUserName;
     });
+
+    // Scroll to the bottom to show the reply input
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   void _cancelReply() {
@@ -463,6 +472,7 @@ class _ExpertPostDetailsPageState extends State<ExpertPostDetailsPage> with Sing
                                     if (_replyingToUserId != null) 'repliedTo': _replyingToUserId,
                                     if (_repliedContent != null) 'repliedContent': _repliedContent,
                                     if (_replyingToCommentId != null) 'repliedToCommentId': _replyingToCommentId,
+                                    if (_replyingToUserName != null) 'repliedToUsername': _replyingToUserName,
                                   };
 
                                   await FirebaseFirestore.instance
